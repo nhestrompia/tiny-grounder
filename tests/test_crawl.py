@@ -277,6 +277,27 @@ def test_search_url_prefers_search_input_and_drops_old_query():
     assert search_url([text_form], "e.com", "x") == "https://e.com/a?name=x"
 
 
+def test_search_url_skips_forms_with_non_string_action():
+    assert search_url([{**FORMS[0], "action": {"name": "action"}}], "e.com", "x") is None
+
+
+def test_forms_js_reads_attributes_when_inputs_shadow_form_properties():
+    from playwright.sync_api import sync_playwright
+
+    from grounder.data.crawl import FORMS_JS
+
+    html = ('<base href="https://e.com/"><form action="/find" method="get">'
+            '<input name="action" value="a"><input name="method" value="m"><input type="search" name="q"></form>')
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        forms = page.eval_on_selector_all("form", FORMS_JS)
+        browser.close()
+    assert forms[0]["action"] == "https://e.com/find" and forms[0]["method"] == "get"
+    assert search_url(forms, "e.com", "x") == "https://e.com/find?q=x"
+
+
 def robots_for(status: int, text: str = "") -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(status, text=text)))
 

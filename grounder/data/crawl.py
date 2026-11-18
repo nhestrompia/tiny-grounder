@@ -82,10 +82,13 @@ _BOOST_RE = re.compile(
 SEARCH_WORDS: tuple[str, ...] = ("shoes", "weather", "python", "news", "recipe", "music", "laptop", "travel")
 _SEARCH_NAMES = frozenset({"q", "query", "search", "s", "keyword", "keywords", "term", "text"})
 LINKS_JS = "els => els.map(e => [e.href, (e.innerText || e.getAttribute('aria-label') || '').trim()])"
+# Attributes, not properties: an input named "action" or "method" shadows form.action / form.method.
 FORMS_JS = """forms => forms.map(f => ({
-  action: f.action, method: f.method,
-  fields: [...f.elements].filter(e => e.name && !e.disabled).map(e => ({
-    name: e.name, type: (e.type || '').toLowerCase(), value: e.value, checked: !!e.checked}))}))"""
+  action: new URL(f.getAttribute('action') || '', document.baseURI).href,
+  method: f.getAttribute('method') || 'get',
+  fields: [...f.elements].filter(e => e.getAttribute('name') && !e.disabled).map(e => ({
+    name: e.getAttribute('name'), type: (e.getAttribute('type') || e.type || '').toLowerCase(),
+    value: String(e.value ?? ''), checked: !!e.checked}))}))"""
 _FILE_EXTENSIONS = frozenset(
     ".pdf .zip .gz .tar .tgz .rar .7z .exe .dmg .pkg .apk .iso .mp3 .mp4 .avi .mov .wav .jpg .jpeg .png "
     ".gif .svg .webp .ico .xml .json .csv .rss .doc .docx .xls .xlsx .ppt .pptx".split()
@@ -165,9 +168,11 @@ def search_url(forms: Iterable[dict], site: str, query: str) -> str | None:
     """
     best: tuple[tuple[bool, bool], str, list[tuple[str, str]]] | None = None
     for form in forms:
-        action = urldefrag(form.get("action", ""))[0]
-        fields = form.get("fields", [])
-        if form.get("method", "get").lower() != "get" or not is_crawlable_link(action, site):
+        action, method, fields = form.get("action"), form.get("method", "get"), form.get("fields", [])
+        if not isinstance(action, str) or not isinstance(method, str):
+            continue
+        action = urldefrag(action)[0]
+        if method.lower() != "get" or not is_crawlable_link(action, site):
             continue
         if any(f["type"] == "password" for f in fields):
             continue
