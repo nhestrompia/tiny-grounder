@@ -3,6 +3,8 @@
     cd grounder/extract/macos && swift build -c release
     uv run python -m grounder.extract.ax --app Finder
 
+For building a dataset by hand see docs/macos-collection.md (`tools/ax_collect.py`, which dumps `--frontmost`).
+
 `box` is normalised by the window frame ([x/w, y/h, w/w, h/h]); `abs_box` is in screen points; `viewport`
 and `doc_size` are the window size in points. The terminal needs the Accessibility permission.
 """
@@ -25,6 +27,10 @@ AXDUMP = Path(__file__).parent / "macos" / ".build" / "release" / "axdump"
 class AxdumpError(RuntimeError):
     """axdump failed; the message is its own explanation (missing permission, unknown app, ...)."""
 
+    def __init__(self, message: str, returncode: int | None = None) -> None:
+        super().__init__(message)
+        self.returncode = returncode  # axdump's exit code: 2 = no Accessibility permission, 3 = no app or window
+
 
 def page_from_dump(raw: dict[str, Any], page_id: str, site: str) -> Page:
     """Validate the JSON printed by axdump into a records.Page."""
@@ -35,20 +41,28 @@ def page_from_dump(raw: dict[str, Any], page_id: str, site: str) -> Page:
     )
 
 
+def run_axdump(target: list[str], binary: Path = AXDUMP, timeout: float = 30.0) -> dict[str, Any]:
+    """Run axdump with `target` arguments (`--app X`, `--pid N` or `--frontmost`) and return its JSON.
+
+    Besides the Page fields the JSON has `app` (the app's name) and `origin` (the window's top-left corner in screen points).
+    """
+    if not binary.exists():
+        raise AxdumpError(f"{binary} not found: run `swift build -c release` in {binary.parents[2]}")
+    proc = subprocess.run([str(binary), *target], capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise AxdumpError(proc.stderr.strip() or f"axdump exited with {proc.returncode}", proc.returncode)
+    return json.loads(proc.stdout)
+
+
 def dump_page(
     app: str | None = None, pid: int | None = None, binary: Path = AXDUMP, timeout: float = 30.0
 ) -> Page:
     """Dump the front window of an app (by name or pid)."""
     if (app is None) == (pid is None):
         raise ValueError("give exactly one of app or pid")
-    if not binary.exists():
-        raise AxdumpError(f"{binary} not found: run `swift build -c release` in {binary.parents[2]}")
     target = ["--app", app] if app is not None else ["--pid", str(pid)]
-    proc = subprocess.run([str(binary), *target], capture_output=True, text=True, timeout=timeout)
-    if proc.returncode != 0:
-        raise AxdumpError(proc.stderr.strip() or f"axdump exited with {proc.returncode}")
     site = app or f"pid-{pid}"
-    return page_from_dump(json.loads(proc.stdout), f"ax-{site}", site.lower())
+    return page_from_dump(run_axdump(target, binary, timeout), f"ax-{site}", site.lower())
 
 
 def main(argv: list[str] | None = None) -> int:

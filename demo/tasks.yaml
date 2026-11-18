@@ -1,0 +1,103 @@
+# Read-only navigation / search tasks on stable public sites. No logins, purchases or state-changing forms.
+# `check` is evaluated on the final page; every key must hold. Keys: url_contains, url_regex, text_contains
+# (page text, case-insensitive).
+- id: wiki-search-turing
+  start_url: https://en.wikipedia.org/wiki/Main_Page
+  goal: Use the search box to find the Wikipedia article on Alan Turing and open it.
+  check: {url_contains: /wiki/Alan_Turing}
+  max_steps: 8
+- id: wiki-current-events
+  start_url: https://en.wikipedia.org/wiki/Main_Page
+  goal: Open the Wikipedia portal that lists current events.
+  check: {url_contains: Portal:Current_events}
+  max_steps: 6
+- id: wiki-python-creator
+  start_url: https://en.wikipedia.org/wiki/Python_(programming_language)
+  goal: Open the Wikipedia article about the creator of the Python language.
+  check: {url_contains: Guido_van_Rossum}
+  max_steps: 6
+- id: wiki-moon-talk
+  start_url: https://en.wikipedia.org/wiki/Moon
+  goal: Open the Talk page (the discussion page) of this article.
+  check: {url_contains: Talk:Moon}
+  max_steps: 6
+- id: wiki-moon-history
+  start_url: https://en.wikipedia.org/wiki/Moon
+  goal: Open the revision history of this article.
+  check: {url_contains: action=history}
+  max_steps: 6
+- id: wiki-turing-machine
+  start_url: https://en.wikipedia.org/wiki/Alan_Turing
+  goal: Open the Wikipedia article about the Turing machine.
+  check: {url_contains: /wiki/Turing_machine, text_contains: mathematical model of computation}
+  max_steps: 8
+- id: pydocs-venv
+  start_url: https://docs.python.org/3/
+  goal: Find the documentation page of the venv module (creation of virtual environments) in the Python standard library.
+  check: {url_contains: library/venv.html}
+  max_steps: 8
+- id: pydocs-whatsnew
+  start_url: https://docs.python.org/3/
+  goal: Open the "What's New in Python" document for the latest release.
+  check: {url_regex: 'whatsnew/3\.\d+\.html'}
+  max_steps: 6
+- id: pyorg-windows
+  start_url: https://www.python.org/
+  goal: Go to the page with the Python releases for Windows.
+  check: {url_contains: /downloads/windows}
+  max_steps: 6
+- id: pep-zen
+  start_url: https://peps.python.org/pep-0000/
+  goal: Open PEP 20, "The Zen of Python".
+  check: {url_contains: pep-0020}
+  max_steps: 6
+- id: mdn-array-map
+  start_url: https://developer.mozilla.org/en-US/
+  goal: Find the reference page of the JavaScript Array.prototype.map() method.
+  check: {url_contains: Global_Objects/Array/map}
+  max_steps: 8
+- id: mdn-flexbox
+  start_url: https://developer.mozilla.org/en-US/docs/Web/CSS
+  goal: Open the documentation about CSS flexible box layout (flexbox).
+  check: {url_regex: '(?i)flexbox|flexible_box'}
+  max_steps: 8
+- id: github-cpython-issues
+  start_url: https://github.com/python/cpython
+  goal: Open the list of issues of this repository.
+  check: {url_contains: /python/cpython/issues}
+  max_steps: 6
+- id: github-flask-license
+  start_url: https://github.com/pallets/flask
+  goal: Open the license file of this repository.
+  check: {url_regex: pallets/flask/blob/.+/LICENSE}
+  max_steps: 6
+- id: github-requests-releases
+  start_url: https://github.com/psf/requests
+  goal: Open the releases page of this repository.
+  check: {url_contains: /psf/requests/releases}
+  max_steps: 6
+- id: arxiv-attention
+  start_url: https://arxiv.org/
+  goal: Search arXiv for the paper "Attention Is All You Need" and open its abstract page.
+  check: {url_contains: arxiv.org/abs/1706.03762}
+  max_steps: 8
+- id: arxiv-cs-list
+  start_url: https://arxiv.org/
+  goal: Open the list of Computer Science papers.
+  check: {url_contains: /list/cs}
+  max_steps: 6
+- id: osm-map-features
+  start_url: https://wiki.openstreetmap.org/wiki/Main_Page
+  goal: Open the wiki page "Map features".
+  check: {url_contains: Map_features}
+  max_steps: 8
+- id: gnu-gpl
+  start_url: https://www.gnu.org/
+  goal: Open the page of the GNU General Public License.
+  check: {url_contains: /licenses/gpl}
+  max_steps: 6
+- id: gnu-manuals
+  start_url: https://www.gnu.org/
+  goal: Open the page that lists the GNU manuals.
+  check: {url_contains: /manual/}
+  max_steps: 6

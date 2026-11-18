@@ -118,6 +118,13 @@ def format_query(mode: Mode, query: str, history: list[str] | None = None) -> st
     raise ValueError(f"unknown mode {mode!r}")
 
 
+def action_repr(el: Element, value: str | None = None) -> str:
+    """One goal-mode history entry, in Mind2Web's `action_reprs` format (the format goal mode is trained on):
+    `[tag]  text -> CLICK` or `[tag]  text -> TYPE: value`. The bracket holds the HTML tag, else the role."""
+    action = "CLICK" if value is None else f"TYPE: {value}"
+    return f"[{el.tag or el.role}]  {el.text} -> {action}"
+
+
 @dataclass
 class Example:
     """One training / evaluation example (one line of a JSONL file)."""

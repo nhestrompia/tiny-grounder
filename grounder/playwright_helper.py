@@ -142,7 +142,7 @@ def _screen(
     return element, ""
 
 
-def _verdict(probe: dict[str, Any], click_action: bool) -> str:
+def verdict(probe: dict[str, Any], click_action: bool) -> str:
     """Reason to refuse after the in-page probe, or '' when the action may go ahead."""
     if not probe["ok"]:
         return probe["reason"]
@@ -179,7 +179,7 @@ def _act(page, grounder: Grounder, instruction: str, threshold: float, roles: tu
     target = found.candidates[0]
     cx, cy = target["centre"]
     probe = page.evaluate(PROBE_JS, [cx, cy, element.tag])
-    if reason := _verdict(probe, click_action=text is None):
+    if reason := verdict(probe, click_action=text is None):
         return _outcome(False, reason, found, target)
     page.mouse.click(probe["x"], probe["y"])
     if text is not None:
@@ -224,7 +224,7 @@ async def _aact(
     target = found.candidates[0]
     cx, cy = target["centre"]
     probe = await page.evaluate(PROBE_JS, [cx, cy, element.tag])
-    if reason := _verdict(probe, click_action=text is None):
+    if reason := verdict(probe, click_action=text is None):
         return _outcome(False, reason, found, target)
     await page.mouse.click(probe["x"], probe["y"])
     if text is not None:

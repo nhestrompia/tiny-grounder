@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from grounder.data.pages import load_page, page_paths
-from grounder.records import Example, Page, equiv_ids
+from grounder.records import Element, Example, Page, equiv_ids
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 KIND = "hand"
@@ -62,23 +62,32 @@ def png_size(data: bytes) -> tuple[int, int]:
     return width, height
 
 
-def _box_html(page: Page, scale: float, img_w: int, img_h: int) -> Iterator[str]:
+def _fractions(page: Page, el: Element, img_w: int, img_h: int) -> list[float]:
+    """The element's [x, y, w, h] as fractions of the image."""
+    if page.url.startswith("ax://"):  # abs_box is in screen points, the screenshot is the window: use the window-relative box
+        return el.box
+    scale = img_w / page.doc_size[0]
+    x, y, w, h = (v * scale for v in el.abs_box)
+    return [x / img_w, y / img_h, w / img_w, h / img_h]
+
+
+def _box_html(page: Page, img_w: int, img_h: int) -> Iterator[str]:
     for el in page.elements:
-        x, y, w, h = (v * scale for v in el.abs_box)
+        x, y, w, h = (v * 100 for v in _fractions(page, el, img_w, img_h))
         title = html.escape(f"{el.id} {el.role}: {el.text} | {el.context}", quote=True)
-        yield (f'<div class="box" title="{title}" style="left:{x / img_w * 100:.3f}%;top:{y / img_h * 100:.3f}%;'
-               f'width:{w / img_w * 100:.3f}%;height:{h / img_h * 100:.3f}%"><b>{el.id}</b></div>')
+        yield (f'<div class="box" title="{title}" style="left:{x:.3f}%;top:{y:.3f}%;'
+               f'width:{w:.3f}%;height:{h:.3f}%"><b>{el.id}</b></div>')
 
 
 def render_page_html(page: Page, png: bytes) -> str:
     """Self-contained HTML: the screenshot with one numbered box per element, scaled to the image.
 
     Box positions are percentages of the image, derived from `abs_box` (document CSS pixels) times
-    image width / `doc_size` width, so they stay aligned at any display width.
+    image width / `doc_size` width, so they stay aligned at any display width. Pages from the macOS
+    extractor (`ax://`) use `box`, which is relative to the window the screenshot shows.
     """
     img_w, img_h = png_size(png)
-    scale = img_w / page.doc_size[0]
-    boxes = "\n".join(_box_html(page, scale, img_w, img_h))
+    boxes = "\n".join(_box_html(page, img_w, img_h))
     data = base64.b64encode(png).decode("ascii")
     return (
         f'<!doctype html><meta charset="utf-8"><title>{html.escape(page.title or page.page_id)}</title>'

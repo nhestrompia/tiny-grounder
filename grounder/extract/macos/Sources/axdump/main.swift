@@ -4,13 +4,14 @@ import AXCore
 import Foundation
 
 // axdump: dump the interesting accessibility elements of one app window as JSON.
-//   axdump --pid 123 | --app Finder   [--max-depth 40] [--max-elements 2000] [--timeout 10]
+//   axdump --pid 123 | --app Finder | --frontmost   [--max-depth 40] [--max-elements 2000] [--timeout 10]
 // Needs the Accessibility permission for the terminal that runs it. Exit codes: 0 ok, 1 usage, 2 no permission,
 // 3 app or window not found.
 
 struct Options {
     var pid: pid_t?
     var appName: String?
+    var frontmost = false
     var maxDepth = 40
     var maxElements = 2000
     var timeout = 10.0
@@ -33,25 +34,34 @@ func parseOptions(_ args: [String]) -> Options {
         switch args[i] {
         case "--pid": opts.pid = pid_t(value())
         case "--app": opts.appName = value()
+        case "--frontmost": opts.frontmost = true
         case "--max-depth": opts.maxDepth = Int(value()) ?? opts.maxDepth
         case "--max-elements": opts.maxElements = Int(value()) ?? opts.maxElements
         case "--timeout": opts.timeout = Double(value()) ?? opts.timeout
-        default: fail("usage: axdump --pid <pid> | --app <name> [--max-depth N] [--max-elements N] [--timeout SECONDS]", code: 1)
+        default: fail("usage: axdump --pid <pid> | --app <name> | --frontmost [--max-depth N] [--max-elements N] [--timeout SECONDS]", code: 1)
         }
         i += 1
     }
-    if (opts.pid == nil) == (opts.appName == nil) { fail("give exactly one of --pid or --app", code: 1) }
+    if [opts.pid != nil, opts.appName != nil, opts.frontmost].filter({ $0 }).count != 1 {
+        fail("give exactly one of --pid, --app or --frontmost", code: 1)
+    }
     return opts
 }
 
-func findPid(_ opts: Options) -> pid_t {
-    if let pid = opts.pid { return pid }
+func findApp(_ opts: Options) -> (pid: pid_t, name: String) {
+    if opts.frontmost {
+        guard let app = NSWorkspace.shared.frontmostApplication else { fail("no frontmost application", code: 3) }
+        return (app.processIdentifier, app.localizedName ?? "")
+    }
+    if let pid = opts.pid {
+        return (pid, NSRunningApplication(processIdentifier: pid)?.localizedName ?? "")
+    }
     let name = opts.appName!.lowercased()
     let match = NSWorkspace.shared.runningApplications.first {
         $0.localizedName?.lowercased() == name || $0.bundleIdentifier?.lowercased() == name
     }
     guard let app = match else { fail("no running app named '\(opts.appName!)'", code: 3) }
-    return app.processIdentifier
+    return (app.processIdentifier, app.localizedName ?? "")
 }
 
 // MARK: attribute access
@@ -141,7 +151,7 @@ guard AXIsProcessTrusted() else {
     enable the terminal app you run this from, then run axdump again.
     """, code: 2)
 }
-let pid = findPid(opts)
+let (pid, appName) = findApp(opts)
 let app = AXUIElementCreateApplication(pid)
 AXUIElementSetMessagingTimeout(app, 1.0)
 guard let window = pickWindow(app), let windowFrame = frame(window) else {
@@ -151,7 +161,8 @@ let title = collapse(string(window, kAXTitleAttribute) ?? "", limit: maxContextC
 var walker = Walker(window: windowFrame, windowTitle: title, opts: opts, deadline: Date().addingTimeInterval(opts.timeout))
 walker.visit(window, parentRole: nil, groupTitle: "", siblings: [], depth: 0)
 let size = [Int(windowFrame[2]), Int(windowFrame[3])]
-let dump = Dump(viewport: size, docSize: size, title: title, elements: walker.elements)
+let dump = Dump(viewport: size, docSize: size, title: title, app: appName,
+            origin: [windowFrame[0], windowFrame[1]], elements: walker.elements)
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.sortedKeys]
 FileHandle.standardOutput.write(try encoder.encode(dump))

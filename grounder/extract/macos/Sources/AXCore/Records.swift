@@ -28,19 +28,23 @@ public struct DumpElement: Codable, Equatable {
     }
 }
 
-/// The JSON document `axdump` prints: viewport and doc_size are the window size in screen points.
+/// The JSON document `axdump` prints: viewport and doc_size are the window size in screen points; `origin` is the
+/// window's top-left corner in screen points and `app` the dumped app's name (both extra to the Page fields).
 public struct Dump: Codable {
     public var viewport: [Int]
     public var docSize: [Int]
     public var title: String
+    public var app: String
+    public var origin: [Double]
     public var elements: [DumpElement]
 
     enum CodingKeys: String, CodingKey {
-        case viewport, title, elements
+        case viewport, title, app, origin, elements
         case docSize = "doc_size"
     }
 
-    public init(viewport: [Int], docSize: [Int], title: String, elements: [DumpElement]) {
-        self.viewport = viewport; self.docSize = docSize; self.title = title; self.elements = elements
+    public init(viewport: [Int], docSize: [Int], title: String, app: String, origin: [Double], elements: [DumpElement]) {
+        self.viewport = viewport; self.docSize = docSize; self.title = title; self.app = app
+        self.origin = origin; self.elements = elements
     }
 }

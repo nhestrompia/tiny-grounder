@@ -55,9 +55,12 @@ final class LogicTests: XCTestCase {
     func testDumpJSONUsesRecordFieldNames() throws {
         let el = DumpElement(id: 1, role: "button", text: "OK", context: "", tag: "AXButton", box: [0, 0, 1, 1],
                              absBox: [1, 2, 3, 4], inViewport: true, enabled: true)
-        let data = try JSONEncoder().encode(Dump(viewport: [800, 600], docSize: [800, 600], title: "T", elements: [el]))
+        let data = try JSONEncoder().encode(Dump(viewport: [800, 600], docSize: [800, 600], title: "T", app: "Notes",
+                                                         origin: [10, 20], elements: [el]))
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertNotNil(json["doc_size"])
+        XCTAssertEqual(json["app"] as? String, "Notes")
+        XCTAssertEqual(json["origin"] as? [Double], [10, 20])
         let first = try XCTUnwrap((json["elements"] as? [[String: Any]])?.first)
         XCTAssertEqual(first["abs_box"] as? [Double], [1, 2, 3, 4])
         XCTAssertEqual(first["source"] as? String, "ax")
