@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>Hidden</title>
+<style>body{margin:16px;font:16px sans-serif}button{display:block;margin:6px;padding:6px}#cover{position:absolute;inset:0;background:#fff}</style>
+<button id="v">Visible button</button>
+<button style="display:none">Display none</button>
+<button style="visibility:hidden">Visibility hidden</button>
+<button style="opacity:0">Opacity zero</button>
+<div style="display:none"><button>Inside hidden parent</button></div>
+<div style="opacity:0"><a href="/faded">Inside faded parent</a></div>
+<button style="width:0;height:0;padding:0;border:0;overflow:hidden">Zero size</button>
+<div hidden><button>Hidden attribute</button></div>
+<a href="#top" style="position:absolute;left:-9999px">Skip to content</a>
+<div style="position:relative;margin-top:60px"><button>Covered by overlay</button><div id="cover"></div></div>
+<button style="position:absolute;top:500px;left:20px">Free below</button>
+<div style="position:relative"><button style="position:relative">Overlay passes through</button><div style="position:absolute;inset:0;pointer-events:none"></div></div>

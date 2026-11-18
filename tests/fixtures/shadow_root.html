@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>Shadow</title>
+<style>body{margin:16px;font:16px sans-serif}</style>
+<h1>Components</h1>
+<button id="light">Light button</button>
+<div id="declarative">
+  <template shadowrootmode="open">
+    <h2>Card</h2>
+    <button>Shadow declarative</button>
+    <a href="/shadow-link">Shadow link</a>
+  </template>
+</div>
+<div id="scripted"></div>
+<script>
+  const host = document.getElementById('scripted');
+  const root = host.attachShadow({mode: 'open'});
+  root.innerHTML = '<input placeholder="Shadow input"><div id="inner"></div>';
+  root.getElementById('inner').attachShadow({mode: 'open'}).innerHTML = '<button>Nested shadow</button>';
+  const closed = document.createElement('div');
+  document.body.append(closed);
+  closed.attachShadow({mode: 'closed'}).innerHTML = '<button>Closed shadow</button>';
+</script>
+<button id="after">After shadow</button>

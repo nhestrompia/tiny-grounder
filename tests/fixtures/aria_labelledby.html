@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>Labelledby</title>
+<style>body{margin:16px;font:16px sans-serif}</style>
+<h2 id="t1">Shipping</h2><span id="t2">address</span>
+<button aria-labelledby="t1 t2">Edit</button>
+<input aria-labelledby="t1" placeholder="Ignored">
+<button aria-labelledby="missing-id">Fallback text</button>
+<button aria-label="Explicit" aria-labelledby="t1">Body</button>
+<p id="note" style="display:none">Hidden label text</p>
+<button aria-labelledby="note">x</button>

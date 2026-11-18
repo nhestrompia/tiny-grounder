@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title>Frames</title>
+<style>body{margin:0;font:16px sans-serif}h1{margin:20px 40px}iframe{display:block;margin:30px 0 0 120px;width:400px;height:200px;border:5px solid #333}</style>
+<h1>Host page</h1>
+<button>Host button</button>
+<iframe srcdoc="<style>body{margin:10px;font:16px sans-serif}</style><button style='position:absolute;left:20px;top:40px'>Frame button</button><a href='/in-frame' style='position:absolute;left:20px;top:100px'>Frame link</a><button style='position:absolute;left:20px;top:600px'>Frame far below</button>"></iframe>
+<iframe sandbox="allow-scripts" srcdoc="<button>Sandboxed cross-origin</button>"></iframe>
+<iframe style="display:none" srcdoc="<button>Hidden frame button</button>"></iframe>

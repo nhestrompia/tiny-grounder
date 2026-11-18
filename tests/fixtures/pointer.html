@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>Pointer</title>
+<style>body{margin:16px;font:16px sans-serif}.p{cursor:pointer}.box{padding:8px;margin:8px}</style>
+<div class="box"><div class="p" id="plain">Pointer div</div></div>
+<div class="p box" id="container"><span>Pointer container text</span><b>child one</b><i>child two</i><u>child three</u></div>
+<div class="box"><span class="p">Pointer span</span></div>
+<div class="p box"><div class="p" style="padding:4px"><span class="p">Nested pointer leaf</span></div></div>
+<div class="box"><div class="p">  </div></div>
+<div tabindex="0" class="box">Focusable div</div>
+<div tabindex="-1" class="box">Negative tabindex</div>
+<div role="tab" class="box">Tab one</div>
+<div role="menuitemcheckbox" class="box">Check item</div>
+<div role="spinbutton" class="box">Spin</div>
+<div role="treeitem" class="box">Tree node</div>
+<div role="dialog" tabindex="0" class="box">Dialog box</div>
+<div role="switch" class="box">Dark mode</div>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" width="40" height="40" alt="Click image" onclick="0">
+<span onclick="0" class="box">Onclick span</span>
+<details><summary>More info</summary>Body</details>

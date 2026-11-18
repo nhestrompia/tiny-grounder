@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Sign up</title>
+<style>body{margin:16px;font:16px sans-serif}label,input,select{display:block;margin:6px}</style>
+<form>
+  <h2>Create account</h2>
+  <label for="email">Email address</label><input id="email" type="email">
+  <label>Full name <input type="text" name="n"></label>
+  <input type="text" placeholder="Referral code">
+  <input type="password" value="hunter2-secret" placeholder="Password">
+  <input type="search" aria-label="Search help">
+  <fieldset><legend>Shipping method</legend>
+    <label><input type="radio" name="s" value="a"> Standard</label>
+    <label><input type="radio" name="s" value="b"> Express</label>
+  </fieldset>
+  <label><input type="checkbox"> Subscribe to newsletter</label>
+  <label for="age">Age</label><input id="age" type="range">
+  <textarea aria-label="Comments"></textarea>
+  <div contenteditable="true" aria-label="Notes editor">draft</div>
+  <div contenteditable="false">not editable</div>
+  <input type="hidden" name="csrf" value="x">
+  <button type="submit">Create account</button>
+</form>
