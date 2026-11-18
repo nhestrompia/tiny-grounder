@@ -8,6 +8,7 @@ import shutil
 import threading
 import zipfile
 from collections import Counter
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -20,7 +21,7 @@ from grounder.data.crawl import (
     is_crawlable_link, jaccard, link_score, search_url, load_robots, load_tranco, read_sites, registrable_domain, split_for,
     text_signature,
 )
-from grounder.data.pages import iter_pages
+from grounder.data.pages import iter_pages, write_page
 from grounder.records import Element, Page
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -152,10 +153,21 @@ def test_screenshots_only_for_requested_split(crawled):
 def test_stats_report(crawled):
     out, _, _ = crawled
     report = format_stats(out)
-    assert "pages=7 sites=2" in report
+    assert "pages=7 sites=2 dropped_non_english=0" in report
     assert "link" in report and "median=" in report
     for split in SPLITS:
         assert f"split {split}" in report
+
+
+def test_stats_report_counts_dropped_non_english_pages(crawled, tmp_path):
+    out = tmp_path / "pages"
+    shutil.copytree(crawled[0], out)
+    page = next(iter_pages(out))
+    write_page(replace(page, page_id="german", lang="de"), out / split_for(page.site))
+    report = format_stats(out)
+    assert "pages=7 sites=2 dropped_non_english=1" in report
+    assert "pages=8 " in report and "dropped=1" in report
+    assert "dropped=1" not in format_stats(out, min_english=0)
 
 
 def test_resume_skips_finished_sites(crawled, server, tmp_path):

@@ -412,6 +412,7 @@
     viewport: [vw, vh],
     doc_size: [Math.max(root.scrollWidth, vw), Math.max(root.scrollHeight, vh)],
     title: flat(document.title),
+    lang: flat(document.documentElement.lang),
     elements,
   };
 }

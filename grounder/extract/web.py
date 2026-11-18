@@ -22,6 +22,7 @@ def page_from_raw(raw: dict[str, Any], url: str, page_id: str, site: str) -> Pag
         url=url,
         site=site,
         title=raw.get("title", ""),
+        lang=raw.get("lang", ""),
         viewport=[int(v) for v in raw["viewport"]],
         doc_size=[int(v) for v in raw["doc_size"]],
         elements=[validate_element(e) for e in raw["elements"]],

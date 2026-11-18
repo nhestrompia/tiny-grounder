@@ -8,6 +8,7 @@ from typing import Iterable, Iterator
 
 from tokenizers import Tokenizer, models, normalizers, pre_tokenizers, trainers
 
+from grounder.data.language import add_min_english_argument, english_pages
 from grounder.data.pages import iter_pages, load_examples
 from grounder.ranking import example_query
 from grounder.records import Example, Page
@@ -76,20 +77,22 @@ def _main() -> None:
     train.add_argument("--examples", nargs="*", default=[])
     train.add_argument("--vocab-size", type=int, default=8192)
     train.add_argument("--out", required=True)
+    add_min_english_argument(train)
     stats = sub.add_parser("stats", help="avg tokens per element text and UNK rate")
     stats.add_argument("--tokenizer", required=True)
     stats.add_argument("--pages", required=True)
+    add_min_english_argument(stats)
     args = parser.parse_args()
 
     if args.cmd == "train":
-        texts = list(page_texts(iter_pages(args.pages)))
+        texts = list(page_texts(english_pages(iter_pages(args.pages), args.min_english)))
         for path in args.examples:
             texts.extend(example_queries(load_examples(path)))
         tok = train_tokenizer(texts, args.vocab_size, args.out)
         print(f"trained vocab={tok.get_vocab_size()} on {len(texts)} texts -> {args.out}")
     else:
         tok = load_tokenizer(args.tokenizer)
-        texts = [el.text for page in iter_pages(args.pages) for el in page.elements if el.text]
+        texts = [el.text for page in english_pages(iter_pages(args.pages), args.min_english) for el in page.elements if el.text]
         s = tokenizer_stats(tok, texts)
         print(f"element texts: {s['texts']}  avg tokens: {s['avg_tokens']:.2f}  unk rate: {s['unk_rate']:.4%}")
 

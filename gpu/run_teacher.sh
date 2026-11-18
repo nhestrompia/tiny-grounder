@@ -14,4 +14,5 @@ for split in train dev test; do
   run_teacher_split "$split" "$out/$MODEL-$split.jsonl" --log-every 200 2>&1 | tee -a "$out/$MODEL.log"
 done
 uv run python -m grounder.data.build --pages "$PAGES" --out "$DATA_DIR/examples" \
-  --llm-examples "$out/$MODEL-train.jsonl" "$out/$MODEL-dev.jsonl" "$out/$MODEL-test.jsonl"
+  --llm-examples "$out/$MODEL-train.jsonl" "$out/$MODEL-dev.jsonl" "$out/$MODEL-test.jsonl" \
+  $MIN_ENGLISH_FLAG

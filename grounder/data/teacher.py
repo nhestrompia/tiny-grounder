@@ -5,7 +5,7 @@
 
 Sampled elements go to the model in batches (`BATCH_SIZE` per call). Each reply is cached on disk
 under a hash of the request, so a rerun costs nothing and an interrupted run resumes where it stopped.
-Replies are validated by `grounder.data.filters`; rejection counts are printed. Progress and throughput
+Only English pages are used (`--min-english`, see grounder.data.language). Replies are validated by `grounder.data.filters`; rejection counts are printed. Progress and throughput
 (requests, prompt / completion tokens per second, cache hits, ETA) are logged every `--log-every` calls.
 """
 
@@ -31,6 +31,7 @@ import httpx
 
 from grounder.data.crawl import SPLITS
 from grounder.data.filters import filter_all, format_rejections, label_counts
+from grounder.data.language import add_min_english_argument, english_pages
 from grounder.data.pages import load_page, page_paths, write_examples
 from grounder.data.template_teacher import SAMPLE_SIZE, sample_elements
 from grounder.records import Element, Example, Page, equiv_ids
@@ -295,16 +296,21 @@ async def generate(pages: Sequence[Page], http: httpx.AsyncClient, cfg: TeacherC
 # --- CLI --------------------------------------------------------------------------------------
 
 
-def pick_pages(pages_dir: str | Path, limit: int | None, seed: int) -> list[Page]:
-    """All pages under `pages_dir`, or a seeded random `limit` of them (spreads a pilot over sites)."""
-    paths = page_paths(pages_dir)
-    if limit is not None and limit < len(paths):
-        paths = sorted(random.Random(seed).sample(paths, limit))
-    return [load_page(p) for p in paths]
+def pick_pages(pages_dir: str | Path, limit: int | None, seed: int, min_english: float) -> list[Page]:
+    """The English pages under `pages_dir`, or a seeded random `limit` of them (spreads a pilot over sites).
+
+    Non-English pages are never offered to the teacher, and the limit counts English pages only.
+    """
+    everything = [load_page(p) for p in page_paths(pages_dir)]
+    pages = list(english_pages(everything, min_english))
+    logger.info("%d English pages of %d (%d skipped)", len(pages), len(everything), len(everything) - len(pages))
+    if limit is not None and limit < len(pages):
+        pages = sorted(random.Random(seed).sample(pages, limit), key=lambda p: p.page_id)
+    return pages
 
 
 async def _run(args: argparse.Namespace) -> int:
-    pages = pick_pages(Path(args.pages) / args.split if args.split else args.pages, args.limit_pages, args.seed)
+    pages = pick_pages(Path(args.pages) / args.split if args.split else args.pages, args.limit_pages, args.seed, args.min_english)
     key = os.environ.get(args.api_key_env, "") if args.api_key_env else ""
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     cfg = TeacherConfig(model=args.model, cache_dir=Path(args.cache_dir), seed=args.seed,
@@ -348,6 +354,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--log-every", type=int, default=100, help="log progress every N calls")
     parser.add_argument("--timeout", type=float, default=120)
     parser.add_argument("--seed", type=int, default=0)
+    add_min_english_argument(parser)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)

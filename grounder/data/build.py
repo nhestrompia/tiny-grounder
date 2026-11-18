@@ -5,7 +5,8 @@
 
 Pages come from `{pages}/{split}/...` (see grounder.data.crawl). Template examples are generated
 here; LLM examples are read from the JSONL files written by grounder.data.teacher and used for the
-split their page belongs to. Everything passes through grounder.data.filters, then ~10% of the
+split their page belongs to. Only English pages are used (`--min-english`, see grounder.data.language);
+LLM examples of other pages are ignored. Everything passes through grounder.data.filters, then ~10% of the
 examples are copied as `null` examples (target and equivalents deleted from the page).
 """
 
@@ -21,6 +22,7 @@ from typing import Mapping
 
 from grounder.data.crawl import SPLITS
 from grounder.data.filters import filter_all, format_rejections
+from grounder.data.language import add_min_english_argument, english_pages
 from grounder.data.pages import iter_pages, load_examples, write_examples
 from grounder.data.template_teacher import SAMPLE_SIZE, template_examples
 from grounder.records import Example, Page
@@ -54,6 +56,15 @@ def add_null_examples(examples: list[Example], pages: Mapping[str, Page], fracti
     return examples + [replace(ex, kind="null") for ex in chosen]
 
 
+def load_split_pages(split_dir: Path, min_english: float) -> tuple[dict[str, Page], int]:
+    """The English pages of one split directory (none when it does not exist) and how many pages were dropped."""
+    if not split_dir.is_dir():
+        return {}, 0
+    everything = list(iter_pages(split_dir))
+    kept = {p.page_id: p for p in english_pages(everything, min_english)}
+    return kept, len(everything) - len(kept)
+
+
 def count_table(counts: Mapping[str, Counter[str]]) -> str:
     kinds = sorted({k for c in counts.values() for k in c})
     rows = [f"{'split':<6}" + "".join(f"{k:>12}" for k in kinds) + f"{'total':>12}"]
@@ -81,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--per-page", type=int, default=SAMPLE_SIZE, help="elements sampled per page by the template teacher")
     parser.add_argument("--null-fraction", type=float, default=NULL_FRACTION)
     parser.add_argument("--seed", type=int, default=0)
+    add_min_english_argument(parser)
     args = parser.parse_args(argv)
 
     out = Path(args.out)
@@ -89,8 +101,8 @@ def main(argv: list[str] | None = None) -> int:
     counts: dict[str, Counter[str]] = {}
     rejected: Counter[str] = Counter()
     for split in SPLITS:
-        split_dir = Path(args.pages) / split
-        pages = {p.page_id: p for p in iter_pages(split_dir)} if split_dir.is_dir() else {}
+        pages, dropped = load_split_pages(Path(args.pages) / split, args.min_english)
+        print(f"{split}: {len(pages)} English pages, {dropped} dropped")
         examples, rejects = build_split(pages, llm, args)
         write_examples(examples, out / f"{split}.jsonl")
         counts[split] = Counter(ex.kind for ex in examples)

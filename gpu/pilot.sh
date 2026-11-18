@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teacher on ~50 dev pages: rejection counts, throughput and random kept examples to read.
+# Teacher on ~50 English dev pages: rejection counts, throughput and random kept examples to read.
 # usage: gpu/pilot.sh [gemma|qwen]   (writes runs/pilot-<model>/; PILOT_PAGES=50 sets the page count)
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -241,6 +241,15 @@ def test_page_from_raw_and_json_roundtrip(browser_page):
     assert Page.from_dict(page.to_dict()).elements == page.elements
 
 
+def test_page_records_the_html_lang_attribute(browser_page):
+    browser_page.set_content('<html lang="de-AT"><title>Hallo</title><body><a href="/x">Start</a></body></html>')
+    page = extract_page_sync(browser_page)
+    assert page.lang == "de-AT"
+    assert Page.from_dict(page.to_dict()).lang == "de-AT"
+    browser_page.set_content('<title>No lang</title><a href="/x">Start</a>')
+    assert extract_page_sync(browser_page).lang == ""
+
+
 def test_robust_and_fast(browser_page):
     html = "<title>Big</title>" + "".join(
         f'<div><a href="/p{i}">Link {i}</a><button>Btn {i}</button><span style="cursor:pointer">S{i}</span></div>'

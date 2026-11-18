@@ -408,11 +408,11 @@ def test_generate_logs_progress_and_counts_tokens(small_page, tmp_path, caplog):
 def test_pick_pages_samples_a_seeded_subset(tmp_path):
     for i in range(10):
         write_page(Page(f"p{i}", "https://a.test/", "a.test", "t", [1280, 800], [1280, 800], []), tmp_path / "train")
-    everything = pick_pages(tmp_path, None, 0)
+    everything = pick_pages(tmp_path, None, 0, 0)
     assert len(everything) == 10
-    picked = [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1)]
-    assert len(picked) == 4 and picked == [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1)]
-    assert picked != [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=2)]
+    picked = [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1, min_english=0)]
+    assert len(picked) == 4 and picked == [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1, min_english=0)]
+    assert picked != [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=2, min_english=0)]
 
 
 def test_fake_teacher_replies_survive_the_filters(shop):

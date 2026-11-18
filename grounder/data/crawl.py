@@ -48,6 +48,7 @@ import numpy as np
 import tldextract
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
+from grounder.data.language import DEFAULT_MIN_ENGLISH, add_min_english_argument, english_pages
 from grounder.data.pages import iter_pages, write_page
 from grounder.extract.web import extract_page
 from grounder.records import Page
@@ -529,25 +530,31 @@ async def crawl(entries: list[str], cfg: CrawlConfig, robots_client: httpx.Async
 # --- stats ------------------------------------------------------------------------------------
 
 
-def format_stats(out: str | Path) -> str:
-    """Pages, sites, elements-per-page percentiles, role histogram and split sizes of a crawl directory."""
+def format_stats(out: str | Path, min_english: float = DEFAULT_MIN_ENGLISH) -> str:
+    """Per split: pages, English pages kept and pages dropped. Over the kept pages: sites, elements per page, roles."""
     lines: list[str] = []
     sizes: list[int] = []
     roles: Counter[str] = Counter()
     sites: set[str] = set()
+    dropped = 0
     for split in SPLITS:
-        split_pages = list(iter_pages(Path(out) / split)) if (Path(out) / split).is_dir() else []
-        split_sites = {p.site for p in split_pages}
-        lines.append(f"split {split:<5} pages={len(split_pages):<6} sites={len(split_sites)}")
-        sizes += [len(p.elements) for p in split_pages]
+        split_dir = Path(out) / split
+        everything = list(iter_pages(split_dir)) if split_dir.is_dir() else []
+        kept = list(english_pages(everything, min_english))
+        split_sites = {p.site for p in kept}
+        lines.append(f"split {split:<5} pages={len(everything):<6} english={len(kept):<6} "
+                     f"dropped={len(everything) - len(kept):<6} sites={len(split_sites)}")
+        dropped += len(everything) - len(kept)
+        sizes += [len(p.elements) for p in kept]
         sites |= split_sites
-        for p in split_pages:
+        for p in kept:
             roles.update(e.role for e in p.elements)
     if not sizes:
-        return f"no pages under {out}"
+        return f"no English pages under {out}"
     p10, p50, p90 = np.percentile(sizes, [10, 50, 90])
     total = sum(roles.values())
-    lines.insert(0, f"pages={len(sizes)} sites={len(sites)} elements/page p10={p10:.0f} median={p50:.0f} p90={p90:.0f}")
+    lines.insert(0, f"pages={len(sizes)} sites={len(sites)} dropped_non_english={dropped} "
+                    f"elements/page p10={p10:.0f} median={p50:.0f} p90={p90:.0f}")
     lines.append("roles:")
     lines += [f"  {role:<10} {n:>8} {n / total:6.1%}" for role, n in roles.most_common()]
     return "\n".join(lines)
@@ -568,12 +575,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--screenshots-for", nargs="*", default=[], choices=SPLITS, help="splits to screenshot")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--stats", action="store_true", help="print statistics of --out and exit")
+    add_min_english_argument(parser)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     if args.stats:
-        print(format_stats(args.out))
+        print(format_stats(args.out, args.min_english))
         return 0
     entries = read_sites(args.sites) if args.sites else []
     if args.tranco:

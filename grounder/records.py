@@ -23,6 +23,7 @@ SOURCES: tuple[str, ...] = ("dom", "ax", "ocr", "det")
 MAX_TEXT_CHARS = 80
 MAX_CONTEXT_CHARS = 120
 MAX_HREF_CHARS = 200
+MAX_LANG_CHARS = 35
 
 Mode = Literal["do", "goal"]
 ExampleKind = Literal["plain", "paraphrase", "context", "goal", "null"]
@@ -140,7 +141,10 @@ class Example:
 
 @dataclass
 class Page:
-    """One page file: pages/{site}/{page_id}.json.gz"""
+    """One page file: pages/{site}/{page_id}.json.gz
+
+    lang: the `<html lang>` attribute as crawled; empty when absent or unknown (old files, native extractors).
+    """
 
     page_id: str
     url: str
@@ -149,15 +153,15 @@ class Page:
     viewport: list[int]
     doc_size: list[int]
     elements: list[Element]
+    lang: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        d = asdict(self)
-        return d
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Page":
         return cls(
             page_id=d["page_id"], url=d["url"], site=d["site"], title=drop_surrogates(d.get("title", "")),
             viewport=list(d["viewport"]), doc_size=list(d["doc_size"]),
-            elements=[validate_element(e) for e in d["elements"]],
+            elements=[validate_element(e) for e in d["elements"]], lang=clean_text(d.get("lang"), MAX_LANG_CHARS),
         )
