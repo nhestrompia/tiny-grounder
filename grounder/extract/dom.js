@@ -38,7 +38,9 @@
   const sy = scrollY;
 
   const flat = (s) => (s || "").replace(/\s+/g, " ").trim();
-  const clip = (s, n) => flat(s).slice(0, n).trim();
+  // Cut to n UTF-16 units without leaving half of an emoji (a lone high surrogate) at the end.
+  const cut = (s, n) => s.slice(0, n).replace(/[\uD800-\uDBFF]$/, "");
+  const clip = (s, n) => cut(flat(s), n).trim();
   const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
   const parentOf = (n) => n.parentElement || n.getRootNode().host || null;
   const cursorOf = (el) => el.ownerDocument.defaultView.getComputedStyle(el).cursor;

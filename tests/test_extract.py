@@ -254,3 +254,10 @@ def test_robust_and_fast(browser_page):
     assert elapsed < 1.5  # generous bound; typical pages take far less
     browser_page.set_content("")
     assert browser_page.evaluate(DOM_JS)["elements"] == []
+
+
+def test_clipping_never_leaves_half_an_emoji(browser_page):
+    browser_page.goto((FIXTURES / "emoji_cut.html").as_uri())
+    raw = browser_page.evaluate(DOM_JS)  # before any Python-side cleaning
+    assert [e["text"] for e in raw["elements"]] == ["a" * 79]  # the emoji straddles the 80-unit cut and is dropped whole
+    raw["elements"][0]["text"].encode("utf-8")  # a lone surrogate would raise

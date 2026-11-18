@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from grounder.features import combine_chunk_logits, content_tokens, element_features, encode_page, overlap, stem
+from grounder.features import TokenCache, combine_chunk_logits, content_tokens, element_features, encode_page, overlap, stem
 from grounder.records import Element, format_query
 from grounder.tokenizer import PAD_ID, UNK_ID, load_tokenizer, tokenizer_stats
 
@@ -77,3 +77,42 @@ def test_coverage_separates_exact_label_from_longer_label():
 def test_combine_chunk_logits_concatenates_and_averages_null():
     out = combine_chunk_logits([np.array([1.0, 5.0, 6.0]), np.array([3.0, 7.0])])
     np.testing.assert_allclose(out, [2.0, 5.0, 6.0, 7.0])
+
+
+def _page_elements() -> list[Element]:
+    return [Element(id=i, role="link", text=t, context=c, box=[0.1 * i, 0.2, 0.1, 0.05])
+            for i, (t, c) in enumerate([("login", "header navigation"), ("shopping cart", ""), ("", "footer links"), ("login", "sidebar menu")])]
+
+
+def _same(a: dict[str, np.ndarray], b: dict[str, np.ndarray]) -> None:
+    assert a.keys() == b.keys()
+    for name in a:
+        np.testing.assert_array_equal(a[name], b[name])
+
+
+def test_cached_encoding_equals_uncached(tokenizer):
+    els = _page_elements()
+    cache = TokenCache.build(tokenizer, els, 16, 24)
+    query = format_query("do", "click login")
+    _same(encode_page(tokenizer, query, els, cache=cache), encode_page(tokenizer, query, els))
+    unknown = [Element(id=9, role="link", text="never seen text", context="nor this")]  # not in the cache
+    _same(encode_page(tokenizer, query, unknown, cache=cache), encode_page(tokenizer, query, unknown))
+
+
+def test_cached_encoding_equals_uncached_for_augmented_items(tokenizer):
+    from grounder.data.dataset import AugmentConfig, augment_elements
+
+    els = _page_elements() * 5
+    cfg = AugmentConfig(text_noise=0.5, drop_context=0.5, ocr_page=0.3)
+    cache = TokenCache.build(tokenizer, els, 16, 24)
+    query = format_query("do", "click login")
+    for seed in range(20):
+        aug = augment_elements(els, np.random.default_rng(seed), cfg)
+        _same(encode_page(tokenizer, query, aug, cache=cache), encode_page(tokenizer, query, augment_elements(els, np.random.default_rng(seed), cfg)))
+
+
+def test_cache_keeps_truncation_limits(tokenizer):
+    els = [Element(id=0, role="link", text="login " * 30, context="cart " * 30)]
+    cache = TokenCache.build(tokenizer, els, 4, 5)
+    out = encode_page(tokenizer, "[DO] x", els, max_text=4, max_ctx=5, cache=cache)
+    assert (out["el_text_ids"] != PAD_ID).sum() == 4 and (out["el_ctx_ids"] != PAD_ID).sum() == 5

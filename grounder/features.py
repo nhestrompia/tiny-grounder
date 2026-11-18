@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Iterable
 
 import numpy as np
 from tokenizers import Tokenizer
@@ -49,18 +52,19 @@ def stem(word: str) -> str:
     return word
 
 
-def content_tokens(text: str) -> set[str]:
-    """Lowercase words of `text` without stop words, stemmed."""
+@lru_cache(maxsize=1 << 18)
+def content_tokens(text: str) -> frozenset[str]:
+    """Lowercase words of `text` without stop words, stemmed (memoised: element texts repeat across examples)."""
     words = _WORD_RE.findall(unicodedata.normalize("NFKC", text).lower())
-    return {stem(w) for w in words if w not in STOP_WORDS}
+    return frozenset(stem(w) for w in words if w not in STOP_WORDS)
 
 
-def query_tokens(query: str) -> set[str]:
+def query_tokens(query: str) -> frozenset[str]:
     """Content tokens of a formatted query, ignoring the [DO]/[GOAL]/[DONE] markers."""
     return content_tokens(_MARKER_RE.sub(" ", query))
 
 
-def _share(part: set[str], whole: set[str]) -> float:
+def _share(part: frozenset[str], whole: frozenset[str]) -> float:
     """Fraction of `part` that is in `whole` (0 for an empty `part`)."""
     return len(part & whole) / len(part) if part else 0.0
 
@@ -70,7 +74,7 @@ def overlap(query: str, text: str) -> float:
     return _share(query_tokens(query), content_tokens(text))
 
 
-def _element_features(el: Element, q_tokens: set[str]) -> np.ndarray:
+def _element_features(el: Element, q_tokens: frozenset[str]) -> np.ndarray:
     text_tokens = content_tokens(el.text)
     x, y, w, h = el.box
     return np.array(
@@ -111,18 +115,49 @@ def _pad(rows: list[list[int]], width: int) -> np.ndarray:
     return out
 
 
+@dataclass(frozen=True)
+class TokenCache:
+    """Token ids of known element texts and contexts, so a training dataset tokenizes each string once.
+
+    Ids are truncated to the lengths the cache was built with; `encode_page` must use the same limits.
+    """
+
+    text: dict[str, list[int]]
+    context: dict[str, list[int]]
+
+    @classmethod
+    def build(cls, tokenizer: Tokenizer, elements: Iterable[Element], max_text: int, max_ctx: int) -> "TokenCache":
+        els = list(elements)
+        texts = sorted({e.text for e in els} | {""})
+        contexts = sorted({e.context for e in els} | {""})
+        return cls(dict(zip(texts, encode_ids(tokenizer, texts, max_text))),
+                   dict(zip(contexts, encode_ids(tokenizer, contexts, max_ctx))))
+
+
+def _lookup_ids(tokenizer: Tokenizer, strings: list[str], max_len: int, known: dict[str, list[int]] | None) -> list[list[int]]:
+    """Ids of `strings`; strings missing from `known` (e.g. augmented text) are tokenized, not stored."""
+    if known is None:
+        return encode_ids(tokenizer, strings, max_len)
+    missing = sorted({s for s in strings if s not in known})
+    fresh = dict(zip(missing, encode_ids(tokenizer, missing, max_len)))
+    return [known[s] if s in known else fresh[s] for s in strings]
+
+
 def encode_page(
     tokenizer: Tokenizer, query: str, elements: list[Element],
-    max_q: int = 48, max_text: int = 16, max_ctx: int = 24,
+    max_q: int = 48, max_text: int = 16, max_ctx: int = 24, cache: TokenCache | None = None,
 ) -> dict[str, np.ndarray]:
-    """Model input arrays for ONE page. `query` is the string built by `records.format_query`."""
+    """Model input arrays for ONE page. `query` is the string built by `records.format_query`.
+
+    With a `cache`, only strings it does not know are tokenized; the result is identical either way.
+    """
     q_tokens = query_tokens(query)
     query_ids = encode_ids(tokenizer, [query], max_q)[0] or [PAD_ID]
     feats = [_element_features(el, q_tokens) for el in elements]
     return {
         "query_ids": np.array(query_ids, dtype=np.int64),
-        "el_text_ids": _pad(encode_ids(tokenizer, [e.text for e in elements], max_text), max_text),
-        "el_ctx_ids": _pad(encode_ids(tokenizer, [e.context for e in elements], max_ctx), max_ctx),
+        "el_text_ids": _pad(_lookup_ids(tokenizer, [e.text for e in elements], max_text, cache and cache.text), max_text),
+        "el_ctx_ids": _pad(_lookup_ids(tokenizer, [e.context for e in elements], max_ctx, cache and cache.context), max_ctx),
         "el_role": np.array([ROLE_TO_ID[normalize_role(e.role)] for e in elements], dtype=np.int64),
         "el_feats": np.stack(feats) if feats else np.zeros((0, N_FEATS), dtype=np.float32),
         "el_mask": np.ones(len(elements), dtype=bool),

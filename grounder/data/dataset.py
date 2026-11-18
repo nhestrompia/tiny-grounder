@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
-from typing import Iterator, Sequence
+from typing import Any, Iterator, Sequence
 
 import numpy as np
 import torch
 from tokenizers import Tokenizer
 from torch.utils.data import Dataset, Sampler
 
-from grounder.features import MODEL_INPUTS, encode_page
+from grounder.features import MODEL_INPUTS, TokenCache, encode_page
 from grounder.ranking import example_elements, example_query, positive_ids
 from grounder.records import Element, Example, Page
 
@@ -56,9 +56,10 @@ def ocr_noise(text: str, rng: np.random.Generator) -> str:
     return "".join(chars)
 
 
-def _noisy(el: Element, rng: np.random.Generator, conf_range: tuple[float, float]) -> Element:
+def _noisy(el: Element, rng: np.random.Generator, conf_range: tuple[float, float]) -> dict[str, Any]:
+    """Field changes for OCR-style noise on `el`: edited text and a lowered confidence."""
     conf = float(rng.uniform(*conf_range))
-    return replace(el, text=ocr_noise(el.text, rng), conf=min(el.conf, conf))
+    return {"text": ocr_noise(el.text, rng), "conf": min(el.conf, conf)}
 
 
 def augment_elements(elements: list[Element], rng: np.random.Generator, cfg: AugmentConfig) -> list[Element]:
@@ -68,17 +69,18 @@ def augment_elements(elements: list[Element], rng: np.random.Generator, cfg: Aug
     noise_p = cfg.ocr_page_noise if ocr else cfg.text_noise
     out = []
     for el in elements:
+        changes: dict[str, Any] = {}  # one `replace` per element: dataclass copies are the costly part
         if ocr or rng.random() < cfg.drop_role:
-            el = replace(el, role="unknown")
+            changes["role"] = "unknown"
         if ocr or rng.random() < cfg.drop_context:
-            el = replace(el, context="")
+            changes["context"] = ""
         if el.text and rng.random() < noise_p:
-            el = _noisy(el, rng, cfg.conf_range)
+            changes |= _noisy(el, rng, cfg.conf_range)
         if cfg.box_jitter > 0:
             jitter = rng.normal(0.0, cfg.box_jitter, size=4)
             box = [float(v) for v in np.asarray(el.box) + jitter]
-            el = replace(el, box=[box[0], box[1], max(box[2], 0.0), max(box[3], 0.0)])
-        out.append(el)
+            changes["box"] = [box[0], box[1], max(box[2], 0.0), max(box[3], 0.0)]
+        out.append(replace(el, **changes) if changes else el)
     if rng.random() < cfg.shuffle:
         out = [out[i] for i in rng.permutation(len(out))]
     return out
@@ -135,6 +137,8 @@ class GrounderDataset(Dataset):
         self.pages, self.examples, self.tokenizer = pages, list(examples), tokenizer
         self.augment, self.seed = augment, seed
         self.limits = {"max_q": max_q, "max_text": max_text, "max_ctx": max_ctx}
+        used = {ex.page_id for ex in self.examples}
+        self.cache = TokenCache.build(tokenizer, (e for pid in sorted(used) for e in pages[pid].elements), max_text, max_ctx)
         self.epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
@@ -151,7 +155,7 @@ class GrounderDataset(Dataset):
         ex = self.examples[index]
         rng = np.random.default_rng((self.seed, self.epoch, index))
         prep = prepare_example(self.pages[ex.page_id], ex, rng, self.augment)
-        item = encode_page(self.tokenizer, prep.query, prep.elements, **self.limits)
+        item = encode_page(self.tokenizer, prep.query, prep.elements, **self.limits, cache=self.cache)
         item["positive"] = prep.positive
         return item
 

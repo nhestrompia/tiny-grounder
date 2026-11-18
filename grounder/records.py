@@ -59,11 +59,16 @@ class Element:
         return cls(**{k: v for k, v in d.items() if k in known})
 
 
+def drop_surrogates(s: str) -> str:
+    """Remove lone UTF-16 surrogates (JavaScript `slice` can cut an emoji in half); they cannot be encoded as UTF-8."""
+    return s.encode("utf-8", "ignore").decode("utf-8")
+
+
 def clean_text(s: str | None, limit: int) -> str:
     """NFKC-normalise, collapse whitespace, strip, cut to `limit` chars."""
     if not s:
         return ""
-    s = unicodedata.normalize("NFKC", s)
+    s = unicodedata.normalize("NFKC", drop_surrogates(s))
     s = re.sub(r"\s+", " ", s).strip()
     return s[:limit]
 
@@ -152,7 +157,7 @@ class Page:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Page":
         return cls(
-            page_id=d["page_id"], url=d["url"], site=d["site"], title=d.get("title", ""),
+            page_id=d["page_id"], url=d["url"], site=d["site"], title=drop_surrogates(d.get("title", "")),
             viewport=list(d["viewport"]), doc_size=list(d["doc_size"]),
             elements=[validate_element(e) for e in d["elements"]],
         )
