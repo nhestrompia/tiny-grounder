@@ -40,3 +40,7 @@ The plan is sound: one narrow job, small listwise model, synthetic data, honest 
 | D | agent | Playwright helper, label tool, bench, Mind2Web converter, TinyBERT baseline, `axdump` |
 
 GPU-dependent steps (LLM teacher at scale, full training, size sweep, agent demo) are run later; the code for them is built and tested here on small data.
+
+## Phase B additions
+
+- **10th model feature, `coverage`** = share of the element's own text tokens found in the query (`features.element_features`). Without it, "open subscribe" scores "subscribe" and "subscribe messages" identically (overlap 1.0 for both), and the model lost to BM25 (which length-normalises) on exact-label queries. `n_feats` is 10 in `configs/*.yaml`.

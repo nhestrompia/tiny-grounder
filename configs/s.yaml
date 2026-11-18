@@ -1,0 +1,12 @@
+# S: 2,553,601 parameters
+vocab: 8192
+d: 192
+layers: 3
+heads: 4
+ffn_mult: 2
+dropout: 0.1
+max_q: 48
+max_text: 16
+max_ctx: 24
+n_roles: 16
+n_feats: 10
