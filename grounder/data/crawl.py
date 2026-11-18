@@ -15,6 +15,11 @@ Jaccard >= 0.9 with an already kept page. The multiset is turned into a set of (
 pairs, which makes the set Jaccard exact; pages are bucketed by size so only sizes that can reach
 0.9 are compared. Which of two near-identical pages is kept depends on crawl order.
 
+Page selection: the homepage, then up to `--links` more pages. If the homepage has a GET search form
+whose action robots.txt allows, one result page (the form filled with a word from `SEARCH_WORDS`) is
+among them; the rest are same-site links sampled with weights (`link_score` boosts search, product,
+shop, settings, contact, help, ... pages). Each log line records `via`: home | link | search.
+
 Resuming: a site with a `site_done` line in the log is skipped; in an unfinished site the homepage is
 fetched again (its links are needed) and any page file already on disk is not rewritten.
 """
@@ -35,7 +40,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urldefrag, urlsplit
+from urllib.parse import urldefrag, urlencode, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -68,6 +73,19 @@ _BLOCKED_PATH_RE = re.compile(
     r"account|password|oauth|auth|download)(?:$|[/_.-])",
     re.IGNORECASE,
 )
+LINK_BOOST = 5.0
+_BOOST_RE = re.compile(
+    r"search|product|shop|categor|catalog|browse|filter|setting|preference|contact|support|help|feedback|"
+    r"newsletter|subscribe|compare|calculator|tools?\b|docs?\b|faq|form",
+    re.IGNORECASE,
+)
+SEARCH_WORDS: tuple[str, ...] = ("shoes", "weather", "python", "news", "recipe", "music", "laptop", "travel")
+_SEARCH_NAMES = frozenset({"q", "query", "search", "s", "keyword", "keywords", "term", "text"})
+LINKS_JS = "els => els.map(e => [e.href, (e.innerText || e.getAttribute('aria-label') || '').trim()])"
+FORMS_JS = """forms => forms.map(f => ({
+  action: f.action, method: f.method,
+  fields: [...f.elements].filter(e => e.name && !e.disabled).map(e => ({
+    name: e.name, type: (e.type || '').toLowerCase(), value: e.value, checked: !!e.checked}))}))"""
 _FILE_EXTENSIONS = frozenset(
     ".pdf .zip .gz .tar .tgz .rar .7z .exe .dmg .pkg .apk .iso .mp3 .mp4 .avi .mov .wav .jpg .jpeg .png "
     ".gif .svg .webp .ico .xml .json .csv .rss .doc .docx .xls .xlsx .ppt .pptx".split()
@@ -112,11 +130,59 @@ def is_crawlable_link(url: str, site: str) -> bool:
     return not _BLOCKED_PATH_RE.search(path)
 
 
-def choose_links(links: Iterable[str], home: str, site: str, k: int, seed: int) -> list[str]:
-    """Up to `k` distinct crawlable links other than the homepage, seeded per site."""
+def link_score(url: str, text: str = "") -> float:
+    """Sampling weight of a link: pages whose path or anchor text suggests controls are boosted."""
+    return LINK_BOOST if _BOOST_RE.search(f"{urlsplit(url).path} {text}") else 1.0
+
+
+def choose_links(links: Iterable[tuple[str, str]], home: str, site: str, k: int, seed: int) -> list[str]:
+    """Up to `k` distinct crawlable links other than the homepage, seeded per site.
+
+    `links` are (url, anchor text) pairs. Sampling is weighted by `link_score`, without replacement.
+    """
     home_key = urldefrag(home)[0].rstrip("/")
-    candidates = sorted({urldefrag(u)[0] for u in links if is_crawlable_link(u, site)} - {home_key, home_key + "/"})
-    return random.Random(f"{seed}:{site}").sample(candidates, min(k, len(candidates)))
+    texts: dict[str, str] = {}
+    for url, text in links:
+        url = urldefrag(url)[0]
+        if is_crawlable_link(url, site) and url not in (home_key, home_key + "/"):
+            texts[url] = texts.get(url) or text
+    candidates = sorted(texts)
+    rng = random.Random(f"{seed}:{site}")
+    keys = {u: rng.random() ** (1.0 / link_score(u, texts[u])) for u in candidates}
+    return sorted(candidates, key=lambda u: -keys[u])[:k]
+
+
+def _search_rank(field_: dict) -> tuple[bool, bool]:
+    """Prefer type=search inputs, then conventional names (q, query, ...)."""
+    return field_["type"] == "search", field_["name"].lower() in _SEARCH_NAMES
+
+
+def search_url(forms: Iterable[dict], site: str, query: str) -> str | None:
+    """A same-site result-page URL made by filling the best GET search form with `query`.
+
+    Only forms that submit with GET qualify, never ones with a password field. The query is
+    URL-encoded; hidden fields and checked boxes keep their default values.
+    """
+    best: tuple[tuple[bool, bool], str, list[tuple[str, str]]] | None = None
+    for form in forms:
+        action = urldefrag(form.get("action", ""))[0]
+        fields = form.get("fields", [])
+        if form.get("method", "get").lower() != "get" or not is_crawlable_link(action, site):
+            continue
+        if any(f["type"] == "password" for f in fields):
+            continue
+        search = [f for f in fields if f["type"] in ("search", "text") and f["name"]]
+        if not search:
+            continue
+        field_ = max(search, key=_search_rank)
+        params = [(f["name"], f["value"]) for f in fields if f["type"] == "hidden"]
+        params += [(f["name"], f["value"]) for f in fields if f["type"] in ("checkbox", "radio") and f["checked"]]
+        params.append((field_["name"], query))
+        if best is None or _search_rank(field_) > best[0]:
+            best = (_search_rank(field_), action, params)
+    if best is None:
+        return None
+    return urlsplit(best[1])._replace(query=urlencode(best[2]), fragment="").geturl()
 
 
 def read_sites(path: str | Path) -> list[str]:
@@ -215,8 +281,8 @@ class CrawlLog:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
 
-    def write(self, url: str, status: str, n_elements: int = 0, reason: str = "", site: str = "") -> None:
-        record = {"url": url, "status": status, "n_elements": n_elements, "reason": reason, "site": site}
+    def write(self, url: str, status: str, n_elements: int = 0, reason: str = "", site: str = "", via: str = "") -> None:
+        record = {"url": url, "status": status, "n_elements": n_elements, "reason": reason, "site": site, "via": via}
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
 
@@ -282,7 +348,8 @@ class CrawlConfig:
 @dataclass
 class Rendered:
     page: Page
-    links: list[str]
+    links: list[tuple[str, str]]
+    forms: list[dict]
 
 
 class CrawlError(Exception):
@@ -335,9 +402,9 @@ class Crawler:
             finally:
                 queue.task_done()
 
-    def _record(self, url: str, site: str, status: str, n_elements: int = 0, reason: str = "") -> None:
+    def _record(self, url: str, site: str, status: str, n_elements: int = 0, reason: str = "", via: str = "") -> None:
         self.summary.statuses[status] += 1
-        self.log.write(url, status, n_elements, reason, site)
+        self.log.write(url, status, n_elements, reason, site, via)
 
     async def _crawl_site(self, entry: str) -> None:
         home = start_url(entry)
@@ -349,19 +416,31 @@ class Crawler:
             self._record(home, site, "robots_error", reason=str(e))
         else:
             if robots.can_fetch(USER_AGENT, home):
-                links = await self._visit(home, site, is_home=True)
-                for url in choose_links(links, home, site, self.cfg.links, self.cfg.seed):
+                rendered = await self._visit(home, site, "home", is_home=True)
+                for url, via in self._plan_visits(rendered, home, site, robots):
                     if robots.can_fetch(USER_AGENT, url):
-                        await self._visit(url, site)
+                        await self._visit(url, site, via)
                     else:
-                        self._record(url, site, "robots_disallowed")
+                        self._record(url, site, "robots_disallowed", via=via)
             else:
                 self._record(home, site, "robots_disallowed")
         self.log.write(home, "site_done", site=site)
         self.summary.sites += 1
 
-    async def _visit(self, url: str, site: str, is_home: bool = False) -> list[str]:
-        """Crawl one page; returns its outgoing links ([] on failure).
+    def _plan_visits(self, home: Rendered | None, home_url: str, site: str, robots: RobotFileParser) -> list[tuple[str, str]]:
+        """(url, via) pairs after the homepage: one search-result page when the robots rules allow it, then weighted links."""
+        if home is None or self.cfg.links <= 0:
+            return []
+        plan: list[tuple[str, str]] = []
+        word = random.Random(f"{self.cfg.seed}:{site}:search").choice(SEARCH_WORDS)
+        search = search_url(home.forms, site, word)
+        if search and robots.can_fetch(USER_AGENT, search):
+            plan.append((search, "search"))
+        budget = self.cfg.links - len(plan)
+        return plan + [(u, "link") for u in choose_links(home.links, home_url, site, budget, self.cfg.seed)]
+
+    async def _visit(self, url: str, site: str, via: str, is_home: bool = False) -> Rendered | None:
+        """Crawl one page; returns what was rendered (None on failure or when skipped).
 
         A page already on disk is skipped, except a homepage, which is needed to find links.
         """
@@ -369,32 +448,32 @@ class Crawler:
         page_id = page_id_for(url)
         target = self.cfg.out / split / site / f"{page_id}.json.gz"
         if target.exists() and not is_home:
-            self._record(url, site, "exists")
-            return []
+            self._record(url, site, "exists", via=via)
+            return None
         shot = target.with_suffix("").with_suffix(".png") if split in self.cfg.screenshots_for else None
         try:
             rendered = await asyncio.wait_for(self._render(url, site, page_id, shot), PAGE_BUDGET_S)
         except CrawlError as e:
-            self._record(url, site, e.status, reason=e.reason)
-            return []
+            self._record(url, site, e.status, reason=e.reason, via=via)
+            return None
         except (PlaywrightError, asyncio.TimeoutError) as e:
-            self._record(url, site, "nav_error", reason=f"{type(e).__name__}: {next(iter(str(e).splitlines()), '')}")
-            return []
+            self._record(url, site, "nav_error", reason=f"{type(e).__name__}: {next(iter(str(e).splitlines()), '')}", via=via)
+            return None
         page = rendered.page
         n = len(page.elements)
         if target.exists():
-            self._record(url, site, "exists", n)
+            self._record(url, site, "exists", n, via=via)
         elif n < MIN_ELEMENTS:
             self._drop(shot)
-            self._record(url, site, "too_few_elements", n)
+            self._record(url, site, "too_few_elements", n, via=via)
         elif self.index.is_duplicate(text_signature(page)):
             self._drop(shot)
-            self._record(url, site, "duplicate_template", n)
+            self._record(url, site, "duplicate_template", n, via=via)
         else:
             self.index.add(text_signature(page))
             write_page(page, self.cfg.out / split)
-            self._record(url, site, "ok", n)
-        return rendered.links
+            self._record(url, site, "ok", n, via=via)
+        return rendered
 
     @staticmethod
     def _drop(path: Path | None) -> None:
@@ -415,11 +494,12 @@ class Crawler:
             if registrable_domain(page.url) != site:
                 raise CrawlError("cross_site_redirect", page.url)
             extracted = await extract_page(page, page_id=page_id, site=site)
-            links = await page.eval_on_selector_all("a[href]", "els => els.map(e => e.href)")
+            links = await page.eval_on_selector_all("a[href]", LINKS_JS)
+            forms = await page.eval_on_selector_all("form", FORMS_JS)
             if screenshot is not None:
                 screenshot.parent.mkdir(parents=True, exist_ok=True)
                 await page.screenshot(path=str(screenshot), full_page=True)
-            return Rendered(extracted, links)
+            return Rendered(extracted, [(u, t) for u, t in links], forms)
         finally:
             try:
                 await context.close()

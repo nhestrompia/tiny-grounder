@@ -10,13 +10,14 @@ import zipfile
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
 from grounder.data.crawl import (
     LOG_NAME, SPLITS, CrawlConfig, RobotsError, TemplateIndex, choose_links, crawl, format_stats,
-    is_crawlable_link, jaccard, load_robots, load_tranco, read_sites, registrable_domain, split_for,
+    is_crawlable_link, jaccard, link_score, search_url, load_robots, load_tranco, read_sites, registrable_domain, split_for,
     text_signature,
 )
 from grounder.data.pages import iter_pages
@@ -36,7 +37,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         host = (self.headers.get("Host") or "").split(":")[0]
         self.hits.append((host, self.path))
-        name = "index.html" if self.path == "/" else self.path.lstrip("/")
+        path = urlsplit(self.path).path
+        name = "index.html" if path == "/" else path.lstrip("/")
         file = FIXTURES / "crawl" / host / name
         if not file.is_file():
             self.send_error(404)
@@ -99,7 +101,7 @@ def crawled(server, tmp_path_factory):
 def test_crawl_statuses(crawled):
     _, summary, _ = crawled
     assert summary.sites == 3
-    assert summary.statuses["ok"] == 6  # 4 alpha pages, beta index + archive
+    assert summary.statuses["ok"] == 7  # 4 alpha pages + its search results, beta index + archive
     assert summary.statuses["duplicate_template"] == 1  # beta copy.html
     assert summary.statuses["too_few_elements"] == 1  # beta tiny.html
     assert summary.statuses["robots_disallowed"] == 1  # gamma
@@ -109,7 +111,7 @@ def test_crawl_statuses(crawled):
 def test_pages_are_stored_by_split_and_site(crawled):
     out, _, _ = crawled
     files = sorted(out.glob("*/*/*.json.gz"))
-    assert len(files) == 6
+    assert len(files) == 7
     for f in files:
         assert f.parts[-3] == split_for(f.parts[-2])
     assert {p.site for p in iter_pages(out)} == {"alpha-store.com", "beta-news.org"}
@@ -119,7 +121,8 @@ def test_pages_are_stored_by_split_and_site(crawled):
 def test_only_same_site_crawlable_links_are_followed(crawled):
     _, _, hits = crawled
     alpha_paths = {path for host, path in hits if host == "shop.alpha-store.com"}
-    assert alpha_paths == {"/", "/about.html", "/products.html", "/offers.html"}  # no /login, /cart, pdf
+    assert {p for p in alpha_paths if "?" not in p} == {"/", "/about.html", "/products.html", "/offers.html"}  # no /login, /cart, pdf
+    assert [p for p in alpha_paths if "?" in p] and all(p.startswith("/search.html?") and "src=nav" in p for p in alpha_paths if "?" in p)
     assert not any(host == "gamma-wiki.net" for host, _ in hits)  # robots.txt disallows the whole site
 
 
@@ -129,6 +132,13 @@ def test_log_has_one_line_per_attempt(crawled):
     assert Counter(r["status"] for r in lines)["site_done"] == 3
     assert all({"url", "status", "n_elements", "reason"} <= r.keys() for r in lines)
     assert any(r["status"] == "robots_disallowed" and r["site"] == "gamma-wiki.net" for r in lines)
+
+
+def test_log_records_how_each_page_was_reached(crawled):
+    out, _, _ = crawled
+    ok = [r for r in log_lines(out) if r["status"] == "ok"]
+    assert Counter(r["via"] for r in ok) == {"home": 2, "search": 1, "link": 4}
+    assert [r for r in ok if r["via"] == "search"][0]["url"].split("?")[0].endswith("/search.html")
 
 
 def test_screenshots_only_for_requested_split(crawled):
@@ -142,7 +152,7 @@ def test_screenshots_only_for_requested_split(crawled):
 def test_stats_report(crawled):
     out, _, _ = crawled
     report = format_stats(out)
-    assert "pages=6 sites=2" in report
+    assert "pages=7 sites=2" in report
     assert "link" in report and "median=" in report
     for split in SPLITS:
         assert f"split {split}" in report
@@ -166,7 +176,7 @@ def test_resume_does_not_refetch_pages_on_disk(crawled, server, tmp_path):
     run_crawl(out, port)
     alpha = {path for host, path in hits if host == "shop.alpha-store.com"}
     assert alpha == {"/"}  # the homepage is refetched for its links; the other pages are on disk
-    assert len(list(iter_pages(out))) == 6
+    assert len(list(iter_pages(out))) == 7
 
 
 # --- units -------------------------------------------------------------------------------------
@@ -206,13 +216,65 @@ def test_is_crawlable_link(url, ok):
     assert is_crawlable_link(url, "example.com") == ok
 
 
+def pairs(urls: list[str]) -> list[tuple[str, str]]:
+    return [(u, "") for u in urls]
+
+
 def test_choose_links_is_seeded_distinct_and_skips_home():
-    links = [f"https://example.com/p{i}" for i in range(20)] + ["https://example.com/", "https://example.com/p1#top"]
+    links = pairs([f"https://example.com/p{i}" for i in range(20)] + ["https://example.com/", "https://example.com/p1#top"])
     first = choose_links(links, "https://example.com/", "example.com", 3, seed=1)
     assert first == choose_links(links, "https://example.com/", "example.com", 3, seed=1)
     assert first != choose_links(links, "https://example.com/", "example.com", 3, seed=2)
     assert len(set(first)) == 3 and "https://example.com/" not in first
     assert sorted(choose_links(links[:2], "https://example.com/", "example.com", 5, seed=1)) == ["https://example.com/p0", "https://example.com/p1"]
+
+
+def test_link_score_prefers_control_rich_pages():
+    assert link_score("https://e.com/products/lamps") > link_score("https://e.com/about")
+    assert link_score("https://e.com/x", "Search the catalog") > link_score("https://e.com/x", "Our story")
+    assert link_score("https://e.com/support") == link_score("https://e.com/settings") > 1.0
+    assert link_score("https://e.com/2024/05/news-item") == 1.0
+
+
+def test_choose_links_favours_boosted_links():
+    links = pairs([f"https://e.com/post-{i}" for i in range(30)] + ["https://e.com/search", "https://e.com/shop", "https://e.com/help"])
+    hits = Counter()
+    for seed in range(100):
+        hits.update(choose_links(links, "https://e.com/", "e.com", 3, seed))
+    boosted = sum(hits[f"https://e.com/{n}"] for n in ("search", "shop", "help"))
+    assert boosted > 60  # uniform sampling gives 300 * 3 / 33 = 27 hits; weight 5 gives about 90
+
+
+FORMS = [
+    {"action": "https://e.com/find", "method": "get", "fields": [
+        {"name": "lang", "type": "hidden", "value": "en", "checked": False},
+        {"name": "q", "type": "search", "value": "", "checked": False},
+        {"name": "exact", "type": "checkbox", "value": "1", "checked": True},
+        {"name": "fuzzy", "type": "checkbox", "value": "1", "checked": False},
+        {"name": "go", "type": "submit", "value": "Go", "checked": False}]},
+]
+
+
+def test_search_url_fills_get_form_and_encodes_query():
+    url = search_url(FORMS, "e.com", "red shoes & more")
+    assert url == "https://e.com/find?lang=en&exact=1&q=red+shoes+%26+more"
+
+
+def test_search_url_never_uses_post_or_password_or_other_sites():
+    post = [{**FORMS[0], "method": "post"}]
+    login = [{"action": "https://e.com/s", "method": "get", "fields": [
+        {"name": "user", "type": "text", "value": "", "checked": False}, {"name": "pw", "type": "password", "value": "", "checked": False}]}]
+    other = [{**FORMS[0], "action": "https://elsewhere.org/find"}]
+    no_text = [{"action": "https://e.com/s", "method": "get", "fields": [{"name": "n", "type": "number", "value": "", "checked": False}]}]
+    for forms in (post, login, other, no_text, []):
+        assert search_url(forms, "e.com", "shoes") is None
+
+
+def test_search_url_prefers_search_input_and_drops_old_query():
+    text_form = {"action": "https://e.com/a?old=1", "method": "get", "fields": [{"name": "name", "type": "text", "value": "", "checked": False}]}
+    url = search_url([text_form, FORMS[0]], "e.com", "x")
+    assert url is not None and url.startswith("https://e.com/find?")
+    assert search_url([text_form], "e.com", "x") == "https://e.com/a?name=x"
 
 
 def robots_for(status: int, text: str = "") -> httpx.AsyncClient:
