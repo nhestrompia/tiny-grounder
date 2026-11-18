@@ -144,7 +144,8 @@ def _main() -> None:
     parser.add_argument("--pages", required=True)
     parser.add_argument("--examples", required=True)
     parser.add_argument("--checkpoint")
-    parser.add_argument("--baseline", choices=["bm25"])
+    parser.add_argument("--baseline", choices=["bm25", "tinybert"])
+    parser.add_argument("--baseline-model", help="fine-tuned model dir for --baseline tinybert (default: the base cross-encoder)")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--max-examples", type=int)
     parser.add_argument("--out", help="write metrics as JSON")
@@ -158,6 +159,11 @@ def _main() -> None:
         model, tokenizer, _ = load_checkpoint(args.checkpoint, args.device)
         rankings = rank_model(model, tokenizer, pages, examples)
         title = f"{args.checkpoint} ({model.count_params():,} params)"
+    elif args.baseline == "tinybert":
+        from grounder.baselines.tinybert import BASE_MODEL, TinyBertRanker
+
+        model_dir = args.baseline_model or BASE_MODEL
+        rankings, title = rank_with(TinyBertRanker(model_dir, args.device).rank, pages, examples), f"TinyBERT-L2 ({model_dir})"
     else:
         rankings, title = rank_with(bm25.rank, pages, examples), "BM25"
     metrics = evaluate(examples, rankings)

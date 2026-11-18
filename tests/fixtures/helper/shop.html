@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>Helper shop</title>
+<style>body{margin:16px;font:16px sans-serif}nav a,button{margin:6px;padding:6px 10px}.gap{height:1800px}</style>
+<script>
+  window.clicks = {};
+  const hit = (name) => { window.clicks[name] = (window.clicks[name] || 0) + 1; };
+</script>
+<nav>
+  <a href="#" onclick="hit('home');return false">home</a>
+  <a href="#" onclick="hit('cart');return false">cart</a>
+  <a href="#" onclick="hit('login');return false">login</a>
+  <a href="#" onclick="hit('settings');return false">settings</a>
+  <input type="search" placeholder="search" aria-label="search" oninput="hit('typed')">
+</nav>
+<main>
+  <h2>Actions</h2>
+  <button type="button" onclick="hit('delete')">delete</button>
+  <ul><li>send it to a friend <button type="button" onclick="hit('share')">share</button></li></ul>
+  <form onsubmit="event.preventDefault();hit('submitted')">
+    <input type="password" aria-label="help" placeholder="help">
+    <button onclick="hit('save')">save</button>
+  </form>
+</main>
+<div class="gap"></div>
+<button type="button" onclick="hit('contact')">contact</button>
