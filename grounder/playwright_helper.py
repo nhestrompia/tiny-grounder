@@ -50,7 +50,7 @@ BLOCKED_WORDS: tuple[str, ...] = (
     "transfer", "place order",
 )
 _BLOCKED_RE = re.compile(r"\b(?:" + "|".join(re.escape(w) for w in BLOCKED_WORDS) + r")\b", re.IGNORECASE)
-TYPEABLE_ROLES = ("textbox", "searchbox")
+TYPEABLE_ROLES = ("textbox", "searchbox", "combobox")  # comboboxes: search fields with suggestions (MDN, GitHub)
 THRESHOLDS_FILE = "thresholds.json"
 DEFAULT_PRECISION = 0.98
 
