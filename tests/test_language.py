@@ -164,10 +164,10 @@ def test_build_skips_non_english_pages(tmp_path, capsys):
 
 def test_teacher_only_sees_english_pages(tmp_path):
     write_crawl(tmp_path / "pages")
-    picked = pick_pages(tmp_path / "pages", None, 0, DEFAULT_MIN_ENGLISH)
+    picked = pick_pages([tmp_path / "pages"], None, 0, DEFAULT_MIN_ENGLISH)
     assert [p.page_id for p in picked] == ["en1", "en2"]
-    assert len(pick_pages(tmp_path / "pages", None, 0, 0)) == 5
-    assert [p.page_id for p in pick_pages(tmp_path / "pages", 1, 0, DEFAULT_MIN_ENGLISH)] in (["en1"], ["en2"])
+    assert len(pick_pages([tmp_path / "pages"], None, 0, 0)) == 5
+    assert [p.page_id for p in pick_pages([tmp_path / "pages"], 1, 0, DEFAULT_MIN_ENGLISH)] in (["en1"], ["en2"])
 
     prompts: list[str] = []
 

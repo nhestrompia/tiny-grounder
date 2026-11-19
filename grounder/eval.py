@@ -12,7 +12,7 @@ from tokenizers import Tokenizer
 
 from grounder.baselines import bm25
 from grounder.data.dataset import collate
-from grounder.data.pages import load_examples, load_pages
+from grounder.data.pages import load_examples, load_pages_from
 from grounder.features import CHUNK, MODEL_INPUTS, combine_chunk_logits, encode_page
 from grounder.model import Grounder, load_checkpoint
 from grounder.ranking import Ranked, example_elements, example_query, positive_ids, ranked_from_logits
@@ -99,7 +99,22 @@ def _null_metrics(rows: list[tuple[bool, float]]) -> dict[str, dict[str, float |
 
 
 def evaluate(examples: Sequence[Example], rankings: Sequence[Ranked]) -> dict[str, dict]:
-    """Metrics per kind (null examples excluded from top-k), "overall" over all non-null, and "null"."""
+    """Metrics per kind (null examples excluded from top-k), "overall" over all non-null, and "null".
+
+    When any example has a `source`, "by_source" holds the same metrics for each source on its own.
+    """
+    result = _evaluate_one(examples, rankings)
+    if any(ex.source for ex in examples):
+        groups: dict[str, tuple[list[Example], list[Ranked]]] = {}
+        for ex, ranked in zip(examples, rankings, strict=True):
+            exs, rks = groups.setdefault(ex.source, ([], []))
+            exs.append(ex)
+            rks.append(ranked)
+        result["by_source"] = {src: _evaluate_one(exs, rks) for src, (exs, rks) in sorted(groups.items())}
+    return result
+
+
+def _evaluate_one(examples: Sequence[Example], rankings: Sequence[Ranked]) -> dict[str, dict]:
     ranks_by_kind: dict[str, list[int | None]] = {}
     null_rows: list[tuple[bool, float]] = []
     for ex, ranked in zip(examples, rankings, strict=True):
@@ -115,7 +130,11 @@ def evaluate(examples: Sequence[Example], rankings: Sequence[Ranked]) -> dict[st
 
 
 def select_score(metrics: dict[str, dict]) -> float:
-    """Checkpoint selection: top-1 on `paraphrase`, else overall top-1."""
+    """Checkpoint selection: the mean over sources of overall top-1 (domain-balanced), so a large source cannot
+    dominate. Without sources: top-1 on `paraphrase`, else overall top-1."""
+    by_source = [m["overall"]["top1"] for m in metrics.get("by_source", {}).values() if "overall" in m]
+    if by_source:
+        return sum(by_source) / len(by_source)
     by_kind = metrics["by_kind"]
     return by_kind["paraphrase"]["top1"] if "paraphrase" in by_kind else metrics["overall"]["top1"]
 
@@ -132,6 +151,12 @@ def to_markdown(metrics: dict[str, dict], title: str) -> str:
         rows["overall"] = metrics["overall"]
     for kind, m in rows.items():
         lines.append(f"| {kind} | {int(m['n'])} | " + " | ".join(_fmt(m[f"top{k}"]) for k in KS) + f" | {_fmt(m['mrr'])} |")
+    if "by_source" in metrics:
+        lines += ["", "| source | n | top-1 | top-5 | MRR |", "|---|---|---|---|---|"]
+        for src, m in metrics["by_source"].items():
+            if "overall" in m:
+                o = m["overall"]
+                lines.append(f"| {src or '-'} | {int(o['n'])} | {_fmt(o['top1'])} | {_fmt(o['top5'])} | {_fmt(o['mrr'])} |")
     if "null" in metrics:
         lines += ["", "| null_prob threshold | abstain precision | abstain recall | F1 | abstained |", "|---|---|---|---|---|"]
         for t, m in metrics["null"].items():
@@ -141,7 +166,7 @@ def to_markdown(metrics: dict[str, dict], title: str) -> str:
 
 def _main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a checkpoint or the BM25 baseline.")
-    parser.add_argument("--pages", required=True)
+    parser.add_argument("--pages", nargs="+", required=True, help="page directories, merged by page_id")
     parser.add_argument("--examples", required=True)
     parser.add_argument("--checkpoint")
     parser.add_argument("--baseline", choices=["bm25", "tinybert"])
@@ -153,7 +178,7 @@ def _main() -> None:
     if bool(args.checkpoint) == bool(args.baseline):
         parser.error("give exactly one of --checkpoint or --baseline")
 
-    pages = load_pages(args.pages)
+    pages = load_pages_from(args.pages)
     examples = load_examples(args.examples)[: args.max_examples]
     if args.checkpoint:
         model, tokenizer, _ = load_checkpoint(args.checkpoint, args.device)

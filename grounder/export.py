@@ -1,7 +1,7 @@
 """Export a checkpoint to ONNX (fp32 + int8) and check parity with PyTorch.
 
 uv run python -m grounder.export --checkpoint runs/m/model.pt --out dist/m \
-    [--pages DIR --examples dev.jsonl --max-examples 200]
+    [--pages DIR... --examples dev.jsonl --max-examples 200]
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from onnxruntime.quantization import QuantType, quantize_dynamic
 
 from tokenizers import Tokenizer
 
-from grounder.data.pages import load_examples, load_pages
+from grounder.data.pages import load_examples, load_pages_from
 from grounder.features import MODEL_INPUTS, encode_page
 from grounder.model import Grounder, load_checkpoint
 from grounder.ranking import example_elements, example_query
@@ -108,7 +108,7 @@ def _main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--pages")
+    parser.add_argument("--pages", nargs="+", help="page directories, merged by page_id")
     parser.add_argument("--examples")
     parser.add_argument("--max-examples", type=int, default=200)
     args = parser.parse_args()
@@ -117,7 +117,7 @@ def _main() -> None:
     out = export_model_dir(model, ckpt["tokenizer"], args.out)
     print(f"exported to {out}")
     if args.pages and args.examples:
-        pages = load_pages(args.pages)
+        pages = load_pages_from(args.pages)
         items = [(pages[e.page_id], e) for e in load_examples(args.examples)[: args.max_examples]]
         for name, value in parity_check(model, tokenizer, out, items).items():
             print(f"{name}: {value:.6g}")

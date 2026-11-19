@@ -6,7 +6,7 @@ measured on them is published, the data never reaches the weights and is never r
 
 | Source | Licence | Used for | Credit |
 |---|---|---|---|
-| Our web crawl (`data/pages`) + Gemma 4 teacher outputs | Gemma 4: Apache-2.0 | training, dev, test | — |
+| Our web crawl (`data/pages`) + Gemma 4 teacher outputs (via OpenRouter or self-hosted) | Gemma 4: Apache-2.0 | training, dev, test | — |
 | Mind2Web (`osunlp/Mind2Web`) | CC-BY-4.0 | goal-mode training; test splits for evaluation | Deng et al. 2023, "Mind2Web" (NeurIPS) |
 | Screen2AX-Tree (`macpaw-research/Screen2AX-Tree`) + teacher outputs | Apache-2.0 | macOS training | Muryn et al. 2025, arXiv:2507.16704 |
 | Our macOS dumps (`data/pages_ax`) + teacher outputs | ours | macOS training | — |

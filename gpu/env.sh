@@ -4,11 +4,9 @@ VLLM_VENV=${VLLM_VENV:-/workspace/vllm-venv}
 VLLM_PORT=${VLLM_PORT:-8000}
 TEACHER_BASE_URL=${TEACHER_BASE_URL:-http://localhost:$VLLM_PORT/v1}
 TEACHER_CONCURRENCY=${TEACHER_CONCURRENCY:-48}
-DATA_DIR=${DATA_DIR:-data}
+TEACHER_MODEL=teacher  # the name vLLM serves the model under (serve_teacher.sh)
+source "$(dirname "${BASH_SOURCE[0]}")/../scripts/teacher_lib.sh"  # DATA_DIR, MIN_ENGLISH_FLAG, teacher_run
 PAGES=${PAGES:-$DATA_DIR/pages}
-# Optional override of the English-page threshold (--min-english) for the teacher and the dataset build;
-# unset, both use the default of grounder.data.language.
-MIN_ENGLISH_FLAG=${MIN_ENGLISH:+--min-english=$MIN_ENGLISH}
 export HF_HOME=${HF_HOME:-/workspace/hf}
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -41,8 +39,5 @@ pick_model() {
 run_teacher_split() {
   local split=$1 out=$2
   shift 2
-  uv run python -m grounder.data.teacher --pages "$PAGES" --split "$split" --out "$out" \
-    --base-url "$TEACHER_BASE_URL" --model teacher --extra-body "$EXTRA_BODY" \
-    --cache-dir "$DATA_DIR/teacher_cache/$MODEL" --concurrency "$TEACHER_CONCURRENCY" --timeout 300 \
-    $MIN_ENGLISH_FLAG "$@"
+  CACHE_DIR=$DATA_DIR/teacher_cache/$MODEL teacher_run "$out" --pages "$PAGES" --split "$split" "$@"
 }

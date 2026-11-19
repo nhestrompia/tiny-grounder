@@ -157,7 +157,7 @@ def test_stats_and_pick_pages_read_the_collected_directory(tmp_path):
     assert stats == {("train", "notes"): 1, ("train", "mail"): 1, ("test", "finder"): 1}
     text = ax_collect.format_stats(stats)
     assert "finder" in text and "test" in text and "3 apps, 3 pages" in text
-    pages = pick_pages(s.out / "train", None, 0, 0.0)
+    pages = pick_pages([s.out / "train"], None, 0, 0.0)
     assert sorted(p.site for p in pages) == ["mail", "notes"]
 
 

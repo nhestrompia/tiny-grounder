@@ -3,7 +3,8 @@
     uv run python -m grounder.data.build --pages data/pages --out data/examples \
         --llm-examples data/teacher_train.jsonl data/teacher_dev.jsonl
 
-Pages come from `{pages}/{split}/...` (see grounder.data.crawl). Template examples are generated
+Pages come from `{pages}/{split}/...` (see grounder.data.crawl); several `--pages` directories (e.g. the
+macOS sources) are merged per split. Template examples are generated
 here; LLM examples are read from the JSONL files written by grounder.data.teacher and used for the
 split their page belongs to. Only English pages are used (`--min-english`, see grounder.data.language);
 LLM examples of other pages are ignored. Everything passes through grounder.data.filters, then ~10% of the
@@ -23,7 +24,7 @@ from typing import Mapping
 from grounder.data.crawl import SPLITS
 from grounder.data.filters import filter_all, format_rejections
 from grounder.data.language import add_min_english_argument, english_pages
-from grounder.data.pages import iter_pages, load_examples, write_examples
+from grounder.data.pages import load_examples, load_pages_from, write_examples
 from grounder.data.template_teacher import SAMPLE_SIZE, template_examples
 from grounder.records import Example, Page
 
@@ -56,12 +57,10 @@ def add_null_examples(examples: list[Example], pages: Mapping[str, Page], fracti
     return examples + [replace(ex, kind="null") for ex in chosen]
 
 
-def load_split_pages(split_dir: Path, min_english: float) -> tuple[dict[str, Page], int]:
-    """The English pages of one split directory (none when it does not exist) and how many pages were dropped."""
-    if not split_dir.is_dir():
-        return {}, 0
-    everything = list(iter_pages(split_dir))
-    kept = {p.page_id: p for p in english_pages(everything, min_english)}
+def load_split_pages(split_dirs: list[Path], min_english: float) -> tuple[dict[str, Page], int]:
+    """The English pages of one split across directories (missing ones are skipped) and how many pages were dropped."""
+    everything = load_pages_from([d for d in split_dirs if d.is_dir()])
+    kept = {p.page_id: p for p in english_pages(everything.values(), min_english)}
     return kept, len(everything) - len(kept)
 
 
@@ -84,7 +83,7 @@ def build_split(pages: Mapping[str, Page], llm: list[Example], args: argparse.Na
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build train/dev/test example files.")
-    parser.add_argument("--pages", default="data/pages")
+    parser.add_argument("--pages", nargs="+", default=["data/pages"], help="pages directories with split subdirectories")
     parser.add_argument("--out", default="data/examples")
     parser.add_argument("--template", action=argparse.BooleanOptionalAction, default=True,
                         help="generate template-teacher examples")
@@ -101,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     counts: dict[str, Counter[str]] = {}
     rejected: Counter[str] = Counter()
     for split in SPLITS:
-        pages, dropped = load_split_pages(Path(args.pages) / split, args.min_english)
+        pages, dropped = load_split_pages([Path(d) / split for d in args.pages], args.min_english)
         print(f"{split}: {len(pages)} English pages, {dropped} dropped")
         examples, rejects = build_split(pages, llm, args)
         write_examples(examples, out / f"{split}.jsonl")

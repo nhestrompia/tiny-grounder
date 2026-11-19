@@ -15,8 +15,9 @@ import pytest
 from grounder.data.build import add_null_examples, count_table
 from grounder.data.filters import filter_all, filter_examples
 from grounder.data.teacher import (
-    BATCH_SIZE, MAX_TOKENS, RESPONSE_FORMAT, BadResponse, Stats, TeacherConfig, build_messages, generate, items_to_examples,
-    json_object, neighbour_texts, page_source, parse_items, pick_pages,
+    BATCH_SIZE, MAX_TOKENS, RESPONSE_FORMAT, BadResponse, Coverage, Stats, TeacherConfig, auth_headers, build_messages,
+    context_required, generate, items_to_examples, json_object, neighbour_texts, page_source, parse_items, pick_pages,
+    validate_items,
 )
 from grounder.data.template_teacher import context_phrase, sample_elements, template_examples
 from grounder.ranking import example_elements, positive_ids, removed_ids
@@ -240,6 +241,7 @@ GOOD_REPLY = {"items": [
     {"i": 1, "plain": "click Sign in", "paraphrase": "log into my account", "context": None, "goal": "check my past orders"},
     {"i": 2, "plain": "type in the Search box", "paraphrase": "look for a product", "context": None, "goal": "find a lamp"},
     {"i": 3, "plain": "click Add to cart", "paraphrase": "put the lamp in my basket", "context": "add to cart for the red lamp", "goal": "buy the red lamp"},
+    {"i": 4, "plain": "click Add to cart", "paraphrase": "put the chair in my basket", "context": "add to cart for the blue chair", "goal": "buy the blue chair"},
     {"i": 99, "plain": "ignored, bad index", "paraphrase": "x", "context": None, "goal": "y"},
 ]}
 
@@ -268,6 +270,15 @@ class FakeEndpoint:
 def small_page() -> Page:
     return page_of([el(0, "Pricing"), el(1, "Sign in", "button"), el(2, "Search", "searchbox"),
                     el(3, "Add to cart", "button", "Red lamp · $20", href="/c/1"), el(4, "Add to cart", "button", "Blue chair · $90", href="/c/2")])
+
+
+def complete_reply(request: httpx.Request) -> httpx.Response:
+    """A reply covering every element of the request's prompt, with a usage block."""
+    from tools.fake_teacher import reply_items
+
+    prompt = json.loads(request.content)["messages"][-1]["content"]
+    return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(reply_items(prompt))}}],
+                                     "usage": {"prompt_tokens": 400, "completion_tokens": 150}})
 
 
 def run_generate(pages, endpoint: FakeEndpoint, cache: Path, **kw):
@@ -305,38 +316,38 @@ def test_items_to_examples_modes_and_equivalents(small_page):
     goals = [ex for ex in examples if ex.kind == "goal"]
     assert all(ex.mode == "goal" and ex.history == [] for ex in goals)
     assert all(ex.mode == "do" for ex in examples if ex.kind != "goal")
-    assert len([ex for ex in examples if ex.kind == "context"]) == 1
-    assert all(ex.target_id in range(4) for ex in examples)  # item 99 is ignored
+    assert len([ex for ex in examples if ex.kind == "context"]) == 2
+    assert all(ex.target_id in range(5) for ex in examples)  # item 99 is ignored
 
 
 def test_generate_retries_malformed_reply_and_filters(small_page, tmp_path):
     endpoint = FakeEndpoint([chat_response("Sure! here you go"), chat_response(json.dumps(GOOD_REPLY))])
-    raw, failed = run_generate([small_page], endpoint, tmp_path)
-    assert failed == 0 and len(endpoint.bodies) == 2
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert stats.failed == 0 and len(endpoint.bodies) == 2
     assert endpoint.bodies[0]["response_format"] == RESPONSE_FORMAT and endpoint.bodies[0]["seed"] == 0
     result = filter_all({small_page.page_id: small_page}, raw)
     # "click Add to cart" targets one of two different buttons -> ambiguous; the rest is valid
-    assert result.rejected == {"ambiguous_plain": 1}
+    assert result.rejected == {"ambiguous_plain": 2}
     kinds = {ex.kind for ex in result.kept}
     assert kinds == {"plain", "paraphrase", "context", "goal"}
 
 
 def test_generate_retries_server_errors_then_gives_up(small_page, tmp_path):
     endpoint = FakeEndpoint([httpx.Response(503)] * 3)
-    raw, failed = run_generate([small_page], endpoint, tmp_path, retries=2)
-    assert raw == [] and failed == 1 and len(endpoint.bodies) == 3
+    raw, stats = run_generate([small_page], endpoint, tmp_path, retries=2)
+    assert raw == [] and stats.failed == 1 and len(endpoint.bodies) == 3
 
 
-def test_generate_does_not_retry_auth_errors(small_page, tmp_path):
-    endpoint = FakeEndpoint([httpx.Response(401, text="bad key")])
-    raw, failed = run_generate([small_page], endpoint, tmp_path)
-    assert raw == [] and failed == 1 and len(endpoint.bodies) == 1
+def test_generate_does_not_retry_client_errors(small_page, tmp_path):
+    endpoint = FakeEndpoint([httpx.Response(404, text="no such model")])
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert raw == [] and stats.failed == 1 and stats.halt is None and len(endpoint.bodies) == 1
 
 
 def test_generate_falls_back_when_schema_unsupported(small_page, tmp_path):
     endpoint = FakeEndpoint([httpx.Response(400, text="response_format unsupported"), chat_response(json.dumps(GOOD_REPLY))])
-    raw, failed = run_generate([small_page], endpoint, tmp_path)
-    assert failed == 0 and raw
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert stats.failed == 0 and raw
     assert "response_format" in endpoint.bodies[0] and "response_format" not in endpoint.bodies[1]
 
 
@@ -344,8 +355,8 @@ def test_generate_reads_cache_on_rerun(small_page, tmp_path):
     first = FakeEndpoint([chat_response(json.dumps(GOOD_REPLY))])
     raw, _ = run_generate([small_page], first, tmp_path)
     second = FakeEndpoint([])
-    again, failed = run_generate([small_page], second, tmp_path)
-    assert second.bodies == [] and failed == 0 and again == raw
+    again, stats = run_generate([small_page], second, tmp_path)
+    assert second.bodies == [] and stats.failed == 0 and again == raw
 
 
 def test_malformed_replies_are_not_cached(small_page, tmp_path):
@@ -355,10 +366,10 @@ def test_malformed_replies_are_not_cached(small_page, tmp_path):
 
 def test_generate_batches_ten_elements_per_call(tmp_path):
     big = page_of([el(i, f"Item {i}") for i in range(25)])
-    endpoint = FakeEndpoint([chat_response('{"items": []}')] * 3)
+    endpoint = FakeEndpoint([chat_response('{"items": []}')] * 6)  # empty replies are incomplete: each call is retried once
     run_generate([big], endpoint, tmp_path)
     sizes = sorted(body["messages"][1]["content"].count("\n[") for body in endpoint.bodies)
-    assert sizes == [5, BATCH_SIZE, BATCH_SIZE]
+    assert sizes == [5, 5, BATCH_SIZE, BATCH_SIZE, BATCH_SIZE, BATCH_SIZE]
 
 
 def test_extra_body_and_max_tokens_reach_the_request(small_page, tmp_path):
@@ -392,11 +403,10 @@ def test_stats_line_reports_rates_cache_hits_and_eta():
 
 
 def test_generate_logs_progress_and_counts_tokens(small_page, tmp_path, caplog):
-    reply = httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(GOOD_REPLY)}}],
-                                      "usage": {"prompt_tokens": 400, "completion_tokens": 150}})
     big = page_of([el(i, f"Item {i}") for i in range(25)])
     with caplog.at_level(logging.INFO, logger="grounder.teacher"):
-        run_generate([big], FakeEndpoint([reply] * 3), tmp_path, log_every=2)
+        raw, stats = run_generate([big], FakeEndpoint([complete_reply] * 3), tmp_path, log_every=2)
+    assert (stats.prompt_tokens, stats.completion_tokens) == (1200, 450)
     lines = [r.getMessage() for r in caplog.records if "calls," in r.getMessage()]
     assert len(lines) == 2 and lines[0].startswith("2/3 calls") and lines[1].startswith("3/3 calls")
     again = FakeEndpoint([])
@@ -408,11 +418,11 @@ def test_generate_logs_progress_and_counts_tokens(small_page, tmp_path, caplog):
 def test_pick_pages_samples_a_seeded_subset(tmp_path):
     for i in range(10):
         write_page(Page(f"p{i}", "https://a.test/", "a.test", "t", [1280, 800], [1280, 800], []), tmp_path / "train")
-    everything = pick_pages(tmp_path, None, 0, 0)
+    everything = pick_pages([tmp_path], None, 0, 0)
     assert len(everything) == 10
-    picked = [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1, min_english=0)]
-    assert len(picked) == 4 and picked == [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=1, min_english=0)]
-    assert picked != [p.page_id for p in pick_pages(tmp_path / "train", 4, seed=2, min_english=0)]
+    picked = [p.page_id for p in pick_pages([tmp_path / "train"], 4, seed=1, min_english=0)]
+    assert len(picked) == 4 and picked == [p.page_id for p in pick_pages([tmp_path / "train"], 4, seed=1, min_english=0)]
+    assert picked != [p.page_id for p in pick_pages([tmp_path / "train"], 4, seed=2, min_english=0)]
 
 
 def test_fake_teacher_replies_survive_the_filters(shop):
@@ -464,3 +474,164 @@ def test_page_source_names_web_hosts_and_macos_apps():
     assert page_source("ax://notes") == "macOS app notes"
     assert page_source("ax://com.apple.Safari") == "macOS app com.apple.Safari"
     assert page_source("ax://s2ax-d20ac655") == "macOS app"
+
+
+# --- reply completeness ------------------------------------------------------------------------
+
+
+def item(i: int, **over) -> dict:
+    return {"i": i, "plain": "open it", "paraphrase": "go there", "context": None, "goal": "get it done", **over}
+
+
+def test_context_required_only_for_shared_texts(small_page):
+    assert context_required(small_page, small_page.elements) == [False, False, False, True, True]
+
+
+def test_validate_items_accepts_a_complete_reply():
+    valid, cov = validate_items([item(1), item(0)], [False, False])
+    assert [i["i"] for i in valid] == [0, 1]
+    assert cov == Coverage(expected=2, received=2) and cov.missing == 0
+
+
+def test_validate_items_counts_missing_duplicate_and_empty_fields():
+    items = [item(0), item(0, plain="again"), item(1, paraphrase="  "), item(2, goal=None), item(7), item(True)]
+    valid, cov = validate_items(items, [False, False, False, False])
+    assert [i["i"] for i in valid] == [0]
+    assert (cov.expected, cov.received, cov.missing, cov.duplicate, cov.fields_empty) == (4, 1, 3, 1, 2)
+    assert valid[0]["plain"] == "open it"  # the first of a duplicated index wins
+
+
+def test_validate_items_requires_context_only_for_shared_texts():
+    valid, cov = validate_items([item(0), item(1)], [False, True])
+    assert [i["i"] for i in valid] == [0] and cov.fields_empty == 1
+    valid, _ = validate_items([item(1, context="add to cart for the lamp")], [False, True])
+    assert len(valid) == 1
+
+
+def test_validate_items_keeps_a_valid_repeat_of_an_invalid_item():
+    valid, cov = validate_items([item(0, plain=""), item(0)], [False])
+    assert len(valid) == 1 and cov.duplicate == 0 and cov.fields_empty == 1
+
+
+INCOMPLETE = {"items": GOOD_REPLY["items"][:3]}
+
+
+def test_incomplete_reply_is_retried_once(small_page, tmp_path):
+    endpoint = FakeEndpoint([chat_response(json.dumps(INCOMPLETE)), chat_response(json.dumps(GOOD_REPLY))])
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert len(endpoint.bodies) == 2 and stats.failed == 0
+    assert endpoint.bodies[1]["seed"] == endpoint.bodies[0]["seed"] + 1  # a new sample, not the same reply again
+    assert (stats.items_expected, stats.items_received, stats.items_missing) == (5, 5, 0)
+    assert {ex.target_id for ex in raw} == {0, 1, 2, 3, 4}
+    rerun = FakeEndpoint([])
+    again, _ = run_generate([small_page], rerun, tmp_path)  # the kept reply is found under the attempt-0 key
+    assert rerun.bodies == [] and {ex.target_id for ex in again} == {0, 1, 2, 3, 4}
+
+
+def test_still_incomplete_reply_keeps_valid_items_and_counts_the_rest(small_page, tmp_path):
+    worse = {"items": INCOMPLETE["items"][:2]}
+    endpoint = FakeEndpoint([chat_response(json.dumps(INCOMPLETE)), chat_response(json.dumps(worse)), chat_response("never asked")])
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert len(endpoint.bodies) == 2 and stats.failed == 0
+    assert (stats.items_expected, stats.items_received, stats.items_missing) == (5, 3, 2)
+    assert {ex.target_id for ex in raw} == {0, 1, 2}  # the better of the two replies
+    again = FakeEndpoint([])
+    _, stats = run_generate([small_page], again, tmp_path)
+    assert again.bodies == [] and stats.items_received == 3  # the settled reply is cached and final
+
+
+def test_batch_without_a_valid_item_is_failed(small_page, tmp_path):
+    endpoint = FakeEndpoint([chat_response('{"items": [{"i": 0}]}')] * 2)
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert raw == [] and stats.failed == 1 and (stats.items_received, stats.fields_empty) == (0, 3)
+
+
+def test_progress_line_reports_item_coverage():
+    stats = Stats(total=10, calls=5, items_expected=50, items_received=46, items_duplicate=1, fields_empty=3, cost_usd=0.5)
+    line = stats.line(now=1.0)
+    assert "items 46/50 (missing 4, duplicate 1, empty fields 3)" in line and "cost $0.5000" in line
+
+
+# --- hosted endpoints (OpenRouter) -------------------------------------------------------------
+
+
+def error_response(code: int | str, message: str = "boom") -> httpx.Response:
+    return httpx.Response(200, json={"error": {"code": code, "message": message}})
+
+
+def test_auth_header_is_a_bearer_token(monkeypatch):
+    monkeypatch.setenv("TEACHER_TEST_KEY", "sk-or-1")
+    assert auth_headers("TEACHER_TEST_KEY") == {"Authorization": "Bearer sk-or-1"}
+    monkeypatch.delenv("TEACHER_TEST_KEY")
+    assert auth_headers("TEACHER_TEST_KEY") == {} and auth_headers(None) == {}
+
+
+def test_http_402_halts_the_run_without_retrying(tmp_path):
+    big = page_of([el(i, f"Item {i}") for i in range(25)])
+    endpoint = FakeEndpoint([httpx.Response(402, text="insufficient credits")] * 3)
+    raw, stats = run_generate([big], endpoint, tmp_path, concurrency=1)
+    assert raw == [] and len(endpoint.bodies) == 1  # the other two batches are never sent
+    assert "out of credits" in stats.halt and stats.skipped == 2 and stats.failed == 0
+
+
+def test_http_401_halts_the_run(small_page, tmp_path):
+    _, stats = run_generate([small_page], FakeEndpoint([httpx.Response(401, text="no auth")]), tmp_path)
+    assert "key rejected" in stats.halt
+
+
+def test_error_object_with_http_200_and_402_halts(small_page, tmp_path):
+    _, stats = run_generate([small_page], FakeEndpoint([error_response(402, "Insufficient credits")]), tmp_path)
+    assert "out of credits" in stats.halt and "Insufficient credits" in stats.halt
+
+
+def test_error_object_with_http_200_and_429_is_retried(small_page, tmp_path):
+    endpoint = FakeEndpoint([error_response(429, "rate limited"), error_response("502"), chat_response(json.dumps(GOOD_REPLY))])
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert len(endpoint.bodies) == 3 and raw and stats.failed == 0 and stats.halt is None
+
+
+def test_other_error_object_fails_the_batch(small_page, tmp_path):
+    endpoint = FakeEndpoint([error_response(403, "input flagged")])
+    raw, stats = run_generate([small_page], endpoint, tmp_path)
+    assert raw == [] and stats.failed == 1 and stats.halt is None and len(endpoint.bodies) == 1
+
+
+def costed_reply(request: httpx.Request) -> httpx.Response:
+    response = complete_reply(request)
+    payload = response.json() | {"usage": {"prompt_tokens": 100, "completion_tokens": 50, "cost": 0.01}}
+    return httpx.Response(200, json=payload)
+
+
+def test_cost_is_summed_from_usage(tmp_path):
+    big = page_of([el(i, f"Item {i}") for i in range(25)])
+    _, stats = run_generate([big], FakeEndpoint([costed_reply] * 3), tmp_path)
+    assert stats.cost_usd == pytest.approx(0.03) and stats.summary()["cost_usd"] == pytest.approx(0.03)
+
+
+def test_max_cost_stops_launching_calls(tmp_path):
+    big = page_of([el(i, f"Item {i}") for i in range(25)])
+    endpoint = FakeEndpoint([costed_reply] * 3)
+    _, stats = run_generate([big], endpoint, tmp_path, concurrency=1, max_cost_usd=0.015)
+    assert len(endpoint.bodies) == 2 and stats.skipped == 1 and "cost limit" in stats.halt
+
+
+def test_cache_key_includes_the_model_id(small_page, tmp_path):
+    run_generate([small_page], FakeEndpoint([chat_response(json.dumps(GOOD_REPLY))]), tmp_path)
+    other = FakeEndpoint([chat_response(json.dumps(GOOD_REPLY))])
+    cfg = TeacherConfig(model="another/model", cache_dir=tmp_path, backoff_s=0, per_page=5)
+
+    async def go():
+        async with other.client() as http:
+            return await generate([small_page], http, cfg)
+
+    asyncio.run(go())
+    assert len(other.bodies) == 1 and other.bodies[0]["model"] == "another/model"
+
+
+def test_pick_pages_mixes_several_directories(tmp_path):
+    for name in ("a", "b"):
+        for i in range(6):
+            write_page(Page(f"{name}{i}", "https://a.test/", "a.test", "t", [1280, 800], [1280, 800], []), tmp_path / name)
+    picked = pick_pages([tmp_path / "a", tmp_path / "b"], 6, seed=3, min_english=0)
+    assert len(picked) == 6 and {p.page_id[0] for p in picked} == {"a", "b"}
+    assert picked == pick_pages([tmp_path / "a", tmp_path / "b"], 6, seed=3, min_english=0)

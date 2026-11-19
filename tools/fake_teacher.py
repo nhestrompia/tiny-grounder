@@ -38,7 +38,7 @@ def reply_items(user_prompt: str) -> dict[str, Any]:
             "i": index,
             "plain": f"click {text}" if text else f"click the {role}",
             "paraphrase": f"use the {tag} control",
-            "context": f"click {text} for {context.split(' · ')[0]}" if shared and text and context else None,
+            "context": f"click {text} for {context.split(' · ')[0]}" if context and shared else (f"press {text} again" if shared else None),
             "goal": f"finish the {tag} errand",
         })
     return {"items": items}

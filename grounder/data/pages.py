@@ -9,7 +9,7 @@ from __future__ import annotations
 import gzip
 import json
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Sequence
 
 from grounder.records import Example, Page
 
@@ -30,6 +30,16 @@ def iter_pages(pages_dir: str | Path) -> Iterator[Page]:
 
 def load_pages(pages_dir: str | Path) -> dict[str, Page]:
     return {p.page_id: p for p in iter_pages(pages_dir)}
+
+
+def load_pages_from(pages_dirs: Sequence[str | Path]) -> dict[str, Page]:
+    """The pages of several directories by page_id; the same page_id with different content is an error."""
+    pages: dict[str, Page] = {}
+    for pages_dir in pages_dirs:
+        for page in iter_pages(pages_dir):
+            if pages.setdefault(page.page_id, page) != page:
+                raise ValueError(f"page_id {page.page_id!r} appears in {pages_dir} with different content")
+    return pages
 
 
 def write_page(page: Page, pages_dir: str | Path) -> Path:

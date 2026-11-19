@@ -127,7 +127,11 @@ def action_repr(el: Element, value: str | None = None) -> str:
 
 @dataclass
 class Example:
-    """One training / evaluation example (one line of a JSONL file)."""
+    """One training / evaluation example (one line of a JSONL file).
+
+    source: the data source it came from ("web", "deskforge", ...), set when examples are mixed; empty for
+            single-source files. Evaluation reports the dev score per source.
+    """
 
     page_id: str
     kind: str
@@ -136,6 +140,7 @@ class Example:
     history: list[str] = field(default_factory=list)
     target_id: int | None = None
     equiv_ids: list[int] = field(default_factory=list)
+    source: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

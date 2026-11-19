@@ -1,6 +1,6 @@
 """Train a grounder.
 
-uv run python -m grounder.train --config configs/m.yaml --pages pages --train train.jsonl \
+uv run python -m grounder.train --config configs/m.yaml --pages pages_a pages_b --train train.jsonl \
     --dev dev.jsonl --tokenizer tok.json --out runs/m
 """
 
@@ -18,7 +18,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from grounder.data.dataset import AugmentConfig, BucketBatchSampler, GrounderDataset, collate
-from grounder.data.pages import load_examples, load_pages
+from grounder.data.pages import load_examples, load_pages_from
 from grounder.features import MODEL_INPUTS
 from grounder.eval import evaluate, rank_model, select_score
 from grounder.model import Grounder, GrounderConfig, listwise_loss, save_checkpoint
@@ -67,7 +67,7 @@ def train(args: argparse.Namespace) -> Path:
     cfg = GrounderConfig.from_yaml(args.config)
     if tokenizer.get_vocab_size() > cfg.vocab:
         raise ValueError(f"tokenizer vocab {tokenizer.get_vocab_size()} exceeds config vocab {cfg.vocab}")
-    pages = load_pages(args.pages)
+    pages = load_pages_from(args.pages)
     train_ex, dev_ex = load_examples(args.train), load_examples(args.dev)
 
     limits = {"max_q": cfg.max_q, "max_text": cfg.max_text, "max_ctx": cfg.max_ctx}
@@ -132,7 +132,7 @@ def train(args: argparse.Namespace) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", required=True)
-    p.add_argument("--pages", required=True)
+    p.add_argument("--pages", nargs="+", required=True, help="page directories, merged by page_id")
     p.add_argument("--train", required=True)
     p.add_argument("--dev", required=True)
     p.add_argument("--tokenizer", required=True)
