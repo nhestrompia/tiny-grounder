@@ -105,10 +105,15 @@ class ClickResult:
     target: dict[str, Any] | None = None
 
 
+def blocked_text(text: str) -> str | None:
+    """The first blocked word found in `text`, else None."""
+    match = _BLOCKED_RE.search(text)
+    return match.group(0).lower() if match else None
+
+
 def blocked_word(element: Element) -> str | None:
     """The first blocked word found in the element's text or context, else None."""
-    match = _BLOCKED_RE.search(f"{element.text} | {element.context}")
-    return match.group(0).lower() if match else None
+    return blocked_text(f"{element.text} | {element.context}")
 
 
 def centre(box: Sequence[float]) -> list[float]:

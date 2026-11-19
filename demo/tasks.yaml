@@ -101,3 +101,104 @@
   goal: Open the page that lists the GNU manuals.
   check: {url_contains: /manual/}
   max_steps: 6
+# Added for the CLI-agent benchmark: stable non-Wikipedia sites (docs, repos, standards, news, government, wikis).
+- id: pydocs-sorting-howto
+  start_url: https://docs.python.org/3/
+  goal: "Find the HOWTO guide that explains how to sort lists and other data in Python and open it."
+  check: {url_contains: "howto/sorting.html"}
+  max_steps: 8
+- id: pydocs-glossary
+  start_url: https://docs.python.org/3/
+  goal: "Open the glossary that defines Python terminology."
+  check: {url_contains: "/glossary.html"}
+  max_steps: 6
+- id: pydocs-search-pathlib
+  start_url: https://docs.python.org/3/
+  goal: "Use the documentation search box to look for pathlib and open the page of the pathlib module in the standard library."
+  check: {url_contains: "library/pathlib.html"}
+  max_steps: 8
+- id: mdn-http-status
+  start_url: https://developer.mozilla.org/en-US/docs/Web/HTTP
+  goal: "Open the reference page that lists the HTTP response status codes."
+  check: {url_regex: "Web/HTTP/(Reference/)?Status/?$"}
+  max_steps: 8
+- id: mdn-fetch-api
+  start_url: https://developer.mozilla.org/en-US/docs/Web/API
+  goal: "Open the documentation of the Fetch API."
+  check: {url_contains: "/docs/Web/API/Fetch_API"}
+  max_steps: 8
+- id: github-numpy-pulls
+  start_url: https://github.com/numpy/numpy
+  goal: "Open the list of pull requests of this repository."
+  check: {url_contains: "/numpy/numpy/pulls"}
+  max_steps: 6
+- id: github-django-tags
+  start_url: https://github.com/django/django
+  goal: "Open the page that lists the tags of this repository."
+  check: {url_contains: "/django/django/tags"}
+  max_steps: 6
+- id: github-ripgrep-actions
+  start_url: https://github.com/BurntSushi/ripgrep
+  goal: "Open the Actions tab (the CI workflow runs) of this repository."
+  check: {url_contains: "/BurntSushi/ripgrep/actions"}
+  max_steps: 6
+- id: arxiv-about
+  start_url: https://arxiv.org/
+  goal: "Open the page that explains what arXiv is (its mission and history)."
+  check: {url_contains: "arxiv.org/about"}
+  max_steps: 6
+- id: weather-gov-alerts
+  start_url: https://www.weather.gov/
+  goal: "Open the page of current weather watches and warnings (active alerts)."
+  check: {url_regex: "alerts\\.weather\\.gov|weather\\.gov/(alerts|wwamap|alert)"}
+  max_steps: 8
+- id: nasa-missions
+  start_url: https://www.nasa.gov/
+  goal: "Open the page that lists NASA's missions."
+  check: {url_regex: "nasa\\.gov/(nasa-)?missions"}
+  max_steps: 6
+- id: archive-wayback
+  start_url: https://archive.org/
+  goal: "Open the Wayback Machine (the web archive) page."
+  check: {url_contains: "web.archive.org"}
+  max_steps: 6
+- id: osm-wiki-key-amenity
+  start_url: https://wiki.openstreetmap.org/wiki/Main_Page
+  goal: "Use the wiki search to find the page about the 'amenity' key and open it."
+  check: {url_contains: "Key:amenity"}
+  max_steps: 8
+- id: rfc-9110
+  start_url: https://www.rfc-editor.org/
+  goal: "Open the RFC document 'HTTP Semantics' (RFC 9110)."
+  check: {url_contains: "rfc9110"}
+  max_steps: 8
+- id: rust-book
+  start_url: https://www.rust-lang.org/
+  goal: "Find and open the online book that teaches the Rust programming language (known as 'the book')."
+  check: {url_contains: "doc.rust-lang.org/book"}
+  max_steps: 8
+- id: numpy-broadcasting
+  start_url: https://numpy.org/
+  goal: "Find the NumPy documentation page that explains broadcasting."
+  check: {url_contains: "broadcasting"}
+  max_steps: 8
+- id: nodejs-fs-api
+  start_url: https://nodejs.org/
+  goal: "Open the Node.js API reference page of the file system ('fs') module."
+  check: {url_contains: "api/fs"}
+  max_steps: 8
+- id: k8s-pods
+  start_url: https://kubernetes.io/docs/home/
+  goal: "Find the documentation page that explains what a Pod is."
+  check: {url_contains: "concepts/workloads/pods"}
+  max_steps: 8
+- id: pydocs-tutorial-datastructures
+  start_url: https://docs.python.org/3/tutorial/
+  goal: "Open the tutorial chapter about data structures (lists, tuples, dictionaries, sets)."
+  check: {url_contains: "tutorial/datastructures.html"}
+  max_steps: 6
+- id: pyorg-devguide
+  start_url: https://www.python.org/
+  goal: "Open the Python Developer's Guide, the handbook for people who contribute to CPython."
+  check: {url_contains: "devguide.python.org"}
+  max_steps: 8
