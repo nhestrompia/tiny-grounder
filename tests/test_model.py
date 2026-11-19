@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from grounder.data.dataset import AugmentConfig, GrounderDataset, collate
+from grounder.features import MODEL_INPUTS
 from grounder.model import NEG_INF, Grounder, GrounderConfig, listwise_loss
 
 CONFIGS = Path(__file__).parent.parent / "configs"
@@ -105,3 +106,16 @@ def test_overfits_100_examples(synth_data, tokenizer, xs_config):
         logits = model(**{k: batch[k] for k in random_batch(xs_config)})
     hit = batch["positive"].gather(1, logits.argmax(1, keepdim=True)).squeeze(1)
     assert hit.float().mean() >= 0.97, hit.float().mean()
+
+
+def test_rounded_collate_gives_same_loss(model, synth_data, tokenizer, xs_config):
+    pages, examples = synth_data
+    ds = GrounderDataset(pages, examples[:8], tokenizer, None, max_q=xs_config.max_q,
+                         max_text=xs_config.max_text, max_ctx=xs_config.max_ctx)
+    items = [ds[i] for i in range(len(ds))]
+    exact, rounded = collate(items), collate(items, round_q=8, round_n=32)
+    assert rounded["query_ids"].shape[1] % 8 == 0 and rounded["el_role"].shape[1] % 32 == 0
+    assert rounded["el_role"].shape[1] >= exact["el_role"].shape[1]
+    with torch.no_grad():
+        losses = [listwise_loss(model(*(b[k] for k in MODEL_INPUTS)), b["positive"]) for b in (exact, rounded)]
+    torch.testing.assert_close(losses[1], losses[0], atol=1e-5, rtol=1e-4)

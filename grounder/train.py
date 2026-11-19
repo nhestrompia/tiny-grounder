@@ -7,6 +7,7 @@ uv run python -m grounder.train --config configs/m.yaml --pages pages_a pages_b 
 from __future__ import annotations
 
 import argparse
+import functools
 import gc
 import json
 import math
@@ -83,7 +84,7 @@ def train(args: argparse.Namespace) -> Path:
     dev_pages = {pid: pages[pid] for pid in {ex.page_id for ex in dev_ex}}
     del pages
     gc.collect()
-    loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=collate, num_workers=args.workers)
+    loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=functools.partial(collate, round_q=8, round_n=32), num_workers=args.workers)
 
     model = Grounder(cfg).to(device)
     optimizer = make_optimizer(model, args.lr, args.weight_decay)
@@ -118,12 +119,16 @@ def train(args: argparse.Namespace) -> Path:
             scheduler.step()
             losses.append(loss.item())
             step += 1
+            if device.type == "mps" and step % 500 == 0:
+                torch.mps.empty_cache()  # the caching allocator otherwise keeps every freed block
             if step % args.log_every == 0:
                 print(f"step {step} loss {np.mean(losses[-args.log_every:]):.4f}")
             if step >= total_steps:
                 break
 
         dev = evaluate(dev_ex, rank_model(model, tokenizer, dev_pages, dev_ex, args.eval_batch_size))
+        if device.type == "mps":
+            torch.mps.empty_cache()
         score = select_score(dev)
         row = {"epoch": epoch, "step": step, "train_loss": float(np.mean(losses)), "select_top1": score,
                "dev": dev, "seconds": round(time.time() - started, 1)}

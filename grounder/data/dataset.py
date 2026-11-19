@@ -298,13 +298,20 @@ class GrounderDataset(Dataset):
         return item
 
 
-def collate(batch: list[dict[str, np.ndarray]]) -> dict[str, torch.Tensor]:
-    """Pad a list of per-page arrays to the batch max query length and element count.
+def _round_up(x: int, multiple: int) -> int:
+    return -(-x // multiple) * multiple
 
-    Items from `GrounderDataset` carry a `positive` mask that is padded too; eval items do not."""
+
+def collate(batch: list[dict[str, np.ndarray]], round_q: int = 1, round_n: int = 1) -> dict[str, torch.Tensor]:
+    """Pad a list of per-page arrays to the batch max query length and element count, rounded up to
+    multiples of `round_q` / `round_n` (padding is masked out by the model).
+
+    Training rounds up so the MPS allocator sees a few dozen tensor shapes instead of thousands; with exact
+    shapes its cache grew past physical memory. Items from `GrounderDataset` carry a `positive` mask that is
+    padded too; eval items do not."""
     b = len(batch)
-    lq = max(len(item["query_ids"]) for item in batch)
-    n = max(len(item["el_role"]) for item in batch)
+    lq = _round_up(max(len(item["query_ids"]) for item in batch), round_q)
+    n = _round_up(max(len(item["el_role"]) for item in batch), round_n)
     first = batch[0]
     out = {
         "query_ids": np.zeros((b, lq), dtype=np.int64),
