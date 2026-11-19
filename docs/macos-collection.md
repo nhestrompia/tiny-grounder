@@ -27,6 +27,27 @@ Take 3-5 windows per app in different states (different views, a settings pane, 
 elements, a near-duplicate (Jaccard >= 0.9 on text) of a page already saved for that app, and any app that already
 has pages in the other split.
 
+## Automatic collection
+
+```
+uv run python tools/ax_auto.py --out data/pages_ax --split train --dry-run   # print the plan, do nothing
+uv run python tools/ax_auto.py --out data/pages_ax --split train
+uv run python tools/ax_auto.py --out data/pages_ax --split test              # Numbers, Pages, Keynote, Font Book, Disk Utility
+uv run python tools/ax_auto.py --out data/pages_ax --apps "Notes,Mail" --max-per-app 4 --settle 3
+```
+
+For each installed app (about 30 stock Apple apps by default, or `--apps`) it launches the app, dumps the front window,
+then opens and dumps a few safe views and undoes each: settings window (cmd+,), new window (cmd+n, only in apps where it creates no data — Finder, Safari, TextEdit, Terminal, Maps and the like; closed with cmd+w,
+"Don't Save" via cmd+d if a save sheet appears), open and print panels (cmd+o, cmd+p) and the find bar (cmd+f), each
+closed with Escape. System Settings is walked pane by pane through `x-apple.systempreferences:` URLs. Only those
+keystrokes are ever sent, never a click, cmd+q or delete. Apps it launched are quit afterwards, except Finder, Terminal
+and the app you run it from (which is skipped). Dumps of the wrong frontmost app are dropped. Saving, near-duplicate
+skipping, the train/test split guard and test screenshots are the same as the interactive collector; a final table
+counts saved, duplicate, too-few, wrong-app and error scenes per app.
+
+The terminal needs **Accessibility** (to send keystrokes and for axdump) and, for `--split test`, **Screen Recording**.
+Do not touch the keyboard or mouse while it runs; keystrokes go to whatever is in front.
+
 ## Next steps
 
 ```

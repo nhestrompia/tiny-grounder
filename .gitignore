@@ -6,3 +6,4 @@ __pycache__/
 *.onnx
 .pytest_cache/
 /dist/
+.DS_Store

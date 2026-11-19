@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy files between this machine and the pod over SSH (rsync; reruns only send what changed).
-#   up:   the repo (no .venv, runs, dist, data) and data/pages. Pages are already .json.gz, so nothing is recompressed.
+#   up:   the repo (no .venv, runs, dist, data), data/pages, and the macOS pages data/pages_ax and data/pages_s2ax when present. Pages are already .json.gz, so nothing is recompressed.
 #   down: teacher outputs, the teacher cache, assembled examples, runs/ and dist/.
 # usage: gpu/sync.sh up|down HOST PORT   (RunPod shows: ssh root@HOST -p PORT -i ~/.ssh/id_ed25519)
 set -euo pipefail
@@ -19,6 +19,11 @@ case $direction in
     rsync -a --partial -e "$ssh_cmd" --exclude /.git --exclude /.venv --exclude /runs --exclude /dist \
       --exclude /data --exclude __pycache__ --exclude .pytest_cache ./ "$remote/"
     rsync -a --partial -e "$ssh_cmd" data/pages/ "$remote/data/pages/"
+    for native in pages_ax pages_s2ax; do
+      [ -d "data/$native" ] || continue
+      $ssh_cmd "root@$host" "mkdir -p $remote_dir/data/$native"
+      rsync -a --partial -e "$ssh_cmd" --exclude .DS_Store "data/$native/" "$remote/data/$native/"
+    done
     ;;
   down)
     for dir in "${down_dirs[@]}"; do

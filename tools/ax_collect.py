@@ -22,7 +22,7 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 from grounder.data.crawl import DEDUPE_JACCARD, TemplateIndex, text_signature
 from grounder.data.pages import load_page, page_paths, write_page
@@ -32,6 +32,8 @@ from grounder.records import Page
 SPLITS = ("train", "test")
 DEFAULT_MIN_ELEMENTS = 5
 SCREENSHOT_TIMEOUT = 15.0
+
+SAVED, TOO_FEW, LEAK, DUPLICATE = "saved", "too few", "leak", "duplicate"
 
 Dump = Callable[[], dict[str, Any]]
 Screenshot = Callable[[list[float], list[int], Path], None]
@@ -87,6 +89,14 @@ def format_stats(stats: dict[tuple[str, str], int]) -> str:
     return "\n".join(lines)
 
 
+class Outcome(NamedTuple):
+    """Result of saving one dump: `kind` is SAVED or the skip reason, `line` the human-readable log line."""
+
+    kind: str
+    page: Page
+    line: str
+
+
 class Collector:
     """Dumps the frontmost window and saves it under `out/split`; `dump`, `screenshot` are injectable for tests."""
 
@@ -108,7 +118,7 @@ class Collector:
                 index.add(text_signature(load_page(path)))
         return self._seen[site]
 
-    def _other_split_has(self, site: str) -> bool:
+    def other_split_has(self, site: str) -> bool:
         other = next(s for s in SPLITS if s != self.split)
         return any((self.out / other / site).glob("*.json.gz"))
 
@@ -119,32 +129,37 @@ class Collector:
         except ax.AxdumpError as e:
             self.show(f"axdump failed: {e}")
             return e.returncode != 2  # no Accessibility permission: retrying cannot help
+        outcome = self.save_dump(raw)
+        self.show(outcome.line)
+        return True
+
+    def save_dump(self, raw: dict[str, Any]) -> Outcome:
+        """Validate, dedupe and save one raw axdump; the outcome says what happened and why."""
         app = raw.get("app") or "unknown"
         site = slugify(app)
         page = ax.page_from_dump(raw, f"{site}-pending", site)
         page.page_id = page_id_for(site, page)
-        reason = self._skip_reason(page, site)
+        kind, reason = self._skip_reason(page, site)
         summary = f"{app}: {len(page.elements)} elements ({role_summary(page)})"
         if reason:
             self.skipped[app] += 1
-            self.show(f"{summary} -> skipped, {reason}")
-            return True
+            return Outcome(kind, page, f"{summary} -> skipped, {reason}")
         path = write_page(page, self.out / self.split)
         self._index(site).add(text_signature(page))
         self.saved[app] += 1
         warning = self._save_screenshot(raw, path) if self.split == "test" else ""
-        self.show(f"{summary} -> saved {path.relative_to(self.out)}{warning}")
-        return True
+        return Outcome(SAVED, page, f"{summary} -> saved {path.relative_to(self.out)}{warning}")
 
-    def _skip_reason(self, page: Page, site: str) -> str:
+    def _skip_reason(self, page: Page, site: str) -> tuple[str, str]:
+        """(kind, human reason) why the page must not be saved, or ("", "") when it can be."""
         if len(page.elements) < self.min_elements:
-            return f"fewer than {self.min_elements} elements"
-        if self._other_split_has(site):
+            return TOO_FEW, f"fewer than {self.min_elements} elements"
+        if self.other_split_has(site):
             other = next(s for s in SPLITS if s != self.split)
-            return f"{site} already has pages in {other}; held-out apps must stay in one split"
+            return LEAK, f"{site} already has pages in {other}; held-out apps must stay in one split"
         if self._index(site).is_duplicate(text_signature(page)):
-            return "near-duplicate of a saved page"
-        return ""
+            return DUPLICATE, "near-duplicate of a saved page"
+        return "", ""
 
     def _save_screenshot(self, raw: dict[str, Any], page_path: Path) -> str:
         """Screenshot beside the page file; returns a warning suffix when it could not be taken."""

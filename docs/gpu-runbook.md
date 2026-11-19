@@ -38,8 +38,11 @@ If it fails, fix the prompt (`SYSTEM_PROMPT` in `grounder/data/teacher.py`, edit
 ### Full run
 
 ```bash
-gpu/run_teacher.sh gemma    # train, dev, test, then builds data/examples/*.jsonl; progress + ETA in the log
+gpu/run_teacher.sh gemma         # train, dev, test, then builds data/examples/*.jsonl; progress + ETA in the log
+gpu/run_teacher_native.sh gemma  # macOS pages (data/pages_ax, data/pages_s2ax) -> data/teacher/gemma-<source>-<split>.jsonl
 ```
+
+The native run is small (about 1k pages) and goes after the web run. Its outputs are merged into training on the Mac, together with Mind2Web and the GUIrilla train split, which need no teacher.
 
 ### Where to train
 

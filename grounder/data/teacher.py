@@ -46,7 +46,7 @@ SCHEMA_REJECTED_STATUSES = frozenset({400, 422})
 _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$")
 
 SYSTEM_PROMPT = """\
-You write training data for a model that finds the right UI element on a web page. For each numbered element, \
+You write training data for a model that finds the right UI element on a web page or in a desktop app window. For each numbered element, \
 write what a user would say so that this element is the one to act on.
 
 Return one JSON object: {"items": [{"i": <element number>, "plain": ..., "paraphrase": ..., "context": ..., "goal": ...}]}
@@ -125,10 +125,17 @@ def element_line(index: int, el: Element, page: Page, counts: dict[str, int]) ->
             f"near={json.dumps(neighbour_texts(el, page.elements), ensure_ascii=False)} same_text_elsewhere={shared}")
 
 
+def page_source(url: str) -> str:
+    """The web host, or "macOS app <name>" for accessibility dumps (ax://<app or bundle id>; Screen2AX has no name)."""
+    if url.startswith("ax://"):
+        name = url.removeprefix("ax://")
+        return "macOS app" if name.startswith("s2ax-") else f"macOS app {name}"
+    return re.sub(r"^https?://", "", url).split("/")[0]
+
+
 def build_messages(page: Page, batch: Sequence[Element]) -> list[dict[str, str]]:
     counts = label_counts(page.elements)
-    host = re.sub(r"^https?://", "", page.url).split("/")[0]
-    lines = [f'Page: "{page.title}" ({host})'] + [element_line(i, el, page, counts) for i, el in enumerate(batch)]
+    lines = [f'Page: "{page.title}" ({page_source(page.url)})'] + [element_line(i, el, page, counts) for i, el in enumerate(batch)]
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": "\n".join(lines)}]
 
 

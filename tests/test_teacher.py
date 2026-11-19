@@ -16,7 +16,7 @@ from grounder.data.build import add_null_examples, count_table
 from grounder.data.filters import filter_all, filter_examples
 from grounder.data.teacher import (
     BATCH_SIZE, MAX_TOKENS, RESPONSE_FORMAT, BadResponse, Stats, TeacherConfig, build_messages, generate, items_to_examples,
-    json_object, neighbour_texts, parse_items, pick_pages,
+    json_object, neighbour_texts, page_source, parse_items, pick_pages,
 )
 from grounder.data.template_teacher import context_phrase, sample_elements, template_examples
 from grounder.ranking import example_elements, positive_ids, removed_ids
@@ -457,3 +457,10 @@ def test_results_table_lists_models_and_kinds():
     assert table[0] == "| dev top-1 | params | paraphrase | plain | overall |"
     assert table[2] == "| xs | 1,356,929 | 0.500 | 0.900 | 0.700 |"
     assert table[3] == "| bm25 | - | 0.100 | 0.900 | 0.500 |"
+
+
+def test_page_source_names_web_hosts_and_macos_apps():
+    assert page_source("https://shop.example/a/b") == "shop.example"
+    assert page_source("ax://notes") == "macOS app notes"
+    assert page_source("ax://com.apple.Safari") == "macOS app com.apple.Safari"
+    assert page_source("ax://s2ax-d20ac655") == "macOS app"
