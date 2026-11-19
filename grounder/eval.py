@@ -58,7 +58,10 @@ def rank_model(
     for i, els in enumerate(elements):
         if len(els) > CHUNK:
             one = replace(shapes, batch_size=1) if shapes else None
-            chunks = [_forward(model, collate([encode(i, els[j : j + CHUNK])], one))[0] for j in range(0, len(els), CHUNK)]
+            chunks = [  # a padded chunk's logits are cut back to its own elements
+                _forward(model, collate([encode(i, els[j : j + CHUNK])], one))[0][: len(els[j : j + CHUNK]) + 1]
+                for j in range(0, len(els), CHUNK)
+            ]
             results[i] = ranked_from_logits([e.id for e in els], combine_chunk_logits(chunks))
     return results  # type: ignore[return-value]
 

@@ -130,6 +130,10 @@ def test_static_shape_collate_gives_same_loss(model, synth_data, tokenizer, xs_c
 def test_rank_model_same_with_static_shapes(model, synth_data, tokenizer):
     pages, examples = synth_data
     exs = examples[:20]
+    big = next(iter(pages.values()))
+    els = [replace(big.elements[k % len(big.elements)], id=10_000 + k) for k in range(700)]
+    pages = {**pages, "huge": replace(big, page_id="huge", elements=els)}
+    exs = exs + [replace(exs[0], page_id="huge", kind="null", target_id=None, equiv_ids=[])]
     plain = rank_model(model, tokenizer, pages, exs, batch_size=4)
     fixed = rank_model(model, tokenizer, pages, exs, batch_size=4, shapes=StaticShapes(model.cfg.max_q, 4))
     for p, f in zip(plain, fixed):
