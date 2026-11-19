@@ -41,7 +41,7 @@ def model_dir(data_dir) -> Path:
         config=str(CONFIG), pages=[str(data_dir / "pages")], train=str(data_dir / "train.jsonl"),
         dev=str(data_dir / "dev.jsonl"), tokenizer=str(data_dir / "tok.json"), out=str(data_dir / "xs"),
         epochs=12, batch_size=64, lr=1e-3, warmup=50, weight_decay=0.01, grad_clip=1.0, device="cpu",
-        max_steps=None, eval_batch_size=32, workers=0, seed=0, log_every=10_000,
+        max_steps=None, max_batch_elements=12288, eval_batch_size=32, workers=0, seed=0, log_every=10_000,
     )
     checkpoint = train(args)
     model, _, ckpt = load_checkpoint(checkpoint)
