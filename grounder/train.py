@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from grounder.data.dataset import AugmentConfig, BucketBatchSampler, GrounderDataset, collate
+from grounder.data.dataset import AugmentConfig, BucketBatchSampler, GrounderDataset, StaticShapes, bucket_size, collate
 from grounder.data.pages import load_examples, load_pages_from
 from grounder.features import MODEL_INPUTS
 from grounder.eval import evaluate, rank_model, select_score
@@ -78,13 +78,16 @@ def train(args: argparse.Namespace) -> Path:
     if args.workers > 0:  # workers map the packed arrays from disk instead of each unpickling a private copy
         share_dir = tempfile.TemporaryDirectory(prefix="grounder-pages-")
         dataset.pages.share(share_dir.name)
-    sampler = BucketBatchSampler(dataset.sizes(), args.batch_size, shuffle=True, seed=args.seed,
-                                 max_batch_elements=args.max_batch_elements or None)
+    # Static shapes: the sampler sizes batches by bucketed page size, collate pads to exactly that shape.
+    shapes = StaticShapes(cfg.max_q, args.batch_size, args.max_batch_elements or None)
+    eval_shapes = StaticShapes(cfg.max_q, args.eval_batch_size)
+    sampler = BucketBatchSampler([bucket_size(n) for n in dataset.sizes()], args.batch_size, shuffle=True,
+                                 seed=args.seed, max_batch_elements=args.max_batch_elements or None)
     # Only the dev pages stay as full Page objects (for rank_model); the dataset holds its own compact copy.
     dev_pages = {pid: pages[pid] for pid in {ex.page_id for ex in dev_ex}}
     del pages
     gc.collect()
-    loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=functools.partial(collate, round_q=8, round_n=32), num_workers=args.workers)
+    loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=functools.partial(collate, shapes=shapes), num_workers=args.workers)
 
     model = Grounder(cfg).to(device)
     optimizer = make_optimizer(model, args.lr, args.weight_decay)
@@ -109,7 +112,7 @@ def train(args: argparse.Namespace) -> Path:
             batch = {k: v.to(device) for k, v in batch.items()}
             with torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
                 logits = model(*(batch[k] for k in MODEL_INPUTS))
-            loss = listwise_loss(logits, batch["positive"])
+            loss = listwise_loss(logits, batch["positive"], batch["real"])
             optimizer.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -126,7 +129,7 @@ def train(args: argparse.Namespace) -> Path:
             if step >= total_steps:
                 break
 
-        dev = evaluate(dev_ex, rank_model(model, tokenizer, dev_pages, dev_ex, args.eval_batch_size))
+        dev = evaluate(dev_ex, rank_model(model, tokenizer, dev_pages, dev_ex, args.eval_batch_size, eval_shapes))
         if device.type == "mps":
             torch.mps.empty_cache()
         score = select_score(dev)

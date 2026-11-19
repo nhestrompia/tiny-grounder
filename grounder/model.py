@@ -122,10 +122,12 @@ class Grounder(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
 
-def listwise_loss(logits: Tensor, positive_mask: Tensor) -> Tensor:
-    """Mean of -log(sum of softmax probability over positives); index 0 is NULL."""
+def listwise_loss(logits: Tensor, positive_mask: Tensor, rows: Tensor | None = None) -> Tensor:
+    """Mean of -log(sum of softmax probability over positives); index 0 is NULL. `rows` (bool, one per row)
+    limits the mean to real rows when a batch is padded with filler rows."""
     pos = logits.masked_fill(~positive_mask, float("-inf")).logsumexp(dim=-1)
-    return (logits.logsumexp(dim=-1) - pos).mean()
+    per_row = logits.logsumexp(dim=-1) - pos
+    return per_row.mean() if rows is None else per_row[rows].mean()
 
 
 def save_checkpoint(model: Grounder, path: str | Path, tokenizer_path: str | Path) -> None:

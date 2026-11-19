@@ -180,3 +180,14 @@ def test_shared_compact_pages_match_and_pickle_small(synth_data, tokenizer, tmp_
     for i, w in enumerate(want):
         for k, v in w.items():
             assert np.array_equal(ds[i][k], v) and np.array_equal(clone[i][k], v)
+
+
+def test_bucketed_sampler_batches_fit_static_shapes():
+    from grounder.data.dataset import StaticShapes, bucket_size
+    rng = np.random.default_rng(0)
+    sizes = [bucket_size(int(n)) for n in rng.integers(1, 513, size=3000)]
+    shapes = StaticShapes(48, batch_size=64, max_batch_elements=12288)
+    sampler = BucketBatchSampler(sizes, 64, shuffle=True, seed=0, max_batch_elements=12288)
+    for batch in sampler:
+        assert len(batch) <= shapes.rows(max(sizes[i] for i in batch))
+    assert bucket_size(1) == 32 and bucket_size(97) == 128 and bucket_size(512) == 512 and bucket_size(513) == 1024

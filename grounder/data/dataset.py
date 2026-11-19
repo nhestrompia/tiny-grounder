@@ -298,20 +298,49 @@ class GrounderDataset(Dataset):
         return item
 
 
-def _round_up(x: int, multiple: int) -> int:
-    return -(-x // multiple) * multiple
+SHAPE_BUCKETS: tuple[int, ...] = (32, 64, 96, 128, 192, 256, 384, 512)
 
 
-def collate(batch: list[dict[str, np.ndarray]], round_q: int = 1, round_n: int = 1) -> dict[str, torch.Tensor]:
-    """Pad a list of per-page arrays to the batch max query length and element count, rounded up to
-    multiples of `round_q` / `round_n` (padding is masked out by the model).
+def bucket_size(n: int, buckets: Sequence[int] = SHAPE_BUCKETS) -> int:
+    """The smallest bucket that holds `n` elements (a multiple of the largest bucket beyond it)."""
+    for b in buckets:
+        if n <= b:
+            return b
+    return -(-n // buckets[-1]) * buckets[-1]
 
-    Training rounds up so the MPS allocator sees a few dozen tensor shapes instead of thousands; with exact
-    shapes its cache grew past physical memory. Items from `GrounderDataset` carry a `positive` mask that is
-    padded too; eval items do not."""
+
+@dataclass(frozen=True)
+class StaticShapes:
+    """Fixed tensor shapes for batches: query length `q`, element count from `buckets`, and per bucket a fixed
+    number of rows (`batch_size`, fewer for big buckets under `max_batch_elements`).
+
+    On MPS every distinct input shape gets its own cached kernel graph and buffers, which `empty_cache` does
+    not release; with free-form shapes training grew past 40 GB and swapped. With these, a run sees one shape
+    per bucket."""
+
+    q: int
+    batch_size: int
+    max_batch_elements: int | None = None
+    buckets: tuple[int, ...] = SHAPE_BUCKETS
+
+    def rows(self, n: int) -> int:
+        if self.max_batch_elements is None:
+            return self.batch_size
+        return max(1, min(self.batch_size, self.max_batch_elements // n))
+
+
+def collate(batch: list[dict[str, np.ndarray]], shapes: StaticShapes | None = None) -> dict[str, torch.Tensor]:
+    """Pad a list of per-page arrays to the batch max query length and element count, or with `shapes` to
+    fixed shapes: padded elements are masked out by the model, and padding rows (`real` is False) hold no
+    elements and, for training items, a NULL positive, so their loss is exactly zero.
+
+    Items from `GrounderDataset` carry a `positive` mask that is padded too; eval items do not."""
+    lq = max(len(item["query_ids"]) for item in batch)
+    n = max(len(item["el_role"]) for item in batch)
     b = len(batch)
-    lq = _round_up(max(len(item["query_ids"]) for item in batch), round_q)
-    n = _round_up(max(len(item["el_role"]) for item in batch), round_n)
+    if shapes is not None:
+        lq, n = max(lq, shapes.q), bucket_size(n, shapes.buckets)
+        b = max(b, shapes.rows(n))
     first = batch[0]
     out = {
         "query_ids": np.zeros((b, lq), dtype=np.int64),
@@ -320,9 +349,12 @@ def collate(batch: list[dict[str, np.ndarray]], round_q: int = 1, round_n: int =
         "el_role": np.zeros((b, n), dtype=np.int64),
         "el_feats": np.zeros((b, n, first["el_feats"].shape[1]), dtype=np.float32),
         "el_mask": np.zeros((b, n), dtype=bool),
+        "real": np.zeros(b, dtype=bool),
     }
     if "positive" in first:
         out["positive"] = np.zeros((b, n + 1), dtype=bool)
+        out["positive"][len(batch):, 0] = True
+    out["real"][: len(batch)] = True
     for i, item in enumerate(batch):
         out["query_ids"][i, : len(item["query_ids"])] = item["query_ids"]
         k = len(item["el_role"])

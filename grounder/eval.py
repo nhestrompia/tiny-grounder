@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from typing import Callable, Sequence
 
@@ -11,7 +12,7 @@ import torch
 from tokenizers import Tokenizer
 
 from grounder.baselines import bm25
-from grounder.data.dataset import collate
+from grounder.data.dataset import StaticShapes, collate
 from grounder.data.pages import load_examples, load_pages_from
 from grounder.features import CHUNK, MODEL_INPUTS, combine_chunk_logits, encode_page
 from grounder.model import Grounder, load_checkpoint
@@ -31,11 +32,12 @@ def _forward(model: Grounder, batch: dict[str, torch.Tensor]) -> np.ndarray:
 @torch.no_grad()
 def rank_model(
     model: Grounder, tokenizer: Tokenizer, pages: dict[str, Page], examples: Sequence[Example],
-    batch_size: int = 32,
+    batch_size: int = 32, shapes: StaticShapes | None = None,
 ) -> list[Ranked]:
     """Rank every example with the model, batching pages of similar size (same collate as training).
 
-    Pages over `CHUNK` elements go through one at a time, in chunks, exactly like the runtime.
+    Pages over `CHUNK` elements go through one at a time, in chunks, exactly like the runtime. With `shapes`,
+    batches are padded to fixed shapes (see `StaticShapes`); results are the same.
     """
     model.eval()
     cfg = model.cfg
@@ -50,12 +52,13 @@ def rank_model(
     small = sorted((i for i, els in enumerate(elements) if len(els) <= CHUNK), key=lambda i: len(elements[i]))
     for start in range(0, len(small), batch_size):
         idx = small[start : start + batch_size]
-        logits = _forward(model, collate([encode(i, elements[i]) for i in idx]))
+        logits = _forward(model, collate([encode(i, elements[i]) for i in idx], shapes))
         for row, i in zip(logits, idx):
             results[i] = ranked_from_logits([e.id for e in elements[i]], row[: len(elements[i]) + 1])
     for i, els in enumerate(elements):
         if len(els) > CHUNK:
-            chunks = [_forward(model, collate([encode(i, els[j : j + CHUNK])]))[0] for j in range(0, len(els), CHUNK)]
+            one = replace(shapes, batch_size=1) if shapes else None
+            chunks = [_forward(model, collate([encode(i, els[j : j + CHUNK])], one))[0] for j in range(0, len(els), CHUNK)]
             results[i] = ranked_from_logits([e.id for e in els], combine_chunk_logits(chunks))
     return results  # type: ignore[return-value]
 
@@ -182,7 +185,7 @@ def _main() -> None:
     examples = load_examples(args.examples)[: args.max_examples]
     if args.checkpoint:
         model, tokenizer, _ = load_checkpoint(args.checkpoint, args.device)
-        rankings = rank_model(model, tokenizer, pages, examples)
+        rankings = rank_model(model, tokenizer, pages, examples, 32, StaticShapes(model.cfg.max_q, 32))
         title = f"{args.checkpoint} ({model.count_params():,} params)"
     elif args.baseline == "tinybert":
         from grounder.baselines.tinybert import BASE_MODEL, TinyBertRanker

@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 import torch
 
-from grounder.data.dataset import AugmentConfig, GrounderDataset, collate
+from grounder.data.dataset import AugmentConfig, GrounderDataset, StaticShapes, bucket_size, collate
+from grounder.eval import rank_model
 from grounder.features import MODEL_INPUTS
 from grounder.model import NEG_INF, Grounder, GrounderConfig, listwise_loss
 
@@ -108,14 +109,29 @@ def test_overfits_100_examples(synth_data, tokenizer, xs_config):
     assert hit.float().mean() >= 0.97, hit.float().mean()
 
 
-def test_rounded_collate_gives_same_loss(model, synth_data, tokenizer, xs_config):
+def test_static_shape_collate_gives_same_loss(model, synth_data, tokenizer, xs_config):
     pages, examples = synth_data
-    ds = GrounderDataset(pages, examples[:8], tokenizer, None, max_q=xs_config.max_q,
+    ds = GrounderDataset(pages, examples[:5], tokenizer, None, max_q=xs_config.max_q,
                          max_text=xs_config.max_text, max_ctx=xs_config.max_ctx)
     items = [ds[i] for i in range(len(ds))]
-    exact, rounded = collate(items), collate(items, round_q=8, round_n=32)
-    assert rounded["query_ids"].shape[1] % 8 == 0 and rounded["el_role"].shape[1] % 32 == 0
-    assert rounded["el_role"].shape[1] >= exact["el_role"].shape[1]
+    shapes = StaticShapes(xs_config.max_q, batch_size=8)
+    exact, fixed = collate(items), collate(items, shapes)
+    n = max(len(it["el_role"]) for it in items)
+    assert fixed["el_role"].shape == (8, bucket_size(n)) and fixed["query_ids"].shape == (8, xs_config.max_q)
+    assert fixed["real"].tolist() == [True] * 5 + [False] * 3
     with torch.no_grad():
-        losses = [listwise_loss(model(*(b[k] for k in MODEL_INPUTS)), b["positive"]) for b in (exact, rounded)]
-    torch.testing.assert_close(losses[1], losses[0], atol=1e-5, rtol=1e-4)
+        a = listwise_loss(model(*(exact[k] for k in MODEL_INPUTS)), exact["positive"])
+        b = listwise_loss(model(*(fixed[k] for k in MODEL_INPUTS)), fixed["positive"], fixed["real"])
+        filler = listwise_loss(model(*(fixed[k] for k in MODEL_INPUTS)), fixed["positive"], ~fixed["real"])
+    torch.testing.assert_close(b, a, atol=1e-5, rtol=1e-4)
+    assert filler.item() == 0.0
+
+
+def test_rank_model_same_with_static_shapes(model, synth_data, tokenizer):
+    pages, examples = synth_data
+    exs = examples[:20]
+    plain = rank_model(model, tokenizer, pages, exs, batch_size=4)
+    fixed = rank_model(model, tokenizer, pages, exs, batch_size=4, shapes=StaticShapes(model.cfg.max_q, 4))
+    for p, f in zip(plain, fixed):
+        assert p.ids == f.ids
+        np.testing.assert_allclose(f.scores, p.scores, atol=1e-4, rtol=1e-4)
