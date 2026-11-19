@@ -91,13 +91,18 @@ def augment_elements(elements: list[Element], rng: np.random.Generator, cfg: Aug
 def cap_elements(
     elements: list[Element], positives: set[int], rng: np.random.Generator, limit: int = MAX_ELEMENTS
 ) -> list[Element]:
-    """Keep every positive and a random sample of the rest, `limit` elements in total."""
+    """Keep at most `limit` elements: every positive and a random sample of the rest. When positives alone
+    exceed half the limit (pages with thousands of equivalent targets, e.g. identical "reply" links), a random
+    half-limit sample of them is kept instead, so a batch never exceeds `limit` elements per page."""
     if len(elements) <= limit:
         return elements
+    pos = [i for i, e in enumerate(elements) if e.id in positives]
     rest = [i for i, e in enumerate(elements) if e.id not in positives]
-    n_keep = max(limit - (len(elements) - len(rest)), 0)
-    sampled = set(rng.choice(rest, size=n_keep, replace=False).tolist())
-    return [e for i, e in enumerate(elements) if e.id in positives or i in sampled]
+    if len(pos) > limit // 2:
+        pos = rng.choice(pos, size=limit // 2, replace=False).tolist()
+    n_keep = min(limit - len(pos), len(rest))
+    keep = set(pos) | set(rng.choice(rest, size=n_keep, replace=False).tolist())
+    return [e for i, e in enumerate(elements) if i in keep]
 
 
 @dataclass

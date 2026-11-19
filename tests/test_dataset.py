@@ -88,6 +88,14 @@ def test_large_pages_keep_all_positives():
     assert len(cap_elements(els[:10], {1}, np.random.default_rng(0))) == 10
 
 
+
+def test_pages_with_thousands_of_positives_are_capped():
+    els = [Element(id=i, role="link", text="reply") for i in range(3600)]
+    page = Page("p", "u", "s", "t", [1, 1], [1, 1], els)
+    ex = Example("p", "plain", "do", "click reply", [], 0, list(range(3000)))
+    prep = prepare_example(page, ex, np.random.default_rng(0), None)
+    assert len(prep.elements) == 512 and prep.positive[1:].sum() == 256
+
 def test_dataset_is_reproducible_and_collate_pads(synth_data, tokenizer):
     pages, examples = synth_data
     ds = GrounderDataset(pages, examples[:6], tokenizer, AugmentConfig(), seed=3)

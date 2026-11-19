@@ -11,6 +11,10 @@
 # test_domain, GUIrilla test_unseen_apps. GUIrilla is evaluation only: it is in no training, dev or tokenizer input.
 set -euo pipefail
 export PYTHONUNBUFFERED=1  # progress lines reach the log as they happen
+# MPS: hard cap at the recommended working set (~25 GB on 32 GB) and return cached buffers above half of it;
+# with the defaults the per-shape buffer cache of the M model passed 40 GB and swapped or ran out of memory.
+export PYTORCH_MPS_HIGH_WATERMARK_RATIO=${PYTORCH_MPS_HIGH_WATERMARK_RATIO:-1.0}
+export PYTORCH_MPS_LOW_WATERMARK_RATIO=${PYTORCH_MPS_LOW_WATERMARK_RATIO:-0.5}
 cd "$(dirname "$0")/.."
 DATA=${DATA_DIR:-data}
 MIX=$DATA/mix

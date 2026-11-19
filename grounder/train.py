@@ -122,10 +122,12 @@ def train(args: argparse.Namespace) -> Path:
             scheduler.step()
             losses.append(loss.item())
             step += 1
-            if device.type == "mps" and step % 500 == 0:
+            if device.type == "mps" and step % 100 == 0:
                 torch.mps.empty_cache()  # the caching allocator otherwise keeps every freed block
             if step % args.log_every == 0:
-                print(f"step {step} loss {np.mean(losses[-args.log_every:]):.4f}")
+                mem = (f" mps {torch.mps.current_allocated_memory() / 2**30:.1f}/"
+                       f"{torch.mps.driver_allocated_memory() / 2**30:.1f} GiB" if device.type == "mps" else "")
+                print(f"step {step} loss {np.mean(losses[-args.log_every:]):.4f}{mem}")
             if step >= total_steps:
                 break
 
