@@ -48,6 +48,7 @@ import numpy as np
 import tldextract
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
+from grounder.data.blocklist import read_blocklist
 from grounder.data.language import DEFAULT_MIN_ENGLISH, add_min_english_argument, english_pages
 from grounder.data.pages import iter_pages, write_page
 from grounder.extract.web import extract_page
@@ -588,6 +589,8 @@ def main(argv: list[str] | None = None) -> int:
         entries += load_tranco(args.tranco, args.cache_dir)
     if not entries:
         parser.error("give --sites and/or --tranco")
+    blocked = read_blocklist()
+    entries = [e for e in entries if registrable_domain(start_url(e)) not in blocked]
     entries = entries[: args.limit] if args.limit else entries
     cfg = CrawlConfig(Path(args.out), args.concurrency, args.links, tuple(args.screenshots_for), args.seed)
     summary = asyncio.run(crawl(entries, cfg))
