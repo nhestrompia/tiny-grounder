@@ -117,3 +117,13 @@ def test_bucket_sampler_groups_similar_sizes():
     assert spread < 0.2 * (sizes.max() - sizes.min())
     sampler.set_epoch(1)
     assert list(sampler) != batches
+
+
+def test_bucket_sampler_caps_elements_per_batch():
+    sizes = [10] * 100 + [500] * 40
+    sampler = BucketBatchSampler(sizes, batch_size=64, shuffle=True, seed=1, max_batch_elements=2000)
+    batches = list(sampler)
+    assert sorted(i for b in batches for i in b) == list(range(140)) and len(sampler) == len(batches)
+    for b in batches:
+        assert len(b) <= 64 and (len(b) == 1 or len(b) * max(sizes[i] for i in b) <= 2000)
+    assert any(len(b) == 64 for b in batches)  # small pages still get full batches

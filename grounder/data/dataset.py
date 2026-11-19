@@ -189,34 +189,52 @@ def collate(batch: list[dict[str, np.ndarray]]) -> dict[str, torch.Tensor]:
 
 
 class BucketBatchSampler(Sampler[list[int]]):
-    """Batches of examples with similar page size. Shuffled: sort inside random mega-chunks, shuffle batches."""
+    """Batches of examples with similar page size. Shuffled: sort inside random mega-chunks, shuffle batches.
+
+    With `max_batch_elements`, a batch also stops growing once batch length x largest page size would exceed it,
+    so batches of very large pages are smaller (attention memory grows with that product).
+    """
 
     def __init__(
-        self, sizes: Sequence[int], batch_size: int, shuffle: bool, seed: int = 0, chunk_batches: int = 50
+        self, sizes: Sequence[int], batch_size: int, shuffle: bool, seed: int = 0, chunk_batches: int = 50,
+        max_batch_elements: int | None = None,
     ) -> None:
         self.sizes, self.batch_size, self.shuffle = np.asarray(sizes), batch_size, shuffle
         self.seed, self.chunk = seed, batch_size * chunk_batches
+        self.max_batch_elements = max_batch_elements
         self.epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = epoch
 
     def __len__(self) -> int:
-        n = len(self.sizes)
-        if not self.shuffle:
-            return math.ceil(n / self.batch_size)
-        full, rest = divmod(n, self.chunk)
-        return full * math.ceil(self.chunk / self.batch_size) + math.ceil(rest / self.batch_size)
+        return len(self._batches())
 
-    def __iter__(self) -> Iterator[list[int]]:
+    def _split(self, part: np.ndarray) -> list[list[int]]:
+        """Consecutive batches of the size-sorted `part`."""
+        if self.max_batch_elements is None:
+            return [part[i : i + self.batch_size].tolist() for i in range(0, len(part), self.batch_size)]
+        batches: list[list[int]] = []
+        current: list[int] = []
+        for idx in part.tolist():
+            size = max(int(self.sizes[idx]), 1)
+            if current and (len(current) >= self.batch_size or (len(current) + 1) * size > self.max_batch_elements):
+                batches.append(current)
+                current = []
+            current.append(idx)
+        return batches + ([current] if current else [])
+
+    def _batches(self) -> list[list[int]]:
         rng = np.random.default_rng((self.seed, self.epoch))
         order = rng.permutation(len(self.sizes)) if self.shuffle else np.arange(len(self.sizes))
         chunk = self.chunk if self.shuffle else len(order)
         batches: list[list[int]] = []
         for start in range(0, len(order), chunk):
             part = order[start : start + chunk]
-            part = part[np.argsort(self.sizes[part], kind="stable")]
-            batches += [part[i : i + self.batch_size].tolist() for i in range(0, len(part), self.batch_size)]
+            batches += self._split(part[np.argsort(self.sizes[part], kind="stable")])
         if self.shuffle:
             batches = [batches[i] for i in rng.permutation(len(batches))]
-        return iter(batches)
+        return batches
+
+    def __iter__(self) -> Iterator[list[int]]:
+        return iter(self._batches())

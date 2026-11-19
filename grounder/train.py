@@ -72,7 +72,8 @@ def train(args: argparse.Namespace) -> Path:
 
     limits = {"max_q": cfg.max_q, "max_text": cfg.max_text, "max_ctx": cfg.max_ctx}
     dataset = GrounderDataset(pages, train_ex, tokenizer, AugmentConfig(), args.seed, **limits)
-    sampler = BucketBatchSampler(dataset.sizes(), args.batch_size, shuffle=True, seed=args.seed)
+    sampler = BucketBatchSampler(dataset.sizes(), args.batch_size, shuffle=True, seed=args.seed,
+                                 max_batch_elements=args.max_batch_elements or None)
     loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=collate, num_workers=args.workers)
 
     model = Grounder(cfg).to(device)
@@ -145,6 +146,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--grad-clip", type=float, default=1.0)
     p.add_argument("--device", default="auto", help="auto (cuda if available, else cpu), cpu, cuda, mps")
     p.add_argument("--max-steps", type=int)
+    p.add_argument("--max-batch-elements", type=int, default=12288,
+                   help="cap batch length x page size (attention memory); 0 = no cap")
     p.add_argument("--eval-batch-size", type=int, default=32)
     p.add_argument("--workers", type=int, default=0)
     p.add_argument("--seed", type=int, default=0)
