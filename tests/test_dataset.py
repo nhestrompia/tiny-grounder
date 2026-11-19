@@ -127,3 +127,56 @@ def test_bucket_sampler_caps_elements_per_batch():
     for b in batches:
         assert len(b) <= 64 and (len(b) == 1 or len(b) * max(sizes[i] for i in b) <= 2000)
     assert any(len(b) == 64 for b in batches)  # small pages still get full batches
+
+
+def _reference_item(pages, ex, tokenizer, augment, seed, epoch, index):
+    """The pre-compaction path: original Page objects, no packed store."""
+    from grounder.features import TokenCache, encode_page
+    rng = np.random.default_rng((seed, epoch, index))
+    prep = prepare_example(pages[ex.page_id], ex, rng, augment)
+    els = [e for pid in sorted({ex.page_id}) for e in pages[pid].elements]
+    cache = TokenCache.build(tokenizer, els, 16, 24)
+    item = encode_page(tokenizer, prep.query, prep.elements, max_q=48, max_text=16, max_ctx=24, cache=cache)
+    item["positive"] = prep.positive
+    return item
+
+
+def test_compact_dataset_matches_page_objects(synth_data, tokenizer):
+    pages, examples = synth_data
+    pages = dict(pages)
+    odd = [Element(id=i, role="weird" if i % 7 == 0 else "link", text=f"Zażółć ünï {i % 40} \U0001F600" if i % 3 else "",
+                   context="ctx é" if i % 5 else "", box=[i / 1000, i / 300, 0.1 + i / 9999, 0.03],
+                   in_viewport=i % 2 == 0, enabled=i % 4 != 0, conf=0.123456789 + i / 5000,
+                   tag="a", source="ocr", href="/x", abs_box=[1.0, 2.0, 3.0, 4.0]) for i in range(900)]
+    pages["big"] = Page("big", "u", "s", "t", [1, 1], [1, 1], odd)
+    chosen = list(examples[:8]) + [
+        Example("big", "plain", "do", "click Zażółć 5", [], 5, [5, 800]),
+        Example("big", "null", "do", "click Zażółć 6", [], 6, [6]),
+    ]
+    for augment in (AugmentConfig(), None):
+        ds = GrounderDataset(pages, chosen, tokenizer, augment, seed=5)
+        for epoch in (0, 1):
+            ds.set_epoch(epoch)
+            for i, ex in enumerate(chosen):
+                got, want = ds[i], _reference_item(pages, ex, tokenizer, augment, 5, epoch, i)
+                assert got.keys() == want.keys()
+                for k in want:
+                    assert got[k].dtype == want[k].dtype and np.array_equal(got[k], want[k]), (k, i, epoch)
+    assert ds.sizes() == [min(len(pages[ex.page_id].elements), 512) for ex in chosen]
+    import pickle
+    clone = pickle.loads(pickle.dumps(ds))
+    assert all(np.array_equal(clone[i]["el_feats"], ds[i]["el_feats"]) for i in range(len(chosen)))
+
+
+def test_shared_compact_pages_match_and_pickle_small(synth_data, tokenizer, tmp_path):
+    import pickle
+    pages, examples = synth_data
+    ds = GrounderDataset(pages, examples[:8], tokenizer, AugmentConfig(), seed=2)
+    want = [ds[i] for i in range(8)]
+    full_size = len(pickle.dumps(ds))
+    ds.pages.share(tmp_path / "pages")
+    clone = pickle.loads(pickle.dumps(ds))
+    assert len(pickle.dumps(ds)) < full_size
+    for i, w in enumerate(want):
+        for k, v in w.items():
+            assert np.array_equal(ds[i][k], v) and np.array_equal(clone[i][k], v)

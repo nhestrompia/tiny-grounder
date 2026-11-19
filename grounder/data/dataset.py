@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from dataclasses import dataclass, replace
 from typing import Any, Iterator, Sequence
 
@@ -13,7 +14,8 @@ from torch.utils.data import Dataset, Sampler
 
 from grounder.features import MODEL_INPUTS, TokenCache, encode_page
 from grounder.ranking import example_elements, example_query, positive_ids
-from grounder.records import Element, Example, Page
+from grounder.records import ROLE_TO_ID, ROLES, Element, Example, Page, normalize_role
+from grounder.tokenizer import PAD_ID, encode_ids
 
 MAX_ELEMENTS = 512
 _OCR_SUBSTITUTIONS = {"0": "o", "o": "0", "l": "1", "1": "l", "i": "l"}
@@ -126,19 +128,154 @@ def prepare_example(
     return Prepared(example_query(example), elements, mask)
 
 
-class GrounderDataset(Dataset):
-    """One item per example. Randomness is a function of (seed, epoch, index), so runs are reproducible."""
+class CompactPages:
+    """Columnar, packed store of the pages a training set uses, holding only the fields training reads.
+
+    All pages share a few big numpy arrays (one row per element) plus two de-duplicated string tables
+    (texts, contexts) packed as one UTF-8 blob each, so pickling to a worker is cheap and the object count
+    is tiny. Token ids of every unique string are precomputed. `get` rebuilds one `Page` (and the matching
+    `TokenCache`) lazily. `tag`, `source`, `href`, `abs_box` and the page metadata are never model inputs
+    and are not kept.
+    """
 
     def __init__(
-        self, pages: dict[str, Page], examples: Sequence[Example], tokenizer: Tokenizer,
+        self, pages: dict[str, Page], page_ids: Sequence[str], tokenizer: Tokenizer, max_text: int, max_ctx: int,
+    ) -> None:
+        self.page_ids = list(dict.fromkeys(page_ids))
+        self.index = {pid: i for i, pid in enumerate(self.page_ids)}
+        counts = [len(pages[pid].elements) for pid in self.page_ids]
+        self.offsets = np.zeros(len(counts) + 1, dtype=np.int64)
+        np.cumsum(counts, out=self.offsets[1:])
+        n = int(self.offsets[-1])
+        self.ids = np.empty(n, dtype=np.int32)
+        self.role = np.empty(n, dtype=np.uint8)
+        self.box = np.empty((n, 4), dtype=np.float64)  # float64: augmentation arithmetic stays bit-identical
+        self.conf = np.empty(n, dtype=np.float64)
+        self.flags = np.empty(n, dtype=np.uint8)  # bit 0: in_viewport, bit 1: enabled
+        self.text_idx = np.empty(n, dtype=np.int32)
+        self.ctx_idx = np.empty(n, dtype=np.int32)
+        texts: dict[str, int] = {"": 0}
+        contexts: dict[str, int] = {"": 0}
+        for pid, start in zip(self.page_ids, self.offsets[:-1].tolist()):
+            els = pages[pid].elements
+            sl = slice(start, start + len(els))
+            self.ids[sl] = [e.id for e in els]
+            self.role[sl] = [ROLE_TO_ID[normalize_role(e.role)] for e in els]
+            if els:
+                self.box[sl] = [e.box for e in els]
+            self.conf[sl] = [e.conf for e in els]
+            self.flags[sl] = [int(e.in_viewport) | int(e.enabled) << 1 for e in els]
+            self.text_idx[sl] = [texts.setdefault(e.text, len(texts)) for e in els]
+            self.ctx_idx[sl] = [contexts.setdefault(e.context, len(contexts)) for e in els]
+        self.text_blob, self.text_off = self._pack(texts)
+        self.ctx_blob, self.ctx_off = self._pack(contexts)
+        self.text_tok, self.text_len = self._tokenize(tokenizer, texts, max_text)
+        self.ctx_tok, self.ctx_len = self._tokenize(tokenizer, contexts, max_ctx)
+
+    @staticmethod
+    def _pack(table: dict[str, int]) -> tuple[bytes, np.ndarray]:
+        encoded = [s.encode("utf-8") for s in table]  # dicts keep insertion order = index order
+        off = np.zeros(len(encoded) + 1, dtype=np.int64)
+        np.cumsum([len(b) for b in encoded], out=off[1:])
+        return b"".join(encoded), off
+
+    @staticmethod
+    def _tokenize(tokenizer: Tokenizer, table: dict[str, int], max_len: int) -> tuple[np.ndarray, np.ndarray]:
+        ids = encode_ids(tokenizer, list(table), max_len)
+        dtype = np.int16 if tokenizer.get_vocab_size() < 2**15 else np.int32
+        tok = np.full((len(ids), max(max_len, 1)), PAD_ID, dtype=dtype)
+        lens = np.zeros(len(ids), dtype=np.int32)
+        for i, row in enumerate(ids):
+            tok[i, : len(row)] = row
+            lens[i] = len(row)
+        return tok, lens
+
+    _ARRAYS = ("offsets", "ids", "role", "box", "conf", "flags", "text_idx", "ctx_idx", "text_off", "ctx_off",
+               "text_tok", "text_len", "ctx_tok", "ctx_len")
+    _BLOBS = ("text_blob", "ctx_blob")
+    _mmap_dir: str | None = None
+
+    def share(self, directory: str | Path) -> None:
+        """Move the big arrays to `directory` (as .npy files) and memory-map them from there.
+
+        Pickling then carries only the directory name; every DataLoader worker maps the same files, so the
+        OS page cache is shared instead of each worker holding a private copy. The directory must outlive
+        every process that uses this store."""
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in self._BLOBS:
+            setattr(self, name, np.frombuffer(getattr(self, name), dtype=np.uint8))
+        for name in self._ARRAYS + self._BLOBS:
+            np.save(directory / f"{name}.npy", getattr(self, name))
+        self._mmap_dir = str(directory)
+        self._map()
+
+    def _map(self) -> None:
+        for name in self._ARRAYS + self._BLOBS:
+            setattr(self, name, np.load(Path(self._mmap_dir) / f"{name}.npy", mmap_mode="r"))
+
+    def __getstate__(self) -> dict[str, Any]:
+        state = dict(self.__dict__)
+        if self._mmap_dir is not None:
+            for name in self._ARRAYS + self._BLOBS:
+                del state[name]
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        if self._mmap_dir is not None:
+            self._map()
+
+    def _string(self, blob: np.ndarray | bytes, off: np.ndarray, j: int) -> str:
+        return bytes(blob[off[j] : off[j + 1]]).decode("utf-8")
+
+    def __contains__(self, page_id: str) -> bool:
+        return page_id in self.index
+
+    def n_elements(self, page_id: str) -> int:
+        i = self.index[page_id]
+        return int(self.offsets[i + 1] - self.offsets[i])
+
+    def get(self, page_id: str) -> tuple[Page, TokenCache]:
+        """The page's elements (training fields only) and a TokenCache for exactly their strings."""
+        i = self.index[page_id]
+        a, b = int(self.offsets[i]), int(self.offsets[i + 1])
+        t_idx, c_idx = self.text_idx[a:b].tolist(), self.ctx_idx[a:b].tolist()
+        texts = {j: self._string(self.text_blob, self.text_off, j) for j in set(t_idx)}
+        ctxs = {j: self._string(self.ctx_blob, self.ctx_off, j) for j in set(c_idx)}
+        flags = self.flags[a:b].tolist()
+        els = [
+            Element(id=eid, role=ROLES[role], text=texts[t], context=ctxs[c], box=box, in_viewport=bool(f & 1),
+                    enabled=bool(f & 2), conf=conf)
+            for eid, role, t, c, box, f, conf in zip(
+                self.ids[a:b].tolist(), self.role[a:b].tolist(), t_idx, c_idx, self.box[a:b].tolist(), flags,
+                self.conf[a:b].tolist())
+        ]
+        cache = TokenCache(
+            {texts[j]: self.text_tok[j, : self.text_len[j]].tolist() for j in texts},
+            {ctxs[j]: self.ctx_tok[j, : self.ctx_len[j]].tolist() for j in ctxs},
+        )
+        return Page(page_id, "", "", "", [], [], els), cache
+
+
+class GrounderDataset(Dataset):
+    """One item per example. Randomness is a function of (seed, epoch, index), so runs are reproducible.
+
+    `pages` may be the full page dict or a prebuilt `CompactPages`; only the pages the examples use are kept,
+    in compact form, so the dataset stays small when it is pickled to DataLoader workers."""
+
+    def __init__(
+        self, pages: dict[str, Page] | CompactPages, examples: Sequence[Example], tokenizer: Tokenizer,
         augment: AugmentConfig | None = None, seed: int = 0,
         max_q: int = 48, max_text: int = 16, max_ctx: int = 24,
     ) -> None:
-        self.pages, self.examples, self.tokenizer = pages, list(examples), tokenizer
+        self.examples, self.tokenizer = list(examples), tokenizer
         self.augment, self.seed = augment, seed
         self.limits = {"max_q": max_q, "max_text": max_text, "max_ctx": max_ctx}
-        used = {ex.page_id for ex in self.examples}
-        self.cache = TokenCache.build(tokenizer, (e for pid in sorted(used) for e in pages[pid].elements), max_text, max_ctx)
+        if isinstance(pages, CompactPages):
+            self.pages = pages
+        else:
+            self.pages = CompactPages(pages, sorted({ex.page_id for ex in self.examples}), tokenizer, max_text, max_ctx)
         self.epoch = 0
 
     def set_epoch(self, epoch: int) -> None:
@@ -146,7 +283,7 @@ class GrounderDataset(Dataset):
 
     def sizes(self) -> list[int]:
         """Approximate number of elements of each example (for bucketing)."""
-        return [min(len(self.pages[ex.page_id].elements), MAX_ELEMENTS) for ex in self.examples]
+        return [min(self.pages.n_elements(ex.page_id), MAX_ELEMENTS) for ex in self.examples]
 
     def __len__(self) -> int:
         return len(self.examples)
@@ -154,8 +291,9 @@ class GrounderDataset(Dataset):
     def __getitem__(self, index: int) -> dict[str, np.ndarray]:
         ex = self.examples[index]
         rng = np.random.default_rng((self.seed, self.epoch, index))
-        prep = prepare_example(self.pages[ex.page_id], ex, rng, self.augment)
-        item = encode_page(self.tokenizer, prep.query, prep.elements, **self.limits, cache=self.cache)
+        page, cache = self.pages.get(ex.page_id)
+        prep = prepare_example(page, ex, rng, self.augment)
+        item = encode_page(self.tokenizer, prep.query, prep.elements, **self.limits, cache=cache)
         item["positive"] = prep.positive
         return item
 

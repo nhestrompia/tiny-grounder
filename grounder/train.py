@@ -7,9 +7,11 @@ uv run python -m grounder.train --config configs/m.yaml --pages pages_a pages_b 
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import math
 import random
+import tempfile
 import time
 from pathlib import Path
 
@@ -72,8 +74,15 @@ def train(args: argparse.Namespace) -> Path:
 
     limits = {"max_q": cfg.max_q, "max_text": cfg.max_text, "max_ctx": cfg.max_ctx}
     dataset = GrounderDataset(pages, train_ex, tokenizer, AugmentConfig(), args.seed, **limits)
+    if args.workers > 0:  # workers map the packed arrays from disk instead of each unpickling a private copy
+        share_dir = tempfile.TemporaryDirectory(prefix="grounder-pages-")
+        dataset.pages.share(share_dir.name)
     sampler = BucketBatchSampler(dataset.sizes(), args.batch_size, shuffle=True, seed=args.seed,
                                  max_batch_elements=args.max_batch_elements or None)
+    # Only the dev pages stay as full Page objects (for rank_model); the dataset holds its own compact copy.
+    dev_pages = {pid: pages[pid] for pid in {ex.page_id for ex in dev_ex}}
+    del pages
+    gc.collect()
     loader = DataLoader(dataset, batch_sampler=sampler, collate_fn=collate, num_workers=args.workers)
 
     model = Grounder(cfg).to(device)
@@ -114,7 +123,7 @@ def train(args: argparse.Namespace) -> Path:
             if step >= total_steps:
                 break
 
-        dev = evaluate(dev_ex, rank_model(model, tokenizer, pages, dev_ex, args.eval_batch_size))
+        dev = evaluate(dev_ex, rank_model(model, tokenizer, dev_pages, dev_ex, args.eval_batch_size))
         score = select_score(dev)
         row = {"epoch": epoch, "step": step, "train_loss": float(np.mean(losses)), "select_top1": score,
                "dev": dev, "seconds": round(time.time() - started, 1)}

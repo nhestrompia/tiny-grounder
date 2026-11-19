@@ -10,6 +10,7 @@
 # Eval sets: dev (the mix's dev sets, scored per source), web test, DeskForge test_app, Mind2Web test_task / test_website /
 # test_domain, GUIrilla test_unseen_apps. GUIrilla is evaluation only: it is in no training, dev or tokenizer input.
 set -euo pipefail
+export PYTHONUNBUFFERED=1  # progress lines reach the log as they happen
 cd "$(dirname "$0")/.."
 DATA=${DATA_DIR:-data}
 MIX=$DATA/mix
