@@ -26,7 +26,7 @@ Kinds: **domain** = registrable domain (eTLD+1, as `grounder.data.crawl.registra
 | mind2web_test_website | 1,314 | 10 | 0 (0.0%); 0/10 domains | 0 (0.0%) | n/a | 0 (0.0% of 1,314) | 0 | 0 |
 | mind2web_test_domain | 5,590 | 53 | 1,480 (26.5%); 16/53 domains | 0 (0.0%) | n/a | 0 (0.0% of 5,590) | 0 | 0 |
 | guirilla_test | 1,565 | 227 | n/a | 0 (0.0%) | 28 (1.8%); 3/227 apps | 0 (0.0% of 1,204) | 0 | 0 |
-| realq | 0 | – | – | – | – | – | – | – |
+| realq | 96 | 14 | 92 (95.8%); 13/14 domains | 9 (9.4%) | n/a | 10 (10.4% of 96) | 9 | 0 |
 
 ### deskforge_test_app: cross-domain near-duplicates (examples)
 
@@ -47,6 +47,10 @@ Kinds: **domain** = registrable domain (eTLD+1, as `grounder.data.crawl.registra
 ### guirilla_test: overlapping apps (3 of 227)
 
 `com.apple.stocks` ≈ stocks; `com.arielone.weather` ≈ weather; `com.limwernjie.Calculator` ≈ calculator, gnome-calculator
+
+### realq: overlapping domains (13 of 14)
+
+`archive.org` (web), `arxiv.org` (web), `github.com` (web), `kubernetes.io` (web), `mozilla.org` (web), `nasa.gov` (web), `nodejs.org` (web), `openstreetmap.org` (web), `python.org` (web), `rfc-editor.org` (web), `rust-lang.org` (web), `weather.gov` (web), `wikipedia.org` (web)
 
 ## Agent tasks (demo/tasks.yaml + URLs visited in runs/cli*/logs)
 
