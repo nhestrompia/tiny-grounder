@@ -59,16 +59,36 @@
 
 ## Plan v3: perception for frontier agents (current, 2026-11-21)
 
-The goal is to cut the tokens frontier agents (Claude, GPT) spend on perceiving apps and browsers. Tiny Grounder
-is a local, perception-only MCP tool; the frontier model performs every action. The research question: *how much of
-a computer-use agent's perception workload can a tiny local model take over without losing task success?*
+**Milestone:** a frontier agent completes the same multi-step task with substantially fewer tokens, no worse
+latency and comparable reliability, compared with its best default way of seeing the page. Ranking accuracy and
+baseline comparisons are still reported, in support of this milestone. Tiny Grounder is a local, perception-only
+MCP tool; the frontier model performs every action. The research question: *how much of a computer-use agent's
+perception workload can a tiny local model take over without losing task success?*
 
 | # | Item | Success metric / gate |
 |---|---|---|
 | 1 | **`observe(goal, budget)`, `inspect(id \| region)`, CDP attach** in `grounder_tool`. `observe` returns page landmarks (title, headings, navigation) plus the top elements for the goal within B tokens. `inspect` expands one element or region. CDP attach reads the executor's own browser, and returns handles the executor can act on (Playwright-MCP refs, or screen coordinates). | Unit tests; `observe` at most B tokens; p95 ≤ 200 ms at 500 elements. |
-| 2 | **Offline next-step recall at budget B** (B = 300, 600 and 1,200 tokens) on Mind2Web test splits plus the bench-v2 trajectories: is the element the agent needed next inside the digest? Compare keyword selection (exact + BM25 against the goal) with the model (goal plus history) and the blend. | Report with paired CIs over sites. Decides whether step 3 runs. |
+| 2 | **Offline next-step recall at budget B** (B = 300, 600 and 1,200 tokens) on Mind2Web test splits plus the bench-v2 trajectories: is the element the agent needed next inside the digest? Compare keyword selection (exact + BM25 against the goal) with the model (goal plus history; XS and M, 3 seeds each) and the blend. M replaces XS only if its gain has a paired CI above 0. | Report with paired CIs over sites. Decides whether step 3 runs. |
 | 3 | *(conditional)* **Re-train XS** in goal mode with action history, scored by recall at budget. Only if step 2 shows the model ahead of keywords, or within reach of them. | Beats the step-2 best on Mind2Web dev, with no loss on the human select split. |
-| 4 | **A/B/C agent re-run** on the 18 multi-step and 38 vague bench-v2 tasks, with Claude Haiku ×3 and Sonnet ×1, about 300 runs. A = `find` only; B = `find` plus keyword `observe`; C = `find` plus model `observe`. | B or C closes the multi-step gap: success within 5 points of a11y-cap at ≥ 50% fewer tool tokens. The model ships in `observe` only if C ≥ B, with the paired CI ruling out a 2-point loss and no more tokens. |
+| 4 | **Multi-step task set.** Write about 50 new frozen multi-step tasks (2–5 navigations each; held-out domains; HAR replay; end-state plus answer checks), for 60–80 multi-step tasks in total with the existing 18. Run the power calculation first and size the set so that a true 0-point difference passes the 5-point non-inferiority test with power of at least 0.8. | Tasks frozen and validated (each solvable through the a11y-cap arm) before any `observe` arm runs on them. |
+| 5 | **Agent milestone run.** Multi-step tasks plus the 38 vague tasks. Arms: the pre-registered baseline; A = `find` only; B = `find` plus keyword `observe`; C = `find` plus model `observe`. Claude Haiku ×3 and Sonnet ×1; GPT Luna or Terra ×1 if quota allows. Arms are interleaved in random order per task and repeat, so API-speed drift is spread over every arm. | See the milestone gates below. |
+
+**Milestone gates (step 5)**, evaluated per agent and paired by task, with 95% CIs from a bootstrap that resamples sites:
+
+- **Baseline:** pre-registered per agent as the default arm with the highest v2 success: a11y-cap for Haiku, Sonnet,
+  Luna and Terra; vision for Sol. It is not chosen after the run.
+- **Success:** within 5 points of the baseline (the lower CI bound of the difference is above −5).
+- **Efficiency:** at least 50% fewer tool-output tokens per success (the upper CI bound of the ratio is below 0.5).
+  Also report total input tokens, uncached input tokens and cost per successful task.
+- **Latency (primary):** median end-to-end task latency no worse than the baseline: the upper CI bound of the paired
+  median ratio (ours ÷ baseline) is at most 1.10.
+  - Latency is compared in two forms: total wall time ÷ successes, which charges failed runs; and paired latency on
+    tasks where both arms succeed. Overall latency is also reported.
+  - Latency over successful runs alone is not used, because an arm that succeeds only on easy tasks would look faster.
+- **Secondary, reported only:** p90 latency, tool-call and turn counts, the agent's own model time, and the time spent
+  in local grounding (extraction plus ranking), each reported separately.
+- **Model vs keywords:** the model ships in `observe` only if C passes the gates and is non-inferior to B: the paired
+  CI rules out a success loss of more than 2 points, with no more tokens and no more latency than B.
 
 Not doing:
 - generating text summaries with the tiny model (too small);
