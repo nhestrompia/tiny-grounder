@@ -16,8 +16,17 @@ coordinate equivalents for `vision`):
     top20       snapshot() -> the grounder's 20 best elements for the goal (goal mode, last actions as history)
     find        find(query) -> the grounder's 5 best elements with scores (do mode); no snapshot
     find+top20  both
+    a11y-cap    `a11y` with a cap: snapshot(page=1) returns at most A11Y_CAP_CHARS (20,000) characters of the ARIA
+                snapshot per call and the tool says so; snapshot(page=n) pages through the rest of the same snapshot
+                (what a Playwright-MCP-style tool with a token budget does). Actions return page 1 of the new snapshot.
 
-`--ranker bm25` swaps the grounder for the BM25 baseline in the top20 / find configs.
+`--ranker` picks the ranker of the top20 / find configs: `grounder` (the ONNX model in --model-dir), `bm25` (the demo's
+BM25), or any `grounder_tool.rankers.make_ranker` spec (`exact`, `bm25`, `model:<dir>`, `blend:<dir>:<alpha>`,
+`router:<dir>:<tau>`) so the benchmarked code is the code that ships. Every ranker prints the same find lines (top 5,
+`id|role|text|context|score=`, scores on a 0..1 scale).
+
+Benchmark v2 extras: `--har FILE` replays a frozen snapshot with no live network (see demo.browser.BrowserSession),
+`--answer-regex` makes done(answer) part of the success check (success = page check AND answer match).
 
 The log (JSONL, `--log`) is the source of truth: one `call` event per tool call (chars returned to the model; for
 images bytes and pixel size too) and one `summary` event, written once at `done`, on stdin EOF, or on SIGTERM / SIGINT:
@@ -45,16 +54,19 @@ from pathlib import Path
 from typing import Any
 
 from demo.agent import BM25Ranker, Ranker, ToolBox
-from demo.browser import CHECK_KEYS, BrowserSession, ToolError
+from demo.browser import CHECK_KEYS, BrowserSession, ToolError, answer_matches
 from grounder import playwright_helper as ph
 
 SERVER_NAME = "ui"
-BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20")
+BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap")
+A11Y_CAP_CHARS = 20_000
+A11Y_CONFIGS = ("a11y", "a11y-cap")
 ACTION_TOOLS = ("click", "type", "go_back", "click_xy", "type_text", "scroll")
 DEFAULT_MODEL_DIR = "dist/s-s0"
 DEFAULT_MAX_CALLS = 60
 RESULT_LOG_CHARS = 4000
 SCROLL_SETTLE_MS = 300
+IMAGE_PX_PER_TOKEN = 750  # Anthropic's rule of thumb: tokens ~ width * height / 750
 
 _REF_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 
@@ -63,6 +75,11 @@ CONFIG_HINTS: dict[str, str] = {
     "Element ids refer to the most recent snapshot.",
     "a11y": "Call snapshot() to get the page's accessibility tree; interactive nodes carry a [ref=eN] marker. "
     "click(ref) and type(ref, text, press_enter) take such a ref (for example 'e12'). Refs refer to the most recent snapshot.",
+    "a11y-cap": "Call snapshot() to get the page's accessibility tree; interactive nodes carry a [ref=eN] marker. "
+    f"Output is capped at {A11Y_CAP_CHARS:,} characters per call: a longer snapshot is split into numbered pages and "
+    "snapshot(page=2), snapshot(page=3)... return the rest of the SAME snapshot (every response says which page it is and "
+    "how many there are). Actions return page 1 of the new snapshot. click(ref) and type(ref, text, press_enter) take "
+    "a ref (for example 'e12'); refs refer to the most recent snapshot, whichever page it was on.",
     "vision": "Call screenshot() to see the page (1280x800 viewport). Act with click_xy(x, y) in pixel coordinates of that "
     "screenshot, type_text(text, press_enter) into the focused field, scroll(dy) and go_back().",
     "top20": "Call snapshot() to list the 20 elements most relevant to your goal on the current page, most relevant "
@@ -101,6 +118,27 @@ def png_size(data: bytes) -> tuple[int, int]:
     return struct.unpack(">II", data[16:24])
 
 
+def paginate(text: str, cap: int) -> list[str]:
+    """Split `text` into pages of at most `cap` characters, at line boundaries (an over-long line is cut hard)."""
+    pages: list[str] = []
+    cur: list[str] = []
+    size = 0
+    for line in text.split("\n"):
+        while len(line) > cap:  # pathological line: cut it
+            if cur:
+                pages.append("\n".join(cur))
+                cur, size = [], 0
+            pages.append(line[:cap])
+            line = line[cap:]
+        if cur and size + len(line) + 1 > cap:
+            pages.append("\n".join(cur))
+            cur, size = [], 0
+        cur.append(line)
+        size += len(line) + 1
+    pages.append("\n".join(cur))
+    return pages
+
+
 def tools_for(config: str) -> tuple[str, ...]:
     """Names of the MCP tools a configuration exposes."""
     if config not in BENCH_CONFIGS:
@@ -108,6 +146,7 @@ def tools_for(config: str) -> tuple[str, ...]:
     return {
         "full": ("snapshot", "click", "type", "go_back", "done"),
         "a11y": ("snapshot", "click", "type", "go_back", "done"),
+        "a11y-cap": ("snapshot", "click", "type", "go_back", "done"),
         "vision": ("screenshot", "click_xy", "type_text", "scroll", "go_back", "done"),
         "top20": ("snapshot", "click", "type", "go_back", "done"),
         "find": ("find", "click", "type", "go_back", "done"),
@@ -141,10 +180,14 @@ class BenchServer:
     def __init__(
         self, config: str, session: BrowserSession, ranker: Ranker | None, goal: str, check: dict[str, str],
         log_path: str | Path, task_id: str = "", observe: bool = True, max_calls: int = DEFAULT_MAX_CALLS,
+        answer_regex: str = "", a11y_cap: int = A11Y_CAP_CHARS,
     ) -> None:
         tools_for(config)  # validates the name
         self.config, self.session, self.goal, self.check, self.task_id = config, session, goal, check, task_id
         self.observe, self.max_calls = observe, max_calls
+        self.answer_regex, self.a11y_cap = answer_regex, a11y_cap
+        self._aria_cache: tuple[int, str] | None = None  # (state version, full snapshot text) for a11y-cap paging
+        self._state = 0  # bumped by every action, so a cached snapshot is only reused while the page is unchanged
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = self.log_path.open("a", encoding="utf-8")
@@ -155,11 +198,12 @@ class BenchServer:
         self.chars = 0
         self.image_bytes = 0
         self.images = 0
+        self.image_tokens = 0
         self.done_called = False
         self.answer = ""
         self.finished = False
         self.box: BenchToolBox | None = None
-        if config not in ("a11y", "vision"):
+        if config not in (*A11Y_CONFIGS, "vision"):
             if ranker is None:
                 raise ValueError(f"config {config} needs a ranker")
             self.box = BenchToolBox(config, session, ranker, goal)
@@ -176,14 +220,21 @@ class BenchServer:
         except Exception:  # browser already gone
             url = ""
         try:
-            success = self.session.succeeded(self.check)
+            check_ok = self.session.succeeded(self.check)
         except Exception:
-            success = False
+            check_ok = False
+        answer_ok = answer_matches(self.answer_regex, self.answer if self.done_called else "")
+        replay = getattr(self.session, "replay", None)
         return {
             "type": "summary", "reason": reason, "task_id": self.task_id, "config": self.config, "goal": self.goal,
-            "success": success, "done_called": self.done_called, "answer": self.answer, "final_url": url,
+            "success": check_ok and answer_ok, "check_ok": check_ok, "answer_ok": answer_ok,
+            "answer_regex": self.answer_regex, "done_called": self.done_called, "answer": self.answer, "final_url": url,
             "calls": self.calls, "steps": self.steps, "errors": self.errors, "tool_chars": self.chars,
-            "image_bytes": self.image_bytes, "images": self.images,
+            "image_bytes": self.image_bytes, "images": self.images, "image_tokens_est": self.image_tokens,
+            "replay": replay is not None, "replay_requests": replay.requests if replay else 0,
+            "replay_misses": len(replay.misses) if replay else 0, "replay_miss_urls": replay.misses[:5] if replay else [],
+            "replay_network_failures": len(replay.failed) if replay else 0,
+            "replay_live_requests": len(replay.live) if replay else 0,
             "seconds": round(time.perf_counter() - self.started, 2),
         }
 
@@ -209,6 +260,7 @@ class BenchServer:
                 raise ToolError(f"call budget of {self.max_calls} used up; call done(answer) now")
             self.calls += 1
             self.steps += name in ACTION_TOOLS
+            self._state += name in ACTION_TOOLS
             out = getattr(self, f"_t_{name}")(**args)
         except ToolError as exc:
             self.errors += 1
@@ -227,6 +279,7 @@ class BenchServer:
             width, height = png_size(png)
             self.image_bytes += len(png)
             self.images += 1
+            self.image_tokens += -(-width * height // IMAGE_PX_PER_TOKEN)
             event.update(image_bytes=len(png), width=width, height=height)
         self._log(event)
         if name == "done":
@@ -243,7 +296,11 @@ class BenchServer:
         assert self.box is not None
         return self.box.call(name, args)
 
-    def _t_snapshot(self) -> str:
+    def _t_snapshot(self, page: int | None = None) -> str:
+        if self.config == "a11y-cap":
+            return self._aria_page(1 if page is None else int(page))
+        if page is not None:
+            raise ToolError("snapshot takes no arguments")
         if self.config == "a11y":
             return self._aria()
         return self._grounder("snapshot")
@@ -327,12 +384,31 @@ class BenchServer:
         text = f"{message}\n{self.session.status()}"
         if not self.observe:
             return text
-        if self.config == "a11y":
+        if self.config in A11Y_CONFIGS:
             return f"{text}\n{self._aria_body()}"
         return text, self._shot()
 
     def _aria_body(self) -> str:
+        if self.config == "a11y-cap":
+            return self._aria_page(1, status=False)
         return self.session._guard(lambda: self.session.page.aria_snapshot(mode="ai"))
+
+    def _aria_page(self, page: int, status: bool = True) -> str:
+        """Page `page` (1-based) of the capped ARIA snapshot. Page 1 always takes a fresh snapshot; later pages reuse the
+        one taken for page 1 while the page has not been acted on (so the pages add up to ONE snapshot)."""
+        if page < 1:
+            raise ToolError("page must be 1 or more")
+        if page == 1 or self._aria_cache is None or self._aria_cache[0] != self._state:
+            snap = self.session._guard(lambda: self.session.page.aria_snapshot(mode="ai"))
+            self._aria_cache = (self._state, snap)
+        full = self._aria_cache[1]
+        pages = paginate(full, self.a11y_cap)
+        if page > len(pages):
+            raise ToolError(f"page {page} does not exist: the snapshot has {len(pages)} page(s)")
+        more = f"; call snapshot(page={page + 1}) for the next page" if page < len(pages) else "; this is the last page"
+        head = (f"[snapshot page {page} of {len(pages)}: {len(full):,} characters in total, at most {self.a11y_cap:,} "
+                f"shown per call{more}]")
+        return (f"{self.session.status()}\n" if status else "") + f"{head}\n{pages[page - 1]}"
 
     def _t_click_xy(self, x: float, y: float) -> str | tuple[str, bytes]:
         page = self.session.page
@@ -379,12 +455,37 @@ class BenchServer:
 # ---- MCP wiring --------------------------------------------------------------------------------------------
 
 
+class SpecRanker:
+    """demo.agent.Ranker over a `grounder_tool.rankers.make_ranker` spec, so the benchmark runs the code that ships.
+
+    Rankers differ in score scale (exact match: tier*1000 + BM25; blend: softmax probabilities). To print the same
+    find lines whatever the ranker, a scale outside 0..1 is divided by the top score; order is never changed."""
+
+    def __init__(self, spec: str) -> None:
+        from grounder_tool.rankers import make_ranker
+
+        self.spec, self.inner = spec, make_ranker(spec)
+
+    def rank(self, query: str, elements: Any, k: int = 5, mode: str = "do", history: list[str] | None = None) -> dict[str, Any]:
+        els = list(elements)
+        if not els:
+            return {"results": [], "null_prob": 1.0}
+        r = self.inner.rank(query, els, mode, history)
+        scores = [float(x) for x in r.scores]
+        top = max(scores) if scores else 0.0
+        if scores and (min(scores) < 0.0 or top > 1.0):
+            scores = [max(0.0, x) / top if top > 0 else 0.0 for x in scores]
+        return {"results": [{"id": i, "score": x} for i, x in zip(r.ids[:k], scores[:k])], "null_prob": r.null_prob}
+
+
 def make_ranker(name: str, model_dir: str) -> Ranker:
+    if name == "grounder":
+        from grounder.runtime import Grounder
+
+        return Grounder(model_dir)
     if name == "bm25":
         return BM25Ranker()
-    from grounder.runtime import Grounder
-
-    return Grounder(model_dir)
+    return SpecRanker(name)
 
 
 def build_mcp(config: str, call: Any) -> Any:
@@ -396,16 +497,27 @@ def build_mcp(config: str, call: Any) -> Any:
     def out(result: str | tuple[str, bytes]) -> Any:
         return result if isinstance(result, str) else [result[0], Image(data=result[1], format="png")]
 
-    ident = "Element id from the most recent snapshot / find." if config != "a11y" else "Ref from the latest snapshot, e.g. 'e12'."
+    ident = ("Element id from the most recent snapshot / find." if config not in A11Y_CONFIGS
+             else "Ref from the latest snapshot, e.g. 'e12'.")
 
     if "snapshot" in tools_for(config):
         desc = {
             "full": "List every element of the current page (id|role|text|context). Replaces earlier ids.",
             "a11y": "Accessibility snapshot of the current page, with [ref=eN] markers on interactive nodes.",
+            "a11y-cap": f"Accessibility snapshot of the current page, with [ref=eN] markers on interactive nodes. Output is "
+            f"capped at {A11Y_CAP_CHARS:,} characters per call; a longer snapshot is split into numbered pages: snapshot() "
+            "(page 1) is always fresh, snapshot(page=2), snapshot(page=3)... return the next characters of the same "
+            "snapshot, and every response states its page number and the page count.",
             "top20": "List the 20 elements most relevant to your goal on the current page. Replaces earlier ids.",
             "find+top20": "List the 20 elements most relevant to your goal on the current page. Replaces earlier ids.",
         }[config]
-        mcp.add_tool(lambda: out(call("snapshot")), name="snapshot", description=desc)
+        if config == "a11y-cap":
+            def snapshot_page(page: int = 1) -> Any:
+                return out(call("snapshot", page=page))
+
+            mcp.add_tool(snapshot_page, name="snapshot", description=desc)
+        else:
+            mcp.add_tool(lambda: out(call("snapshot")), name="snapshot", description=desc)
     if "find" in tools_for(config):
         def find(query: str) -> Any:
             return out(call("find", query=query))
@@ -428,7 +540,7 @@ def build_mcp(config: str, call: Any) -> Any:
                      "content), optionally pressing Enter (for example to search).")
         mcp.add_tool(scroll, name="scroll", description="Scroll the page vertically by dy pixels (positive = down).")
     else:
-        if config == "a11y":
+        if config in A11Y_CONFIGS:
             def click(ref: str) -> Any:
                 return out(call("click", id=ref))
 
@@ -460,7 +572,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--log", required=True, help="JSONL log path (appended)")
     p.add_argument("--check", default="{}", help='task check as JSON, e.g. \'{"url_contains": "/wiki/X"}\'')
     p.add_argument("--task-id", default="")
-    p.add_argument("--ranker", choices=["grounder", "bm25"], default="grounder")
+    p.add_argument("--ranker", default="grounder",
+                   help="grounder | bm25 (the demo's) | a grounder_tool.rankers spec: exact, blend:<dir>:<alpha>, model:<dir>...")
+    p.add_argument("--har", help="replay this frozen snapshot (HAR / zip) with no live network")
+    p.add_argument("--replay-miss", choices=["stub", "abort"], default="stub",
+                   help="a page the archive lacks: answer a top-level navigation with a 'page not archived' stub (default) or abort it")
+    p.add_argument("--answer-regex", default="", help="done(answer) must match this (case-insensitive) for success")
     p.add_argument("--model-dir", default=DEFAULT_MODEL_DIR)
     p.add_argument("--max-calls", type=int, default=DEFAULT_MAX_CALLS)
     p.add_argument("--no-observe", action="store_true", help="a11y / vision: actions do not return a new observation")
@@ -476,10 +593,10 @@ def main(argv: list[str] | None = None) -> int:
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser")
 
     def build() -> BenchServer:
-        ranker = None if args.config in ("a11y", "vision") else make_ranker(args.ranker, args.model_dir)
-        session = BrowserSession(args.start_url)
+        ranker = None if args.config in (*A11Y_CONFIGS, "vision") else make_ranker(args.ranker, args.model_dir)
+        session = BrowserSession(args.start_url, har=args.har, replay_miss=args.replay_miss)
         return BenchServer(args.config, session, ranker, args.goal, args.check, args.log, args.task_id,
-                           observe=not args.no_observe, max_calls=args.max_calls)
+                           observe=not args.no_observe, max_calls=args.max_calls, answer_regex=args.answer_regex)
 
     bench = pool.submit(build).result()
 

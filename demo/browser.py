@@ -22,8 +22,51 @@ from grounder.records import Element, Page
 TASKS_FILE = Path(__file__).with_name("tasks.yaml")
 CHECK_KEYS = ("url_contains", "url_regex", "text_contains")
 VIEWPORT = {"width": 1280, "height": 800}
+# Recording skips video / audio (huge, never read by the agents) and well-known trackers. Playwright's recording filter
+# KEEPS what matches, hence the negative lookahead.
+RECORD_URL_FILTER = re.compile(
+    r"^(?!.*(?:\.(?:mp4|webm|m4s|mov|mp3|ogg|m3u8)(?:\?|$)|google-analytics|googletagmanager|doubleclick|facebook\.net"
+    r"|hotjar|sentry\.io|clarity\.ms|segment\.(?:com|io))).*$", re.I)
 NAV_TIMEOUT_MS = 30_000
 SETTLE_MS = 500
+
+
+# In-page helpers for click / type safety on pages whose layout moves between extraction and action (sticky, inner-scrolling
+# sidebars such as a docs table of contents; lazy content). `_HIT_LABEL_JS` names what is under a viewport point;
+# `_RELOCATE_JS` finds the extracted element again by label (and href), scrolls it into view (inner scrollers included) and
+# returns its fresh viewport centre.
+_CONTROLS = ("a,button,input,textarea,select,summary,label,[role=button],[role=link],[role=tab],[role=menuitem],"
+             "[role=option],[role=checkbox],[role=radio],[role=switch],[role=combobox],[role=searchbox],[role=textbox]")
+_LABEL_FN = """const norm = (s) => (s || "").replace(/\\s+/g, " ").trim().normalize("NFKC");
+  const label = (el) => norm(el.getAttribute("aria-label") || el.innerText || el.value || el.title ||
+                             el.getAttribute("placeholder") || el.getAttribute("alt") || "").slice(0, 80);"""
+_HIT_LABEL_JS = """([x, y, sel]) => {
+  %s
+  let el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const pick = el.closest(sel) || el;
+  return { label: label(pick), href: pick.getAttribute("href") || "" };
+}""" % _LABEL_FN
+_RELOCATE_JS = """([text, href, sel]) => {
+  %s
+  const want = norm(text).slice(0, 80);
+  const all = [...document.querySelectorAll(sel)].filter((el) => label(el) === want);
+  const same = href ? all.filter((el) => (el.href || "").endsWith(href)) : [];
+  for (const el of [...same, ...all.filter((e) => !same.includes(e))]) {
+    if (!el.getClientRects().length) continue;  // hidden copies (mobile drawers...) cannot be clicked
+    el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    if (hit && (el === hit || el.contains(hit) || hit.contains(el))) return { ok: true, x, y };
+  }
+  return { ok: false };
+}""" % _LABEL_FN
+
+
+def _same_label(a: str, b: str) -> bool:
+    a, b = " ".join(a.split()).casefold(), " ".join(b.split()).casefold()
+    return not a or not b or a[:30] in b or b[:30] in a
 
 
 class ToolError(Exception):
@@ -37,6 +80,10 @@ class Task:
     goal: str
     check: dict[str, str]
     max_steps: int
+    answer_regex: str = ""  # when set, done(answer) must match it (case-insensitive) for the run to count
+    tags: tuple[str, ...] = ()  # benchmark v2 categories: icon, vague, long, multistep, normal
+    har: str = ""  # frozen snapshot (Playwright HAR), path relative to the repo root; empty = live web
+    site: str = ""  # cluster for the paired analysis (default: registrable domain of start_url)
 
 
 def parse_tasks(raw: Any) -> list[Task]:
@@ -62,7 +109,16 @@ def parse_tasks(raw: Any) -> list[Task]:
             raise ValueError(f"task {name}: bad url_regex: {exc}") from exc
         if not isinstance(item["max_steps"], int) or item["max_steps"] < 1:
             raise ValueError(f"task {name}: max_steps must be a positive integer")
-        tasks.append(Task(item["id"], item["start_url"], item["goal"], {k: str(v) for k, v in check.items()}, item["max_steps"]))
+        answer_regex = str(item.get("answer_regex") or "")
+        try:
+            re.compile(answer_regex)
+        except re.error as exc:
+            raise ValueError(f"task {name}: bad answer_regex: {exc}") from exc
+        tags = item.get("tags") or []
+        if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+            raise ValueError(f"task {name}: tags must be a list of strings")
+        tasks.append(Task(item["id"], item["start_url"], item["goal"], {k: str(v) for k, v in check.items()}, item["max_steps"],
+                          answer_regex, tuple(tags), str(item.get("har") or ""), str(item.get("site") or "")))
     if len({t.id for t in tasks}) != len(tasks):
         raise ValueError("duplicate task ids")
     return tasks
@@ -70,6 +126,11 @@ def parse_tasks(raw: Any) -> list[Task]:
 
 def load_tasks(path: str | Path = TASKS_FILE) -> list[Task]:
     return parse_tasks(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+
+
+def answer_matches(answer_regex: str, answer: str) -> bool:
+    """True when the task has no answer requirement or done(answer) matches it (case-insensitive)."""
+    return not answer_regex or re.search(answer_regex, answer or "", re.IGNORECASE) is not None
 
 
 def check_success(check: dict[str, str], url: str, text: str) -> bool:
@@ -84,14 +145,55 @@ def check_success(check: dict[str, str], url: str, text: str) -> bool:
     )
 
 
-class BrowserSession:
-    """A headless Chromium page. Element ids refer to the most recent `extract`."""
+STUB_HTML = ("<!doctype html><title>page not archived</title><h1>Page not archived</h1>"
+             "<p>This benchmark replays a frozen snapshot; {url} was not recorded.</p>")
+# Replay seatbelt: a request that somehow bypasses the HAR routes dies at this closed port instead of the live web.
+DEAD_PROXY = "http://127.0.0.1:9"
 
-    def __init__(self, start_url: str, headless: bool = True) -> None:
+
+class Replay:
+    """Counters of a HAR replay: every request the page made and the ones the archive did not contain."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+        self.misses: list[str] = []
+        self.failed: list[str] = []  # requests that reached the network layer and died at the dead proxy (should be none)
+        self.live: list[str] = []  # responses that came from a real server (server_addr set); fulfilled ones have none
+
+    def on_response(self, response: Any) -> None:
+        try:
+            if response.server_addr():
+                self.live.append(response.url)
+        except PlaywrightError:
+            pass
+
+
+class BrowserSession:
+    """A headless Chromium page. Element ids refer to the most recent `extract`.
+
+    `har` replays a frozen snapshot (Playwright HAR / zip) with no live network: whatever the archive lacks is answered
+    with a "page not archived" stub for a top-level navigation and aborted for everything else (`replay_miss="abort"`
+    aborts navigations too). `record_har` records the live session into a HAR zip instead (used by tools.bench_v2).
+    """
+
+    def __init__(self, start_url: str, headless: bool = True, har: str | Path | None = None, replay_miss: str = "stub",
+                 record_har: str | Path | None = None) -> None:
+        self.replay: Replay | None = Replay() if har else None
         self._playwright = sync_playwright().start()
         try:
-            self._browser = self._playwright.chromium.launch(headless=headless)
-            self.page = self._browser.new_page(viewport=VIEWPORT)
+            launch: dict[str, Any] = {"headless": headless}
+            ctx: dict[str, Any] = {"viewport": VIEWPORT}
+            if har:
+                launch["proxy"] = {"server": DEAD_PROXY}
+                ctx["service_workers"] = "block"
+            if record_har:
+                ctx.update(record_har_path=str(record_har), record_har_content="attach", record_har_mode="full",
+                           service_workers="block", record_har_url_filter=RECORD_URL_FILTER)
+            self._browser = self._playwright.chromium.launch(**launch)
+            self.context = self._browser.new_context(**ctx)
+            if har:
+                self._install_replay(Path(har), replay_miss)
+            self.page = self.context.new_page()
             self.page.set_default_timeout(NAV_TIMEOUT_MS)
             self._guard(lambda: self.page.goto(start_url, wait_until="load"))
         except BaseException:
@@ -101,6 +203,25 @@ class BrowserSession:
         self.elements: list[Element] = []
         self._extracted_url = ""
 
+    def _install_replay(self, har: Path, replay_miss: str) -> None:
+        if not har.exists():
+            raise FileNotFoundError(f"HAR snapshot not found: {har}")
+        replay = self.replay
+        assert replay is not None
+
+        def stub(route, request) -> None:  # registered first, so it runs last: only what the archive lacks gets here
+            replay.misses.append(request.url)
+            if replay_miss == "stub" and request.is_navigation_request() and request.frame.parent_frame is None:
+                route.fulfill(status=404, content_type="text/html; charset=utf-8", body=STUB_HTML.format(url=request.url))
+            else:
+                route.abort()
+
+        self.context.route("**/*", stub)
+        self.context.route_from_har(har, not_found="fallback")
+        self.context.on("request", lambda r: setattr(replay, "requests", replay.requests + 1))
+        self.context.on("response", replay.on_response)
+        self.context.on("requestfailed", lambda r: replay.failed.append(r.url) if "PROXY" in (r.failure or "").upper() else None)
+
     def __enter__(self) -> "BrowserSession":
         return self
 
@@ -108,6 +229,11 @@ class BrowserSession:
         self.close()
 
     def close(self) -> None:
+        if hasattr(self, "context"):
+            try:
+                self.context.close()  # writes a recorded HAR
+            except PlaywrightError:
+                pass
         if hasattr(self, "_browser"):
             self._browser.close()
         self._playwright.stop()
@@ -150,13 +276,40 @@ class BrowserSession:
             raise ToolError(f"no element with id {element_id} in the most recent element list")
         return element
 
-    def _probe(self, element: Element, click_action: bool) -> dict[str, Any]:
-        """Scroll the element into view and run the helper's in-page safety probe; raise ToolError if refused."""
-        cx, cy = ph.centre(element.abs_box)
-        probe = self._guard(lambda: self.page.evaluate(ph.PROBE_JS, [cx, cy, element.tag]))
+    def _probe_point(self, cx: float, cy: float, tag: str, click_action: bool) -> dict[str, Any]:
+        probe = self._guard(lambda: self.page.evaluate(ph.PROBE_JS, [cx, cy, tag]))
         if reason := ph.verdict(probe, click_action):
             raise ToolError(f"refused: {reason}")
         return probe
+
+    def _probe(self, element: Element, click_action: bool) -> dict[str, Any]:
+        """Scroll the element into view and run the helper's in-page safety probe; raise ToolError if refused."""
+        cx, cy = ph.centre(element.abs_box)
+        return self._probe_point(cx, cy, element.tag, click_action)
+
+    def _locate(self, element: Element, click_action: bool) -> dict[str, Any]:
+        """The (safety-probed) click point of `element`. The extracted position can be stale once the page has scrolled
+        there: a sticky, inner-scrolling sidebar (docs tables of contents) or lazy content moves, and the point then lies on
+        a different control or none. In that case the element is found again by label and href, scrolled into view (inner
+        scrollers included) and probed at its fresh position. Where it cannot be found again the original outcome stands."""
+        stale: ToolError | None = None
+        try:
+            probe = self._probe(element, click_action)
+        except ToolError as exc:
+            if "page changed" not in str(exc) and "not reachable" not in str(exc):
+                raise
+            stale, probe = exc, None
+        if probe is not None:
+            hit = self._guard(lambda: self.page.evaluate(_HIT_LABEL_JS, [probe["x"], probe["y"], _CONTROLS]))
+            if hit is None or not element.text or _same_label(element.text, hit["label"]):
+                return probe
+        found = self._guard(lambda: self.page.evaluate(_RELOCATE_JS, [element.text, element.href, _CONTROLS])) if element.text else {}
+        if not found.get("ok"):
+            if stale is not None:
+                raise stale
+            return probe  # type: ignore[return-value]
+        sx, sy = self._guard(lambda: self.page.evaluate("[scrollX, scrollY]"))
+        return self._probe_point(found["x"] + sx, found["y"] + sy, element.tag, click_action)
 
     def click(self, element_id: int) -> Element:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
@@ -165,7 +318,7 @@ class BrowserSession:
             raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
         if not element.enabled:
             raise ToolError("refused: the element is disabled")
-        probe = self._probe(element, click_action=True)
+        probe = self._locate(element, click_action=True)
         self._guard(lambda: self.page.mouse.click(probe["x"], probe["y"]))
         self._settle()
         return element
@@ -178,7 +331,7 @@ class BrowserSession:
             raise ToolError(f"element {element_id} is a {element.role}, not a text field")
         if not element.enabled:
             raise ToolError("refused: the element is disabled")
-        probe = self._probe(element, click_action=False)
+        probe = self._locate(element, click_action=False)
 
         def act() -> None:
             self.page.mouse.click(probe["x"], probe["y"])

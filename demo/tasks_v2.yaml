@@ -1,0 +1,1037 @@
+# Agent benchmark v2 (plan v2.1, step 7): frozen, held-out, read-only tasks.
+#
+# Sites are not training domains (data/leakage/heldout_domains.txt), not demo/tasks.yaml domains and not sites of the
+# human-eval pages (data/heldout/{select,confirm}_pages.txt). Every task replays offline from data/bench_v2/har/<id>.zip
+# (record / verify with `python -m tools.bench_v2`; `demo.cli_bench --live` ignores the snapshots).
+#
+# Fields: id, start_url, goal, tags (icon | vague | long | multistep | normal), max_steps, check (url_contains / url_regex /
+# text_contains on the final page), answer_regex (done(answer) must match; success = check AND answer), har, and the
+# scripted solution used by tools.bench_v2: path (steps), answer, wrong (extra branches to record).
+#
+# Full sweep (3 repeats; resumable, a finished run is skipped):
+#   uv run --extra demo python -m demo.cli_bench --out runs/bench-v2 --tasks-file demo/tasks_v2.yaml \
+#     --agents claude:claude-sonnet-5-5 codex:gpt-6.2-sol claude:claude-haiku-5-5 codex:gpt-6.1-terra \
+#     --arms a11y-cap vision find@exact find@blend:dist/xs-s0:8 --repeats 3 --parallel 4
+# Frozen: data/bench_v2/manifest.json holds the sha256 of this file and of every snapshot.
+# Generated from the task list in tools/ authoring notes; edit the YAML directly from here on.
+- id: fastapi-release-0100
+  start_url: https://fastapi.tiangolo.com/release-notes/
+  goal: Jump to the entry for FastAPI version 0.100.0 in the release notes.
+  tags:
+  - long
+  - normal
+  max_steps: 4
+  check:
+    url_regex: release-notes/(\?[^#]*)?#01000
+  har: data/bench_v2/har/fastapi-release-0100.zip
+  path:
+  - click:
+      role: link
+      name: 0.100.0 (2023
+- id: fastapi-release-by-date
+  start_url: https://fastapi.tiangolo.com/release-notes/
+  goal: Somewhere in the FastAPI changelog there is a release that came out on 10 May 2021. Which version number was it?
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /release-notes/
+  answer_regex: 0\.65\.0
+  answer: Version 0.65.0
+  har: data/bench_v2/har/fastapi-release-by-date.zip
+  path:
+  - click:
+      role: link
+      name: 0.65.0 (2021
+- id: fastapi-tutorial-devserver
+  start_url: https://fastapi.tiangolo.com/
+  goal: Using the FastAPI documentation, find the very first tutorial step and tell me which command it uses to start the app in development mode.
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_contains: /tutorial/first-steps/
+  answer_regex: fastapi dev
+  answer: Run `fastapi dev`.
+  har: data/bench_v2/har/fastapi-tutorial-devserver.zip
+  path:
+  - click:
+      role: link
+      name: Learn
+      exact: true
+  - click:
+      role: link
+      name: Tutorial - User Guide
+  - click:
+      role: link
+      name: First Steps
+- id: fastapi-async-explainer
+  start_url: https://fastapi.tiangolo.com/
+  goal: I keep seeing async and await in FastAPI examples and don't know when to use them. Where do the docs explain that?
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /async/
+  har: data/bench_v2/har/fastapi-async-explainer.zip
+  path:
+  - click:
+      role: link
+      name: Learn
+      exact: true
+  - click:
+      role: link
+      name: Concurrency and async
+- id: fastapi-deploy-vague
+  start_url: https://fastapi.tiangolo.com/
+  goal: I've written an app and want to put it on a real server. Which part of the docs covers that?
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_regex: fastapi\.tiangolo\.com/deployment/?$
+  har: data/bench_v2/har/fastapi-deploy-vague.zip
+  path:
+  - click:
+      role: link
+      name: Learn
+      exact: true
+  - click:
+      role: link
+      name: Deployment
+      exact: true
+- id: pnpm-icon-search
+  start_url: https://pnpm.io/
+  goal: Open the site's search by clicking the magnifier control in the top bar.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: No recent searches
+  har: data/bench_v2/har/pnpm-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: Search
+- id: pnpm-icon-overflow
+  start_url: https://pnpm.io/
+  goal: Open the small menu at the far right of the top bar that hides the theme and language options.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: Italiano
+  har: data/bench_v2/har/pnpm-icon-overflow.zip
+  path:
+  - click:
+      role: button
+      name: 'More: links'
+- id: pnpm-disk-vague
+  start_url: https://pnpm.io/
+  goal: I have dozens of projects and my disk keeps filling with duplicated packages. Where do the docs explain how this tool avoids that?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /motivation
+  har: data/bench_v2/har/pnpm-disk-vague.zip
+  path:
+  - click:
+      role: link
+      name: Docs
+      exact: true
+- id: pnpm-update-flag
+  start_url: https://pnpm.io/cli/install
+  goal: Find the documentation of the command that brings dependencies up to date, and tell me which flag makes it ignore the version ranges in package.json and take
+    the newest releases.
+  tags:
+  - normal
+  max_steps: 5
+  check:
+    url_contains: /cli/update
+  answer_regex: --latest|-L\b
+  answer: Use --latest (or -L).
+  har: data/bench_v2/har/pnpm-update-flag.zip
+  path:
+  - click:
+      role: link
+      name: pnpm update
+      exact: true
+- id: htmx-boost-vague
+  start_url: https://htmx.org/reference/
+  goal: Which htmx attribute turns ordinary links and forms into AJAX requests without extra markup? Open its page.
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /attributes/hx-boost
+  har: data/bench_v2/har/htmx-boost-vague.zip
+  path:
+  - click:
+      role: link
+      name: hx-boost
+      exact: true
+- id: htmx-essay-hda
+  start_url: https://htmx.org/
+  goal: Open the essay about building apps from hypermedia that contrasts multi-page and single-page applications.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_contains: /essays/hypermedia-driven-applications
+  har: data/bench_v2/har/htmx-essay-hda.zip
+  path:
+  - click:
+      role: link
+      name: essays
+      exact: true
+      nth: 0
+  - click:
+      role: link
+      name: Hypermedia-Driven Applications
+- id: htmx-debounce
+  start_url: https://htmx.org/
+  goal: According to the htmx docs, how do I make a request wait until the user has stopped typing? Tell me the trigger modifier.
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /docs
+  answer_regex: delay
+  answer: 'Use the delay: trigger modifier, e.g. delay:500ms.'
+  har: data/bench_v2/har/htmx-debounce.zip
+  path:
+  - click:
+      role: link
+      name: docs
+      exact: true
+      nth: 0
+- id: fastify-icon-search
+  start_url: https://fastify.dev/
+  goal: Open the documentation search using the icon button in the header.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: Start typing to search the docs
+  har: data/bench_v2/har/fastify-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: Search documentation
+- id: fastify-bodylimit
+  start_url: https://fastify.dev/docs/latest/Reference/Server/
+  goal: On this page, what is the default maximum size of a request body the server accepts, in bytes?
+  tags:
+  - long
+  max_steps: 4
+  check:
+    url_contains: Reference/Server
+  answer_regex: '1048576'
+  answer: 1048576 bytes (1MiB).
+  har: data/bench_v2/har/fastify-bodylimit.zip
+  path: []
+- id: fastify-trailing-slash
+  start_url: https://fastify.dev/docs/latest/Reference/Server/
+  goal: Find the server option that decides whether /foo and /foo/ are treated as the same route and jump to its section.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_regex: Reference/Server/(\?[^#]*)?#ignoretrailingslash
+  har: data/bench_v2/har/fastify-trailing-slash.zip
+  path:
+  - click:
+      role: link
+      name: ignoreTrailingSlash
+      nth: 0
+- id: fastify-beginner
+  start_url: https://fastify.dev/
+  goal: I'm brand new to this framework. Take me to the beginner walkthrough.
+  tags:
+  - vague
+  max_steps: 3
+  check:
+    url_contains: Guides/Getting-Started
+  har: data/bench_v2/har/fastify-beginner.zip
+  path:
+  - click:
+      role: link
+      name: Get started
+- id: esbuild-icon-github
+  start_url: https://esbuild.github.io/
+  goal: Open the project's source repository using the icon link in the page header.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_regex: github\.com/evanw/esbuild
+  har: data/bench_v2/har/esbuild-icon-github.zip
+  path:
+  - click:
+      role: link
+      name: View this project on GitHub
+- id: esbuild-footer-option
+  start_url: https://esbuild.github.io/api/
+  goal: Which build option lets me append arbitrary text to the end of every generated file? Jump to its section.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_regex: /api/(\?[^#]*)?#footer$
+  har: data/bench_v2/har/esbuild-footer-option.zip
+  path:
+  - click:
+      role: link
+      name: Footer
+      nth: 0
+- id: esbuild-treeshake
+  start_url: https://esbuild.github.io/api/
+  goal: Jump to the section that describes how unused code is removed from the bundle.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_regex: /api/(\?[^#]*)?#tree-shaking$
+  har: data/bench_v2/har/esbuild-treeshake.zip
+  path:
+  - click:
+      role: link
+      name: Tree shaking
+      nth: 0
+- id: esbuild-splitting-multistep
+  start_url: https://esbuild.github.io/
+  goal: Find the documentation of the option that shares code between several entry points through shared chunks.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: /api/(\?[^#]*)?#splitting$
+  har: data/bench_v2/har/esbuild-splitting-multistep.zip
+  path:
+  - click:
+      role: link
+      name: API
+      exact: true
+      nth: 0
+  - click:
+      role: link
+      name: Splitting
+      nth: 0
+- id: astral-icon-twitter
+  start_url: https://docs.astral.sh/
+  goal: Take me to the company's Twitter/X profile using the icon link at the bottom of the page.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_regex: (x|twitter)\.com/astral_sh
+  har: data/bench_v2/har/astral-icon-twitter.zip
+  path:
+  - click:
+      role: link
+      name: Twitter
+    external: true
+- id: uv-cli-python-pin
+  start_url: https://docs.astral.sh/uv/reference/cli/
+  goal: Find the command that records which Python version a project should use in a .python-version file and jump to its section.
+  tags:
+  - long
+  - vague
+  max_steps: 5
+  check:
+    url_regex: reference/cli/(\?[^#]*)?#uv-python-pin$
+  har: data/bench_v2/har/uv-cli-python-pin.zip
+  path:
+  - click:
+      role: link
+      name: uv python pin
+      nth: 0
+- id: uv-settings-index
+  start_url: https://docs.astral.sh/uv/reference/settings/
+  goal: According to this page, what is the default URL of the package index that uv uses?
+  tags:
+  - long
+  max_steps: 4
+  check:
+    url_contains: /uv/reference/settings
+  answer_regex: pypi\.org/simple
+  answer: https://pypi.org/simple
+  har: data/bench_v2/har/uv-settings-index.zip
+  path: []
+- id: uv-intro-multistep
+  start_url: https://docs.astral.sh/
+  goal: Find the page that lists every uv command-line command with its options.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_contains: /uv/reference/cli
+  har: data/bench_v2/har/uv-intro-multistep.zip
+  path:
+  - click:
+      role: link
+      name: uv An extremely
+  - click:
+      text: Reference
+      exact: true
+      nth: 0
+  - click:
+      role: link
+      name: Commands
+      nth: 0
+- id: sklearn-dbscan
+  start_url: https://scikit-learn.org/stable/api/index.html
+  goal: Open the reference page of the clustering estimator that grows clusters from dense core samples and labels the rest as noise (the DBSCAN algorithm), and tell
+    me the default value of its eps parameter.
+  tags:
+  - long
+  max_steps: 5
+  check:
+    url_contains: sklearn.cluster.DBSCAN.html
+  answer_regex: 0\.5
+  answer: The default eps is 0.5.
+  har: data/bench_v2/har/sklearn-dbscan.zip
+  path:
+  - click:
+      role: link
+      name: DBSCAN
+      exact: true
+      nth: 0
+- id: sklearn-silhouette
+  start_url: https://scikit-learn.org/stable/api/index.html
+  goal: Find the function that scores a clustering by comparing the mean intra-cluster distance with the mean nearest-cluster distance.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_contains: metrics.silhouette_score
+  har: data/bench_v2/har/sklearn-silhouette.zip
+  path:
+  - click:
+      role: link
+      name: silhouette_score
+      nth: 0
+- id: sklearn-standardscaler
+  start_url: https://scikit-learn.org/stable/api/index.html
+  goal: Open the preprocessing transformer that removes the mean and scales features to unit variance.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_contains: preprocessing.StandardScaler
+  har: data/bench_v2/har/sklearn-standardscaler.zip
+  path:
+  - click:
+      role: link
+      name: StandardScaler
+      exact: true
+      nth: 0
+- id: sklearn-make-pipeline
+  start_url: https://scikit-learn.org/stable/api/index.html
+  goal: Open the shortcut that builds a pipeline from estimators without naming the steps.
+  tags:
+  - long
+  - vague
+  max_steps: 4
+  check:
+    url_contains: pipeline.make_pipeline
+  har: data/bench_v2/har/sklearn-make-pipeline.zip
+  path:
+  - click:
+      role: link
+      name: make_pipeline
+      exact: true
+      nth: 0
+- id: keras-api-layers
+  start_url: https://keras.io/
+  goal: Find the page that lists all of Keras' layer types.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: keras\.io/api/layers/?$
+  har: data/bench_v2/har/keras-api-layers.zip
+  path:
+  - click:
+      role: link
+      name: API
+      exact: true
+  - click:
+      role: link
+      name: Layers API
+- id: ocaml-icon-search
+  start_url: https://ocaml.org/
+  goal: Click the magnifier icon in the header to search for packages.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: /packages/search
+  har: data/bench_v2/har/ocaml-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: search
+      exact: true
+- id: ocaml-install-vague
+  start_url: https://ocaml.org/
+  goal: How do I get this language running on my computer?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_regex: ocaml\.org/(install|docs/installing-ocaml|docs/get-started)
+  har: data/bench_v2/har/ocaml-install-vague.zip
+  path:
+  - click:
+      role: link
+      name: Install
+      exact: true
+- id: ocaml-lists-tutorial
+  start_url: https://ocaml.org/
+  goal: Find the tutorial about working with sequences of values (linked lists).
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_contains: /docs/lists
+  har: data/bench_v2/har/ocaml-lists-tutorial.zip
+  path:
+  - click:
+      role: link
+      name: Learn
+      exact: true
+  - click:
+      role: link
+      name: Lists
+      exact: true
+- id: ocaml-latest-release
+  start_url: https://ocaml.org/
+  goal: What is the latest compiler release shown on the home page? Open its release page and tell me the version.
+  tags:
+  - normal
+  max_steps: 4
+  check:
+    url_contains: /releases/5.5.2
+  answer_regex: 5\.5\.2
+  answer: The latest release is 5.5.2.
+  har: data/bench_v2/har/ocaml-latest-release.zip
+  path:
+  - click:
+      role: link
+      name: 'Latest release: 5.5.2'
+- id: ruby-icon-search
+  start_url: https://www.ruby-lang.org/en/
+  goal: Open the site search by clicking the magnifier in the navigation bar.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: Results will appear as you type
+  har: data/bench_v2/har/ruby-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: search
+      exact: true
+- id: ruby-quickstart
+  start_url: https://www.ruby-lang.org/en/
+  goal: I already program in other languages. Is there a short tutorial that gets me going with this one in about twenty minutes?
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /documentation/quickstart
+  har: data/bench_v2/har/ruby-quickstart.zip
+  path:
+  - click:
+      role: link
+      name: Docs
+      exact: true
+  - click:
+      role: link
+      name: Ruby in Twenty Minutes
+- id: ruby-from-python
+  start_url: https://www.ruby-lang.org/en/
+  goal: I'm a Python developer. Is there a guide written for people like me?
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: to-ruby-from-python
+  har: data/bench_v2/har/ruby-from-python.zip
+  path:
+  - click:
+      role: link
+      name: Docs
+      exact: true
+  - click:
+      role: link
+      name: To Ruby From Python
+- id: ruby-newest-4-0
+  start_url: https://www.ruby-lang.org/en/
+  goal: Open the announcement of the newest 4.0 release of the language and tell me its version number.
+  tags:
+  - normal
+  max_steps: 4
+  check:
+    url_contains: ruby-4-0-10-released
+  answer_regex: 4\.0\.10
+  answer: Ruby 4.0.10
+  har: data/bench_v2/har/ruby-newest-4-0.zip
+  path:
+  - click:
+      role: link
+      name: Ruby 4.0.10 Released
+- id: haskell-playground
+  start_url: https://www.haskell.org/
+  goal: I want to try writing some Haskell in my browser without installing anything.
+  tags:
+  - vague
+  max_steps: 3
+  check:
+    url_contains: play.haskell.org
+  har: data/bench_v2/har/haskell-playground.zip
+  path:
+  - click:
+      role: link
+      name: Try in the Playground
+    external: true
+- id: ubuntu-icon-mastodon
+  start_url: https://ubuntu.com/
+  goal: 'Follow the project on the fediverse: use the small icon at the bottom of the page.'
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: ubuntu.social/@ubuntu
+  har: data/bench_v2/har/ubuntu-icon-mastodon.zip
+  path:
+  - click:
+      role: link
+      name: Follow Ubuntu on Mastodon
+    external: true
+- id: ubuntu-desktop-download
+  start_url: https://ubuntu.com/
+  goal: I want to put this operating system on my personal laptop. Take me to the installer download for the desktop edition.
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /download/desktop
+  har: data/bench_v2/har/ubuntu-desktop-download.zip
+  path:
+  - click:
+      role: link
+      name: Download Ubuntu Desktop
+- id: mit-phone
+  start_url: https://www.mit.edu/
+  goal: I need to talk to someone at the institute. What number do I call?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /contact
+  answer_regex: 617[-\s.]*253[-\s.]*1000
+  answer: Call 617-253-1000.
+  har: data/bench_v2/har/mit-phone.zip
+  path:
+  - click:
+      role: link
+      name: Contact
+      exact: true
+- id: mit-visit-vague
+  start_url: https://www.mit.edu/
+  goal: I'm planning a trip to the campus. Where can I read about visiting?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /visitmit
+  har: data/bench_v2/har/mit-visit-vague.zip
+  path:
+  - click:
+      role: link
+      name: Visit
+      exact: true
+- id: mit-admissions
+  start_url: https://www.mit.edu/
+  goal: Take me to the admissions and financial aid section.
+  tags:
+  - normal
+  max_steps: 3
+  check:
+    url_contains: /admissions-aid
+  har: data/bench_v2/har/mit-admissions.zip
+  path:
+  - click:
+      role: link
+      name: Admissions + Aid
+- id: tate-icon-search
+  start_url: https://www.tate.org.uk/
+  goal: Open the search panel using the icon in the header.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: What are you looking for
+  har: data/bench_v2/har/tate-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: search
+      exact: true
+- id: tate-power-station
+  start_url: https://www.tate.org.uk/
+  goal: Take me to the page about the gallery on London's South Bank that is housed in a former power station.
+  tags:
+  - vague
+  - multistep
+  max_steps: 4
+  check:
+    url_contains: /visit/tate-modern
+  har: data/bench_v2/har/tate-power-station.zip
+  path:
+  - click:
+      role: link
+      name: Tate Modern
+      nth: 0
+- id: pbs-icon-search
+  start_url: https://www.pbs.org/
+  goal: Click the magnifier in the header to search the site.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: /search
+  har: data/bench_v2/har/pbs-icon-search.zip
+  path:
+  - click:
+      role: link
+      name: Search
+      exact: true
+      nth: 0
+- id: caltech-icon-facebook
+  start_url: https://www.caltech.edu/
+  goal: Open the institute's Facebook page through the icon link at the bottom of the page.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: facebook.com/californiainstituteoftechnology
+  har: data/bench_v2/har/caltech-icon-facebook.zip
+  path:
+  - click:
+      css: a[href*="facebook.com"]
+    external: true
+- id: caltech-visit
+  start_url: https://www.caltech.edu/
+  goal: I'd like to come and look around the campus. Where's the information for visitors?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: plan-your-visit
+  har: data/bench_v2/har/caltech-visit.zip
+  path:
+  - click:
+      role: link
+      name: Visit
+      exact: true
+- id: charity-phone
+  start_url: https://www.charitywater.org/
+  goal: How can I reach this organisation by telephone? Find the number.
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /contact
+  answer_regex: 646\D*688\D*2323
+  answer: Call 1 (646) 688-2323.
+  har: data/bench_v2/har/charity-phone.zip
+  path:
+  - click:
+      role: link
+      name: contact us
+- id: met-contact
+  start_url: https://www.met.ie/
+  goal: How can I get in touch with the Irish weather service?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /about-us/contact-us
+  har: data/bench_v2/har/met-contact.zip
+  path:
+  - click:
+      role: link
+      name: Contact
+      exact: true
+- id: htmx-click-to-edit
+  start_url: https://htmx.org/
+  goal: Find the worked example that lets a user edit a record in place after clicking on it.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_contains: /examples/click-to-edit
+  har: data/bench_v2/har/htmx-click-to-edit.zip
+  path:
+  - click:
+      role: link
+      name: examples
+      exact: true
+      nth: 0
+  - click:
+      role: link
+      name: Click To Edit
+- id: sklearn-install
+  start_url: https://scikit-learn.org/stable/
+  goal: How do I install this library on my machine?
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /stable/install.html
+  har: data/bench_v2/har/sklearn-install.zip
+  path:
+  - click:
+      role: link
+      name: Install
+      exact: true
+      nth: 0
+- id: uv-install-python
+  start_url: https://docs.astral.sh/
+  goal: I don't have Python on this machine yet. Where does the uv documentation explain getting it set up?
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /uv/guides/install-python
+  har: data/bench_v2/har/uv-install-python.zip
+  path:
+  - click:
+      role: link
+      name: uv An extremely
+  - click:
+      role: link
+      name: Installing Python
+- id: keras-intro-engineers
+  start_url: https://keras.io/
+  goal: Open the introductory guide aimed at engineers who are new to Keras.
+  tags:
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: intro_to_keras_for_engineers
+  har: data/bench_v2/har/keras-intro-engineers.zip
+  path:
+  - click:
+      role: link
+      name: GET STARTED
+      exact: true
+      nth: 0
+  - click:
+      role: link
+      name: Introduction to Keras for engineers
+- id: haskell-downloads
+  start_url: https://www.haskell.org/
+  goal: I'd like to install the compiler and tools on my own computer.
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /downloads
+  har: data/bench_v2/har/haskell-downloads.zip
+  path:
+  - click:
+      role: link
+      name: Downloads
+      exact: true
+      nth: 0
+- id: ubuntu-server-download
+  start_url: https://ubuntu.com/
+  goal: I need the edition meant for running on a machine in a data centre, without a graphical desktop. Get me to its download page.
+  tags:
+  - vague
+  - multistep
+  max_steps: 5
+  check:
+    url_contains: /download/server
+  har: data/bench_v2/har/ubuntu-server-download.zip
+  path:
+  - click:
+      role: link
+      name: Download Ubuntu
+      exact: true
+  - click:
+      role: link
+      name: Server
+      exact: true
+      nth: 0
+- id: mos-schedule
+  start_url: https://www.mos.org/
+  goal: What's happening at the museum today? Open today's schedule.
+  tags:
+  - multistep
+  max_steps: 4
+  check:
+    url_contains: /visit/schedule
+  har: data/bench_v2/har/mos-schedule.zip
+  path:
+  - click:
+      role: button
+      name: Visit the Museum
+  - click:
+      role: link
+      name: Today's Schedule
+      exact: true
+      nth: 0
+- id: mos-icon-search
+  start_url: https://www.mos.org/
+  goal: Open the search panel with the magnifier icon at the top of the page.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    text_contains: Search the Museum
+  har: data/bench_v2/har/mos-icon-search.zip
+  path:
+  - click:
+      role: button
+      name: Search
+      exact: true
+- id: mit-icon-youtube
+  start_url: https://www.mit.edu/
+  goal: Open the institute's video channel using the icon link in the footer.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: youtube.com/mit
+  har: data/bench_v2/har/mit-icon-youtube.zip
+  path:
+  - click:
+      role: link
+      name: MIT@youtube
+    external: true
+- id: mit-icon-instagram
+  start_url: https://www.mit.edu/
+  goal: Open the institute's photo-sharing profile using the icon link in the footer.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_contains: instagram.com/mit
+  har: data/bench_v2/har/mit-icon-instagram.zip
+  path:
+  - click:
+      role: link
+      name: MIT@instagram
+    external: true
+- id: mit-icon-twitter
+  start_url: https://www.mit.edu/
+  goal: Open the institute's microblog profile using the icon link in the footer.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_regex: (twitter|x)\.com/mit
+  har: data/bench_v2/har/mit-icon-twitter.zip
+  path:
+  - click:
+      role: link
+      name: MIT@twitter
+    external: true
+- id: caltech-icon-twitter
+  start_url: https://www.caltech.edu/
+  goal: Open the institute's Twitter account using the icon link at the bottom of the page.
+  tags:
+  - icon
+  max_steps: 3
+  check:
+    url_regex: (twitter|x)\.com/caltech
+  har: data/bench_v2/har/caltech-icon-twitter.zip
+  path:
+  - click:
+      css: a[href*="twitter.com/caltech"]
+    external: true
+- id: pbs-newshour
+  start_url: https://www.pbs.org/
+  goal: Open the page for the evening news programme on this network.
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /show/newshour
+  har: data/bench_v2/har/pbs-newshour.zip
+  path:
+  - click:
+      role: link
+      name: PBS News Hour
+      exact: true
+      nth: 0
+- id: tate-collection
+  start_url: https://www.tate.org.uk/
+  goal: Take me to the page where I can browse the artworks in the gallery's collection.
+  tags:
+  - vague
+  max_steps: 4
+  check:
+    url_contains: /collection
+  har: data/bench_v2/har/tate-collection.zip
+  path:
+  - click:
+      role: link
+      name: Search the collection
+      nth: 0
+- id: ruby-news
+  start_url: https://www.ruby-lang.org/en/
+  goal: Show me the full list of announcements for this language.
+  tags:
+  - normal
+  max_steps: 3
+  check:
+    url_regex: ruby-lang\.org/en/news/?$
+  har: data/bench_v2/har/ruby-news.zip
+  path:
+  - click:
+      role: link
+      name: News
+      exact: true
+      nth: 0
+- id: ocaml-play
+  start_url: https://ocaml.org/
+  goal: I want to run a few OCaml expressions straight in the browser.
+  tags:
+  - vague
+  max_steps: 3
+  check:
+    url_contains: /play
+  har: data/bench_v2/har/ocaml-play.zip
+  path:
+  - click:
+      role: link
+      name: Play
+      exact: true
+      nth: 0

@@ -4,6 +4,16 @@
         --agents claude:claude-sonnet-5-5 codex:gpt-6.2-sol --configs full a11y vision top20 find \
         --repeats 2 --parallel 2 --model-dir dist/s-s0
 
+Benchmark v2 (frozen, held-out tasks; see docs/bench-v2-power.md):
+
+    uv run --extra demo python -m demo.cli_bench --out runs/bench-v2 --tasks-file demo/tasks_v2.yaml \
+        --agents claude:claude-sonnet-5-5 --repeats 3 \
+        --arms a11y-cap vision find@exact find@blend:dist/xs-s0:8
+
+`--arms` are `config` or `config@ranker` (ranker: grounder | bm25 | any grounder_tool.rankers spec). A task with a `har`
+field is replayed offline from its frozen snapshot (`--live` ignores it and uses the live web). Success = the page
+check AND, when the task has an `answer_regex`, a matching done(answer).
+
 Agents run through the subscriptions of the locally logged-in CLIs (no API keys). Per run, `demo.mcp_server` starts as
 a stdio MCP server inside the agent CLI, owns one browser for the task and writes `OUT/logs/<run>.server.jsonl`;
 the agent CLI's own output goes to `OUT/logs/<run>.agent.jsonl`; `OUT/logs/<run>.json` is the merged run record.
@@ -42,6 +52,7 @@ REPO = Path(__file__).resolve().parent.parent
 DEFAULT_TIMEOUT_S = 360
 LOGS_DIR = "logs"
 FOREIGN_NOTE = "foreign_tools"
+RANKED_CONFIGS = ("top20", "find", "find+top20")  # configs whose behaviour depends on the ranker
 
 
 @dataclass(frozen=True)
@@ -65,8 +76,62 @@ def slug(text: str) -> str:
     return "".join(c if c.isalnum() or c in "-._" else "-" for c in text)
 
 
-def run_id(agent: Agent, config: str, task_id: str, repeat: int) -> str:
-    return f"{slug(agent.name)}__{slug(config)}__{task_id}__{repeat}"
+@dataclass(frozen=True)
+class Arm:
+    """One benchmark arm: a tool configuration plus (for the ranked ones) the ranker spec behind it."""
+
+    config: str
+    ranker: str  # "" for configs that do not rank
+
+    @property
+    def label(self) -> str:
+        """`a11y-cap`, `vision`, `find[exact]`, `find[blend]` (a ranker spec's kind, not its path and weight)."""
+        return f"{self.config}[{self.ranker.split(':')[0]}]" if self.ranker else self.config
+
+
+def parse_arm(spec: str, default_ranker: str = "grounder") -> Arm:
+    """`find`, `find@exact`, `find@blend:dist/xs-s0:8`, `a11y-cap`. Without `@` a ranked config uses `default_ranker`
+    and is labelled by its bare config name (the v1 behaviour)."""
+    config, at, ranker = spec.partition("@")
+    if config not in BENCH_CONFIGS:
+        raise ValueError(f"unknown config {config!r} in arm {spec!r}; choose from {', '.join(BENCH_CONFIGS)}")
+    if config not in RANKED_CONFIGS:
+        if at:
+            raise ValueError(f"arm {spec!r}: {config} has no ranker")
+        return Arm(config, "")
+    return Arm(config, ranker if at else default_ranker)
+
+
+def site_of(url: str) -> str:
+    """Registrable domain of a URL: the cluster key of the paired analysis."""
+    from grounder.data.crawl import registrable_domain
+
+    return registrable_domain(url)
+
+
+def arm_label(arm: Arm, explicit: bool) -> str:
+    return arm.label if explicit or not arm.ranker else arm.config
+
+
+def resolve_ranker_spec(spec: str, repo: Path = REPO) -> str:
+    """Make the model dir of `model:<dir>`, `blend:<dir>:<alpha>`, `router:<dir>:<tau>` absolute (the MCP server runs in an
+    empty temp cwd). Other specs are returned unchanged."""
+    kind, _, rest = spec.partition(":")
+    if kind not in ("model", "blend", "router") or not rest:
+        return spec
+    path, sep, tail = rest.rpartition(":")
+    try:
+        float(tail)
+        has_num = bool(sep)
+    except ValueError:
+        has_num = False
+    d, num = (path, ":" + tail) if has_num else (rest, "")
+    p = Path(d)
+    return f"{kind}:{p if p.is_absolute() else (repo / p).resolve()}{num}"
+
+
+def run_id(agent: Agent, config: str, task_id: str, repeat: int, arm: str | None = None) -> str:
+    return f"{slug(agent.name)}__{slug(arm or config)}__{task_id}__{repeat}"
 
 
 def build_prompt(task: Task, config: str) -> str:
@@ -84,12 +149,25 @@ def build_prompt(task: Task, config: str) -> str:
     )
 
 
-def server_argv(task: Task, config: str, ranker: str, model_dir: Path, log: Path, max_calls: int, observe: bool) -> list[str]:
+def task_har(task: Task, live: bool, repo: Path = REPO) -> Path | None:
+    """Absolute path of the task's frozen snapshot, or None when it runs on the live web (`--live` or no `har`)."""
+    if live or not task.har:
+        return None
+    path = Path(task.har)
+    return path if path.is_absolute() else repo / path
+
+
+def server_argv(task: Task, config: str, ranker: str, model_dir: Path, log: Path, max_calls: int, observe: bool,
+                har: Path | None = None, replay_miss: str = "stub") -> list[str]:
     argv = [
         sys.executable, "-m", "demo.mcp_server", "--config", config, "--goal", task.goal, "--start-url", task.start_url,
         "--log", str(log), "--check", json.dumps(task.check), "--task-id", task.id, "--ranker", ranker,
         "--model-dir", str(model_dir), "--max-calls", str(max_calls),
     ]
+    if task.answer_regex:
+        argv += ["--answer-regex", task.answer_regex]
+    if har is not None:
+        argv += ["--har", str(har), "--replay-miss", replay_miss]
     return argv if observe else argv + ["--no-observe"]
 
 
@@ -289,14 +367,21 @@ def run_path(out: Path, rid: str) -> Path:
 
 
 def execute(agent: Agent, task: Task, config: str, repeat: int, out: Path, ranker: str, model_dir: Path,
-            timeout: int, max_calls: int, observe: bool, effort: str | None) -> dict[str, Any]:
-    """Run one (agent, task, config, repeat) and return its merged record (also written to OUT/logs)."""
-    rid = run_id(agent, config, task.id, repeat)
+            timeout: int, max_calls: int, observe: bool, effort: str | None, *, arm: str | None = None,
+            live: bool = False, replay_miss: str = "stub") -> dict[str, Any]:
+    """Run one (agent, task, arm, repeat) and return its merged record (also written to OUT/logs). `arm` labels the
+    record (default: the config name); `ranker` is the spec the server uses."""
+    arm = arm or config
+    rid = run_id(agent, config, task.id, repeat, arm)
     logs = out / LOGS_DIR
     logs.mkdir(parents=True, exist_ok=True)
     server_log = (logs / f"{rid}.server.jsonl").resolve()
     server_log.unlink(missing_ok=True)
-    argv = server_argv(task, config, ranker, model_dir.resolve(), server_log, max_calls, observe)
+    har = task_har(task, live)
+    if har is not None and not har.exists():
+        raise FileNotFoundError(f"task {task.id}: snapshot {har} missing (record it with tools.bench_v2, or pass --live)")
+    argv = server_argv(task, config, resolve_ranker_spec(ranker), model_dir.resolve(), server_log, max_calls, observe, har,
+                       replay_miss)
     prompt = build_prompt(task, config)
     env = {**os.environ, "PYTHONPATH": str(REPO)}
     started = time.perf_counter()
@@ -320,9 +405,21 @@ def execute(agent: Agent, task: Task, config: str, repeat: int, out: Path, ranke
                    "tool_chars": sum(c.get("chars", 0) for c in calls), "image_bytes": 0, "images": 0, "errors": 0}
         parsed["agent_error"] = parsed.get("agent_error") or f"no server summary; stderr: {stderr.strip()[-300:]}"
     tools_used = parsed.pop("agent_tools", [])
+    tool_chars = summary["tool_chars"]
+    image_tokens = summary.get("image_tokens_est") or sum(
+        -(-c["width"] * c["height"] // 750) for c in calls if c.get("width") and c.get("height"))
+    tokens = {"tool_tokens_est": -(-tool_chars // 4) + image_tokens}  # chars / 4 for text + w*h/750 per screenshot
+    if "model_visible_chars" in parsed:  # Claude: what the model was actually shown (the MCP output cap can stub results)
+        tokens["model_visible_tokens_est"] = -(-parsed["model_visible_chars"] // 4) + image_tokens
     record = {
-        "agent": agent.name, "agent_kind": agent.kind, "model": agent.model, "config": config, "task_id": task.id,
-        "repeat": repeat, "ranker": ranker, "success": bool(summary["success"]), "done_called": bool(summary["done_called"]),
+        "agent": agent.name, "agent_kind": agent.kind, "model": agent.model, "config": config, "arm": arm,
+        "task_id": task.id, "site": task.site or site_of(task.start_url), "tags": list(task.tags), "repeat": repeat, "ranker": ranker,
+        "success": bool(summary["success"]), "check_ok": bool(summary.get("check_ok", summary["success"])),
+        "answer_ok": bool(summary.get("answer_ok", True)), "done_called": bool(summary["done_called"]),
+        "replay": bool(summary.get("replay")), "replay_requests": summary.get("replay_requests", 0),
+        "replay_misses": summary.get("replay_misses", 0), "replay_network_failures": summary.get("replay_network_failures", 0),
+        "replay_live_requests": summary.get("replay_live_requests", 0),
+        **tokens,
         "answer": summary.get("answer", ""), "final_url": summary["final_url"], "wall_seconds": round(wall, 1),
         "tool_calls": summary["calls"], "steps": summary["steps"], "tool_errors": summary.get("errors", 0),
         "tool_chars": summary["tool_chars"], "image_bytes": summary.get("image_bytes", 0), "images": summary.get("images", 0),
@@ -341,13 +438,17 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", required=True)
     p.add_argument("--agents", nargs="+", required=True, help="claude:<model> / codex:<model>")
-    p.add_argument("--configs", nargs="+", choices=BENCH_CONFIGS, default=list(BENCH_CONFIGS))
+    p.add_argument("--configs", nargs="+", choices=BENCH_CONFIGS, default=None,
+                   help="tool configurations (all ranked ones use --ranker); default: all, unless --arms is given")
+    p.add_argument("--arms", nargs="+", help="config or config@ranker, e.g. a11y-cap vision find@exact find@blend:dist/xs-s0:8")
+    p.add_argument("--live", action="store_true", help="ignore the tasks' frozen snapshots and use the live web")
+    p.add_argument("--replay-miss", choices=["stub", "abort"], default="stub", help="page missing from a snapshot")
     p.add_argument("--tasks", nargs="+", help="task ids (default: all)")
     p.add_argument("--tasks-file")
     p.add_argument("--repeats", type=int, default=1)
     p.add_argument("--parallel", type=int, default=1)
     p.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S, help="seconds per run")
-    p.add_argument("--ranker", choices=["grounder", "bm25"], default="grounder")
+    p.add_argument("--ranker", default="grounder", help="grounder | bm25 | a grounder_tool.rankers spec (default for ranked configs)")
     p.add_argument("--model-dir", default="dist/s-s0")
     p.add_argument("--max-calls", type=int, default=60, help="tool-call budget enforced by the server")
     p.add_argument("--no-observe", action="store_true", help="a11y / vision actions return no new observation")
@@ -366,24 +467,40 @@ def main(argv: list[str] | None = None) -> int:
         tasks = [t for t in tasks if t.id in args.tasks]
     out = Path(args.out)
     model_dir = Path(args.model_dir)
-    if args.ranker == "grounder" and any(c in args.configs for c in ("top20", "find", "find+top20")) and not model_dir.exists():
+    if args.arms and args.configs:
+        raise SystemExit("use --arms or --configs, not both")
+    explicit = bool(args.arms)
+    try:
+        arms = [parse_arm(a, args.ranker) for a in args.arms] if explicit else [
+            parse_arm(c, args.ranker) for c in (args.configs or BENCH_CONFIGS)]
+    except ValueError as exc:
+        raise SystemExit(str(exc))
+    labels = [arm_label(a, explicit) for a in arms]
+    if len(set(labels)) != len(labels):
+        raise SystemExit(f"duplicate arms: {labels}")
+    if any(a.ranker == "grounder" for a in arms) and not model_dir.exists():
         raise SystemExit(f"model dir {model_dir} not found")
+    if not args.live:
+        missing = [t.id for t in tasks if (h := task_har(t, False)) is not None and not h.exists()]
+        if missing:
+            raise SystemExit(f"{len(missing)} task snapshot(s) missing, e.g. {missing[:5]} (tools.bench_v2 record, or --live)")
 
-    jobs = [(a, t, c, r) for t in tasks for c in args.configs for a in agents for r in range(args.repeats)
-            if not run_path(out, run_id(a, c, t.id, r)).exists()]
+    jobs = [(a, t, arm, label, r) for t in tasks for arm, label in zip(arms, labels) for a in agents
+            for r in range(args.repeats) if not run_path(out, run_id(a, arm.config, t.id, r, label)).exists()]
     total = len(jobs)
     print(f"{total} runs to do", file=sys.stderr)
 
-    def work(job: tuple[Agent, Task, str, int]) -> dict[str, Any]:
-        a, t, c, r = job
-        return execute(a, t, c, r, out, args.ranker, model_dir, args.timeout, args.max_calls, not args.no_observe, args.effort)
+    def work(job: tuple[Agent, Task, Arm, str, int]) -> dict[str, Any]:
+        a, t, arm, label, r = job
+        return execute(a, t, arm.config, r, out, arm.ranker or args.ranker, model_dir, args.timeout, args.max_calls,
+                       not args.no_observe, args.effort, arm=label, live=args.live, replay_miss=args.replay_miss)
 
     done = 0
     with cf.ThreadPoolExecutor(max_workers=max(1, args.parallel)) as pool:
         for fut in cf.as_completed([pool.submit(work, j) for j in jobs]):
             rec = fut.result()
             done += 1
-            print(f"[{done}/{total}] {rec['agent']} {rec['config']} {rec['task_id']} #{rec['repeat']}: "
+            print(f"[{done}/{total}] {rec['agent']} {rec['arm']} {rec['task_id']} #{rec['repeat']}: "
                   f"{'ok' if rec['success'] else 'FAIL'} calls={rec['tool_calls']} chars={rec['tool_chars']} "
                   f"in={rec.get('input_tokens')} {rec['wall_seconds']}s {rec.get('agent_error', '')[:80]}"
                   f"{' FOREIGN=' + ','.join(rec[FOREIGN_NOTE]) if rec[FOREIGN_NOTE] else ''}", file=sys.stderr)

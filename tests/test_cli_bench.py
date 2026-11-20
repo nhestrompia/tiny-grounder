@@ -353,7 +353,7 @@ def test_report_aggregates_and_writes_files(tmp_path: Path) -> None:
     rows = {tuple(c.strip() for c in l.split("|")[1:3]): [c.strip() for c in l.split("|")[3:-1]] for l in table.splitlines()
             if l.startswith("| claude") or l.startswith("| codex")}
     assert rows[("claude:m", "find")][:6] == ["67% (2/3)", "2/3", "20.0", "4", "200", "0"]
-    assert rows[("claude:m", "find")][-1] == "0.0200"
+    assert rows[("claude:m", "find")][-2] == "0.0200"  # the last column is tool tokens per success
     assert rows[("claude:m", "full")][0] == "0% (0/1)" and rows[("claude:m", "full")][4] == "90,000"
     assert rows[("codex:g", "vision")][5] == "200"  # median image KB
     # per-task matrix: columns ordered by agent, then by the bench's config order (full before find)
