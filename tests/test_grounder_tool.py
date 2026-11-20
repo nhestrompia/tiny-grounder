@@ -151,3 +151,15 @@ def test_build_mcp_registers_tools(server):
     finally:
         pool.shutdown()
     assert names == {"open", "find", "snapshot", "click", "type", "go_back", "read_text"}
+
+
+def test_blend_ranker_spec_and_probabilities():
+    from grounder_tool.rankers import BlendRanker, make_ranker
+    from grounder.records import Element
+
+    r = make_ranker("blend:dist/xs-s0:8")
+    assert isinstance(r, BlendRanker) and r.alpha == 8.0
+    els = [Element(id=1, role="button", text="Save"), Element(id=2, role="link", text="Pricing"),
+           Element(id=3, role="link", text="Contact us")]
+    out = r.rank("open the pricing page", els)
+    assert out.ids[0] == 2 and abs(sum(out.scores) - 1.0) < 1e-6 and all(0 <= s <= 1 for s in out.scores)

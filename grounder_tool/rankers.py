@@ -1,4 +1,4 @@
-"""Pluggable rankers for the grounding tool: `make_ranker("bm25" | "exact" | "model:<dir>" | "router:<dir>:<tau>")`.
+"""Pluggable rankers for the grounding tool: `make_ranker("bm25" | "exact" | "model:<dir>" | "blend:<dir>:<alpha>" | "router:<dir>:<tau>")`.
 
 Every ranker implements `rank(query, elements, mode, history) -> grounder.ranking.Ranked` (all ids, best first).
 """
@@ -69,6 +69,31 @@ def lexical_coverage(query: str, elements: Sequence[Element]) -> float:
     return coverage(query, list(elements))
 
 
+DEFAULT_ALPHA = 8.0  # blend weight chosen on the human select split (plan v2.1 step 4); see runs/compare-select
+
+
+class BlendRanker:
+    """log p_model + alpha * bm25/max_bm25 (`grounder.baselines.blend`), the step-4 winner. Scores are turned back
+    into a softmax over the page's elements so the agent sees probabilities between 0 and 1."""
+
+    def __init__(self, model: ModelRanker, alpha: float = DEFAULT_ALPHA) -> None:
+        self.model, self.alpha = model, alpha
+        self.name = f"blend:{model.model_dir.name}:{alpha:g}"
+
+    def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
+        import numpy as np
+
+        from grounder.baselines.blend import blend
+        from grounder.baselines.bm25 import rank_elements
+
+        els = list(elements)
+        mixed = blend(self.model.rank(query, els, mode, history), rank_elements(query, els), self.alpha)
+        z = np.array(mixed.scores, dtype=float)
+        p = np.exp(z - z.max()) if len(z) else z
+        p = p / p.sum() if len(z) else p
+        return Ranked(mixed.ids, [float(x) for x in p], mixed.null_prob)
+
+
 class RouterRanker:
     """Lexical coverage >= tau -> exact match + BM25, otherwise the model."""
 
@@ -94,6 +119,13 @@ def make_ranker(spec: str = "bm25", int8: bool | None = None, threads: int = 1) 
         return ExactRanker()
     if kind == "model" and rest:
         return ModelRanker(rest, int8, threads)
+    if kind == "blend" and rest:
+        path, sep, tail = rest.rpartition(":")
+        try:
+            path, alpha = (path, float(tail)) if sep else (rest, DEFAULT_ALPHA)
+        except ValueError:
+            path, alpha = rest, DEFAULT_ALPHA
+        return BlendRanker(ModelRanker(path, int8, threads), alpha)
     if kind == "router" and rest:
         path, sep, tail = rest.rpartition(":")
         try:
@@ -101,4 +133,4 @@ def make_ranker(spec: str = "bm25", int8: bool | None = None, threads: int = 1) 
         except ValueError:
             path, tau = rest, DEFAULT_TAU
         return RouterRanker(ModelRanker(path, int8, threads), tau)
-    raise ValueError(f"bad ranker {spec!r}: use bm25, exact, model:<dir> or router:<dir>:<tau>")
+    raise ValueError(f"bad ranker {spec!r}: use bm25, exact, model:<dir>, blend:<dir>:<alpha> or router:<dir>:<tau>")
