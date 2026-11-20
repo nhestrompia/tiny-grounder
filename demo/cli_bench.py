@@ -251,8 +251,16 @@ def kill_group(proc: subprocess.Popen) -> None:
             continue
 
 
-def run_agent(cmd: list[str], cwd: Path, timeout: int, env: dict[str, str]) -> tuple[str, str, int | None, bool]:
-    """(stdout, stderr, returncode, timed_out). Runs in its own process group; the group is killed on timeout."""
+def kill_server(server_log: Path | None) -> None:
+    """Kill the run's MCP server by its unique log path: Codex starts it in its own session, out of our group."""
+    if server_log is not None:
+        subprocess.run(["pkill", "-f", str(server_log)], check=False)
+
+
+def run_agent(cmd: list[str], cwd: Path, timeout: int, env: dict[str, str],
+              server_log: Path | None = None) -> tuple[str, str, int | None, bool]:
+    """(stdout, stderr, returncode, timed_out). Runs in its own process group; the group and the MCP server are
+    killed on timeout, and reading the output after that is bounded too (a stray child may hold the pipes)."""
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, start_new_session=True)
     try:
@@ -260,13 +268,19 @@ def run_agent(cmd: list[str], cwd: Path, timeout: int, env: dict[str, str]) -> t
         timed_out = False
     except subprocess.TimeoutExpired:
         kill_group(proc)
-        out, err = proc.communicate()
+        kill_server(server_log)
+        try:
+            out, err = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = "", "output unreadable after timeout"
         timed_out = True
     else:
         try:  # stray children (the MCP server) must not outlive the run
             os.killpg(proc.pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
+        kill_server(server_log)
     return out or "", err or "", proc.returncode, timed_out
 
 
@@ -294,7 +308,7 @@ def execute(agent: Agent, task: Task, config: str, repeat: int, out: Path, ranke
             cmd = claude_command(agent, prompt, cfg, effort)
         else:
             cmd = codex_command(agent, prompt, argv, workdir, effort)
-        stdout, stderr, code, timed_out = run_agent(cmd, workdir, timeout, env)
+        stdout, stderr, code, timed_out = run_agent(cmd, workdir, timeout, env, server_log)
         if agent.kind == "claude":
             cfg.unlink(missing_ok=True)
     wall = time.perf_counter() - started
