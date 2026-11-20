@@ -1,0 +1,104 @@
+"""Pluggable rankers for the grounding tool: `make_ranker("bm25" | "exact" | "model:<dir>" | "router:<dir>:<tau>")`.
+
+Every ranker implements `rank(query, elements, mode, history) -> grounder.ranking.Ranked` (all ids, best first).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Protocol, Sequence
+
+from grounder.ranking import Ranked
+from grounder.records import Element, Mode
+
+DEFAULT_TAU = 1.0  # router: lexical coverage at or above this goes to the exact-match + BM25 path
+
+
+class Ranker(Protocol):
+    name: str
+
+    def rank(
+        self, query: str, elements: Sequence[Element], mode: Mode = "do", history: list[str] | None = None
+    ) -> Ranked: ...
+
+
+def exact_bm25(query: str, elements: Sequence[Element]) -> Ranked:
+    """Exact label matches first, BM25 for the rest: the same ranker the evaluation uses
+    (`grounder.baselines.exact`), so what is measured is what ships."""
+    from grounder.baselines.exact import rank_elements
+
+    return rank_elements(query, list(elements))
+
+
+class BM25Ranker:
+    name = "bm25"
+
+    def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
+        from grounder.baselines.bm25 import rank_elements
+
+        return rank_elements(query, list(elements))
+
+
+class ExactRanker:
+    name = "exact"
+
+    def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
+        return exact_bm25(query, elements)
+
+
+class ModelRanker:
+    """The ONNX model in `model_dir` (int8 when present unless `int8=False`)."""
+
+    def __init__(self, model_dir: str | Path, int8: bool | None = None, threads: int = 1) -> None:
+        from grounder.runtime import Grounder
+
+        self.model_dir = Path(model_dir)
+        self.grounder = Grounder(self.model_dir, quantized=int8, threads=threads)
+        self.name = f"model:{self.model_dir.name}"
+
+    def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
+        els = list(elements)
+        out = self.grounder.rank(query, els, k=len(els), mode=mode, history=history)
+        return Ranked([r["id"] for r in out["results"]], [r["score"] for r in out["results"]], out["null_prob"])
+
+
+def lexical_coverage(query: str, elements: Sequence[Element]) -> float:
+    """Best share of the query's content words found in a single element (`grounder.baselines.router.coverage`)."""
+    from grounder.baselines.router import coverage
+
+    return coverage(query, list(elements))
+
+
+class RouterRanker:
+    """Lexical coverage >= tau -> exact match + BM25, otherwise the model."""
+
+    def __init__(self, model: ModelRanker, tau: float = DEFAULT_TAU) -> None:
+        self.model, self.tau = model, tau
+        self.name = f"router:{model.model_dir.name}:{tau:g}"
+        self.last_route = ""
+
+    def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
+        if lexical_coverage(query, elements) >= self.tau:
+            self.last_route = "lexical"
+            return exact_bm25(query, elements)
+        self.last_route = "model"
+        return self.model.rank(query, elements, mode, history)
+
+
+def make_ranker(spec: str = "bm25", int8: bool | None = None, threads: int = 1) -> Ranker:
+    """`bm25`, `model:<dir>` or `router:<dir>:<tau>` (tau defaults to 1.0). `int8=False` forces fp32."""
+    kind, _, rest = spec.partition(":")
+    if kind == "bm25" and not rest:
+        return BM25Ranker()
+    if kind == "exact" and not rest:
+        return ExactRanker()
+    if kind == "model" and rest:
+        return ModelRanker(rest, int8, threads)
+    if kind == "router" and rest:
+        path, sep, tail = rest.rpartition(":")
+        try:
+            path, tau = (path, float(tail)) if sep else (rest, DEFAULT_TAU)
+        except ValueError:
+            path, tau = rest, DEFAULT_TAU
+        return RouterRanker(ModelRanker(path, int8, threads), tau)
+    raise ValueError(f"bad ranker {spec!r}: use bm25, exact, model:<dir> or router:<dir>:<tau>")
