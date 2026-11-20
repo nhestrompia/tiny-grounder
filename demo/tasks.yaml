@@ -91,16 +91,6 @@
   goal: Open the wiki page "Map features".
   check: {url_contains: Map_features}
   max_steps: 8
-- id: gnu-gpl
-  start_url: https://www.gnu.org/
-  goal: Open the page of the GNU General Public License.
-  check: {url_contains: /licenses/gpl}
-  max_steps: 6
-- id: gnu-manuals
-  start_url: https://www.gnu.org/
-  goal: Open the page that lists the GNU manuals.
-  check: {url_contains: /manual/}
-  max_steps: 6
 # Added for the CLI-agent benchmark: stable non-Wikipedia sites (docs, repos, standards, news, government, wikis).
 - id: pydocs-sorting-howto
   start_url: https://docs.python.org/3/

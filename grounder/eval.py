@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import json
+import re
 from typing import Callable, Sequence
 
 import numpy as np
@@ -104,12 +105,41 @@ def _null_metrics(rows: list[tuple[bool, float]]) -> dict[str, dict[str, float |
     return out
 
 
-def evaluate(examples: Sequence[Example], rankings: Sequence[Ranked]) -> dict[str, dict]:
+_WORD = re.compile(r"[a-z0-9]+")
+_STOP = frozenset(
+    "a an the to of in on at for and or is it this that my me i you your with by from as be go open click "
+    "find show select press tap use want need page button link".split()
+)
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in _WORD.findall(text.lower()) if w not in _STOP and len(w) > 1}
+
+
+def shares_words(page: Page, example: Example) -> bool:
+    """Whether the query shares a content word with a positive element's text or context (stopwords and
+    UI verbs like "click" / "open" ignored). Examples that share none test meaning, not string matching."""
+    query = _words(example.query)
+    positives = positive_ids(example)
+    return any(query & _words(f"{e.text} {e.context}") for e in page.elements if e.id in positives)
+
+
+def evaluate(
+    examples: Sequence[Example], rankings: Sequence[Ranked], overlap: Sequence[bool] | None = None,
+) -> dict[str, dict]:
     """Metrics per kind (null examples excluded from top-k), "overall" over all non-null, and "null".
 
-    When any example has a `source`, "by_source" holds the same metrics for each source on its own.
+    When any example has a `source`, "by_source" holds the same metrics for each source on its own. With
+    `overlap` (one bool per example, see `shares_words`), "by_overlap" splits non-null examples into
+    "shared_words" and "no_shared_words".
     """
     result = _evaluate_one(examples, rankings)
+    if overlap is not None:
+        result["by_overlap"] = {}
+        for name, want in (("shared_words", True), ("no_shared_words", False)):
+            pairs = [(ex, r) for ex, r, o in zip(examples, rankings, overlap, strict=True) if o == want and ex.kind != "null"]
+            if pairs:
+                result["by_overlap"][name] = _evaluate_one([e for e, _ in pairs], [r for _, r in pairs])["overall"]
     if any(ex.source for ex in examples):
         groups: dict[str, tuple[list[Example], list[Ranked]]] = {}
         for ex, ranked in zip(examples, rankings, strict=True):
@@ -163,6 +193,10 @@ def to_markdown(metrics: dict[str, dict], title: str) -> str:
             if "overall" in m:
                 o = m["overall"]
                 lines.append(f"| {src or '-'} | {int(o['n'])} | {_fmt(o['top1'])} | {_fmt(o['top5'])} | {_fmt(o['mrr'])} |")
+    if "by_overlap" in metrics:
+        lines += ["", "| query vs target | n | top-1 | top-5 | MRR |", "|---|---|---|---|---|"]
+        for name, o in metrics["by_overlap"].items():
+            lines.append(f"| {name.replace('_', ' ')} | {int(o['n'])} | {_fmt(o['top1'])} | {_fmt(o['top5'])} | {_fmt(o['mrr'])} |")
     if "null" in metrics:
         lines += ["", "| null_prob threshold | abstain precision | abstain recall | F1 | abstained |", "|---|---|---|---|---|"]
         for t, m in metrics["null"].items():
@@ -197,7 +231,7 @@ def _main() -> None:
         rankings, title = rank_with(TinyBertRanker(model_dir, args.device).rank, pages, examples), f"TinyBERT-L2 ({model_dir})"
     else:
         rankings, title = rank_with(bm25.rank, pages, examples), "BM25"
-    metrics = evaluate(examples, rankings)
+    metrics = evaluate(examples, rankings, [shares_words(pages[ex.page_id], ex) for ex in examples])
     print(to_markdown(metrics, title))
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:
