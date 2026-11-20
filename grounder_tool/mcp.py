@@ -152,7 +152,7 @@ def build_mcp(server: ToolServer):
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Compact UI-grounding MCP server (stdio).")
-    p.add_argument("--ranker", default="bm25", help="bm25 | model:<dir> | router:<dir>:<tau> (default bm25)")
+    p.add_argument("--ranker", default="exact", help="exact | bm25 | blend:<dir>:<alpha> | model:<dir> | router:<dir>:<tau> (default exact)")
     p.add_argument("--fp32", action="store_true", help="use model.onnx instead of model.int8.onnx")
     p.add_argument("--threads", type=int, default=1)
     p.add_argument("--headed", action="store_true", help="show the browser window")

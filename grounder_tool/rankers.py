@@ -110,7 +110,7 @@ class RouterRanker:
         return self.model.rank(query, elements, mode, history)
 
 
-def make_ranker(spec: str = "bm25", int8: bool | None = None, threads: int = 1) -> Ranker:
+def make_ranker(spec: str = "exact", int8: bool | None = None, threads: int = 1) -> Ranker:
     """`bm25`, `model:<dir>` or `router:<dir>:<tau>` (tau defaults to 1.0). `int8=False` forces fp32."""
     kind, _, rest = spec.partition(":")
     if kind == "bm25" and not rest:

@@ -5,9 +5,13 @@ A compact UI-grounding tool for agents: `find(query, k=5)` and `snapshot(goal, k
 
 | `--ranker` | what |
 |---|---|
-| `bm25` | BM25 over text + context (default; no model files) |
+| `exact` | exact label match first, then BM25 (default; no model files; best for agents' literal queries) |
+| `bm25` | BM25 over text + context |
+| `blend:<dir>:<alpha>` | model log-probability + alpha * normalised BM25 (alpha 8 by default); best on human, descriptive queries |
 | `model:<dir>` | ONNX model in `<dir>` (e.g. `dist/xs-s0`); int8 if present, `--fp32` forces fp32 |
 | `router:<dir>:<tau>` | lexical coverage >= tau -> exact-match + BM25, otherwise the model |
+
+Why `exact` is the default: see `docs/results-v2.md` (agents quote labels; the neural blend did not raise agent success).
 
 ## Install
 
@@ -25,7 +29,7 @@ from playwright.sync_api import sync_playwright
 from grounder_tool import UIGrounder, format_lines
 from grounder_tool.extract import from_playwright      # afrom_playwright for async, from_macos_ax for macOS
 
-g = UIGrounder("model:dist/xs-s0")                     # or "bm25", "router:dist/xs-s0:0.8"
+g = UIGrounder("model:dist/xs-s0")                     # or "exact" (default), "blend:dist/xs-s0:8"
 with sync_playwright() as p:
     page = p.chromium.launch().new_page()
     page.goto("https://example.com")
@@ -47,14 +51,14 @@ password fields) are refused. Flags: `--ranker`, `--fp32`, `--threads N`, `--hea
 Claude Code:
 
 ```bash
-claude mcp add grounder -- uv run --directory /path/to/tiny-grounder grounder-tool --ranker bm25
+claude mcp add grounder -- uv run --directory /path/to/tiny-grounder grounder-tool --ranker exact
 # user-wide: add `-s user` before the name; headed browser: append --headed
 ```
 
 Codex:
 
 ```bash
-codex mcp add grounder -- uv run --directory /path/to/tiny-grounder grounder-tool --ranker bm25
+codex mcp add grounder -- uv run --directory /path/to/tiny-grounder grounder-tool --ranker exact
 ```
 
 or in `~/.codex/config.toml`:

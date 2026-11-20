@@ -1,4 +1,4 @@
-# Improvement plan after the first full evaluation (2026-11-20)
+# Improvement plan (first full evaluation 2026-11-20; v2.1 results and Plan v3 added 2026-11-21)
 
 ## What we measured
 
@@ -57,7 +57,44 @@
 - **Clicked element is a weak label.** The element an agent clicked is its own choice, influenced by the list it was shown, so it isn't ground-truth top-1.
 - **GUIrilla is report-only.** Its licence excludes commercial benchmarking, so it must never pick weights, thresholds or the shipped model size.
 
-## Plan v2.1 (ordered; steps 1–5 and 7 gate the release, while steps 6 and 8 are optional)
+## Plan v3: perception for frontier agents (current, 2026-11-21)
+
+The goal is to cut the tokens frontier agents (Claude, GPT) spend on perceiving apps and browsers. Tiny Grounder
+is a local, perception-only MCP tool; the frontier model performs every action. The research question: *how much of
+a computer-use agent's perception workload can a tiny local model take over without losing task success?*
+
+| # | Item | Success metric / gate |
+|---|---|---|
+| 1 | **`observe(goal, budget)`, `inspect(id \| region)`, CDP attach** in `grounder_tool`. `observe` returns page landmarks (title, headings, navigation) plus the top elements for the goal within B tokens. `inspect` expands one element or region. CDP attach reads the executor's own browser, and returns handles the executor can act on (Playwright-MCP refs, or screen coordinates). | Unit tests; `observe` at most B tokens; p95 ≤ 200 ms at 500 elements. |
+| 2 | **Offline next-step recall at budget B** (B = 300, 600 and 1,200 tokens) on Mind2Web test splits plus the bench-v2 trajectories: is the element the agent needed next inside the digest? Compare keyword selection (exact + BM25 against the goal) with the model (goal plus history) and the blend. | Report with paired CIs over sites. Decides whether step 3 runs. |
+| 3 | *(conditional)* **Re-train XS** in goal mode with action history, scored by recall at budget. Only if step 2 shows the model ahead of keywords, or within reach of them. | Beats the step-2 best on Mind2Web dev, with no loss on the human select split. |
+| 4 | **A/B/C agent re-run** on the 18 multi-step and 38 vague bench-v2 tasks, with Claude Haiku ×3 and Sonnet ×1, about 300 runs. A = `find` only; B = `find` plus keyword `observe`; C = `find` plus model `observe`. | B or C closes the multi-step gap: success within 5 points of a11y-cap at ≥ 50% fewer tool tokens. The model ships in `observe` only if C ≥ B, with the paired CI ruling out a 2-point loss and no more tokens. |
+
+Not doing:
+- generating text summaries with the tiny model (too small);
+- executing actions ourselves (the executor owns browser control, permissions and recovery);
+- more size sweeps.
+
+## Outcome of Plan v2.1 (2026-11-21)
+
+Full numbers: [results-v2.md](results-v2.md).
+
+| Step | Result |
+|---|---|
+| 1 Hygiene | Leakage report in `docs/leakage.md`. 3 seeds: XS 81.3 ± 0.4, M 82.9 ± 0.4 web top-1; equal elsewhere. **XS is the size.** |
+| 2 Real queries | 472 labelled agent queries: exact + BM25 68.4 top-1, BM25 58.1, XS 57.0. 91% share words with the target. |
+| 3 Human set | Select: 327 items, 96 sites (Claude and GPT writers). Confirm: 173 items, 31 sites (the user). |
+| 4 Rankers | blend[XS] with α = 8 passes on select (hard recall@5 +10.7 [+4.8, +16.4] vs BM25). Confirm, run once: blend[XS] 36.6 top-1 vs BM25 26.6 and exact 32.4. |
+| 5 Package | `grounder_tool`: p95 `find` about 110 ms at 500 elements; XS int8 package 1.8 MB. **Default ranker: `exact`.** |
+| 6 Retrain | Not run: no failure pattern on select called for it. |
+| 7 Bench v2 | 66 held-out tasks, 3,047 runs. `find` gives about 25× fewer tool tokens than every baseline (gate passed). Success is non-inferior for Sonnet (+7.6) only. GPT agents lose 7–9 points on multi-step tasks. blend[XS] was not non-inferior to exact (Haiku −6.1 [−10.2, −2.4]). **Ship `find` with `exact`.** |
+| 8 `act()` | Not run. |
+
+Conclusion:
+- The tool interface delivers the token savings.
+- The neural model's measured edge is on descriptive queries that share no words with the target. Agents rarely write such queries for `find`, but every goal-driven observation needs one. Plan v3 therefore moves the model to `observe(goal)`.
+
+## Plan v2.1 (completed; ordered; steps 1–5 and 7 gate the release, while steps 6 and 8 are optional)
 
 | # | Item | Success metric / gate |
 |---|---|---|

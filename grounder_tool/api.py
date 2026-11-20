@@ -33,9 +33,9 @@ def _elements(source: Page | Sequence[Element]) -> list[Element]:
 
 
 class UIGrounder:
-    """`ranker` is a Ranker or a spec string for make_ranker ("bm25", "model:dist/xs-s0", "router:dist/xs-s0:0.8")."""
+    """`ranker` is a Ranker or a spec string for make_ranker ("exact", "bm25", "blend:dist/xs-s0:8", "model:dist/xs-s0")."""
 
-    def __init__(self, ranker: Ranker | str = "bm25", int8: bool | None = None, threads: int = 1) -> None:
+    def __init__(self, ranker: Ranker | str = "exact", int8: bool | None = None, threads: int = 1) -> None:
         self.ranker = make_ranker(ranker, int8, threads) if isinstance(ranker, str) else ranker
 
     def _top(self, source, query, k, mode, history) -> list[Hit]:
