@@ -350,6 +350,7 @@ class CrawlConfig:
     seed: int = 0
     browser_args: tuple[str, ...] = ()
     settle_ms: int = SETTLE_MS
+    force_split: str | None = None  # put every site in this split instead of the domain hash (held-out sets)
 
 
 @dataclass
@@ -451,7 +452,7 @@ class Crawler:
 
         A page already on disk is skipped, except a homepage, which is needed to find links.
         """
-        split = split_for(site)
+        split = self.cfg.force_split or split_for(site)
         page_id = page_id_for(url)
         target = self.cfg.out / split / site / f"{page_id}.json.gz"
         if target.exists() and not is_home:
@@ -575,6 +576,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--links", type=int, default=2, help="random same-site links per site")
     parser.add_argument("--screenshots-for", nargs="*", default=[], choices=SPLITS, help="splits to screenshot")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--force-split", choices=SPLITS, help="put every site in this split (default: by domain hash)")
     parser.add_argument("--stats", action="store_true", help="print statistics of --out and exit")
     add_min_english_argument(parser)
     args = parser.parse_args(argv)
@@ -592,7 +594,8 @@ def main(argv: list[str] | None = None) -> int:
     blocked = read_blocklist()
     entries = [e for e in entries if registrable_domain(start_url(e)) not in blocked]
     entries = entries[: args.limit] if args.limit else entries
-    cfg = CrawlConfig(Path(args.out), args.concurrency, args.links, tuple(args.screenshots_for), args.seed)
+    cfg = CrawlConfig(Path(args.out), args.concurrency, args.links, tuple(args.screenshots_for), args.seed,
+                      force_split=args.force_split)
     summary = asyncio.run(crawl(entries, cfg))
     print(f"sites={summary.sites} " + " ".join(f"{k}={v}" for k, v in sorted(summary.statuses.items())))
     return 0
