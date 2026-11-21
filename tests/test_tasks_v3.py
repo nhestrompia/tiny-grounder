@@ -112,3 +112,19 @@ def test_v3_manifest_cli_accepts_relative_tasks_file(tmp_path, monkeypatch):
     assert manifest["tasks_file"]["path"] == "demo/tasks_v3.yaml"
     assert len(manifest["snapshots"]) == len(yaml.safe_load((ROOT / "demo/tasks_v3.yaml").read_text()))
     assert (tmp_path / "har").is_dir()
+
+
+def test_milestone_snapshots_exist_and_are_frozen(frozen):
+    _, manifest, _ = frozen
+    path = ROOT / "demo/tasks_milestone.yaml"
+    tasks = yaml.safe_load(path.read_text())
+    assert manifest["milestone_tasks_file"]["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert manifest["milestone_tasks_file"]["tasks"] == len(tasks)
+    assert set(manifest["milestone_snapshots"]) == {t["id"] for t in tasks}
+    for task in tasks:
+        snapshot = ROOT / task["har"]
+        entry = manifest["milestone_snapshots"][task["id"]]
+        assert snapshot.is_file(), task["id"]
+        assert entry["path"] == task["har"]
+        assert entry["bytes"] == snapshot.stat().st_size
+        assert entry["sha256"] == hashlib.sha256(snapshot.read_bytes()).hexdigest()

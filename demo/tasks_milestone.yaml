@@ -17,7 +17,7 @@
     url_contains: /release-notes/
   answer_regex: 0\.65\.0
   answer: Version 0.65.0
-  har: data/bench_v2/har/fastapi-release-by-date.zip
+  har: data/bench_v3/har_v2/fastapi-release-by-date.zip
   path:
   - click:
       role: link
@@ -33,7 +33,7 @@
     url_contains: /tutorial/first-steps/
   answer_regex: fastapi dev
   answer: Run `fastapi dev`.
-  har: data/bench_v2/har/fastapi-tutorial-devserver.zip
+  har: data/bench_v3/har_v2/fastapi-tutorial-devserver.zip
   path:
   - click:
       role: link
@@ -55,7 +55,7 @@
   max_steps: 5
   check:
     url_contains: /async/
-  har: data/bench_v2/har/fastapi-async-explainer.zip
+  har: data/bench_v3/har_v2/fastapi-async-explainer.zip
   path:
   - click:
       role: link
@@ -74,7 +74,7 @@
   max_steps: 5
   check:
     url_regex: fastapi\.tiangolo\.com/deployment/?$
-  har: data/bench_v2/har/fastapi-deploy-vague.zip
+  har: data/bench_v3/har_v2/fastapi-deploy-vague.zip
   path:
   - click:
       role: link
@@ -93,7 +93,7 @@
   max_steps: 4
   check:
     url_contains: /motivation
-  har: data/bench_v2/har/pnpm-disk-vague.zip
+  har: data/bench_v3/har_v2/pnpm-disk-vague.zip
   path:
   - click:
       role: link
@@ -108,7 +108,7 @@
   max_steps: 4
   check:
     url_contains: /attributes/hx-boost
-  har: data/bench_v2/har/htmx-boost-vague.zip
+  har: data/bench_v3/har_v2/htmx-boost-vague.zip
   path:
   - click:
       role: link
@@ -124,7 +124,7 @@
   max_steps: 5
   check:
     url_contains: /essays/hypermedia-driven-applications
-  har: data/bench_v2/har/htmx-essay-hda.zip
+  har: data/bench_v3/har_v2/htmx-essay-hda.zip
   path:
   - click:
       role: link
@@ -146,7 +146,7 @@
     url_contains: /docs
   answer_regex: delay
   answer: 'Use the delay: trigger modifier, e.g. delay:500ms.'
-  har: data/bench_v2/har/htmx-debounce.zip
+  har: data/bench_v3/har_v2/htmx-debounce.zip
   path:
   - click:
       role: link
@@ -163,7 +163,7 @@
   max_steps: 4
   check:
     url_regex: Reference/Server/(\?[^#]*)?#ignoretrailingslash
-  har: data/bench_v2/har/fastify-trailing-slash.zip
+  har: data/bench_v3/har_v2/fastify-trailing-slash.zip
   path:
   - click:
       role: link
@@ -177,7 +177,7 @@
   max_steps: 3
   check:
     url_contains: Guides/Getting-Started
-  har: data/bench_v2/har/fastify-beginner.zip
+  har: data/bench_v3/har_v2/fastify-beginner.zip
   path:
   - click:
       role: link
@@ -192,7 +192,7 @@
   max_steps: 4
   check:
     url_regex: /api/(\?[^#]*)?#footer$
-  har: data/bench_v2/har/esbuild-footer-option.zip
+  har: data/bench_v3/har_v2/esbuild-footer-option.zip
   path:
   - click:
       role: link
@@ -207,7 +207,7 @@
   max_steps: 4
   check:
     url_regex: /api/(\?[^#]*)?#tree-shaking$
-  har: data/bench_v2/har/esbuild-treeshake.zip
+  har: data/bench_v3/har_v2/esbuild-treeshake.zip
   path:
   - click:
       role: link
@@ -223,7 +223,7 @@
   max_steps: 5
   check:
     url_regex: /api/(\?[^#]*)?#splitting$
-  har: data/bench_v2/har/esbuild-splitting-multistep.zip
+  har: data/bench_v3/har_v2/esbuild-splitting-multistep.zip
   path:
   - click:
       role: link
@@ -244,7 +244,7 @@
   max_steps: 5
   check:
     url_regex: reference/cli/(\?[^#]*)?#uv-python-pin$
-  har: data/bench_v2/har/uv-cli-python-pin.zip
+  har: data/bench_v3/har_v2/uv-cli-python-pin.zip
   path:
   - click:
       role: link
@@ -259,7 +259,7 @@
   max_steps: 6
   check:
     url_contains: /uv/reference/cli
-  har: data/bench_v2/har/uv-intro-multistep.zip
+  har: data/bench_v3/har_v2/uv-intro-multistep.zip
   path:
   - click:
       role: link
@@ -282,7 +282,7 @@
   max_steps: 4
   check:
     url_contains: metrics.silhouette_score
-  har: data/bench_v2/har/sklearn-silhouette.zip
+  har: data/bench_v3/har_v2/sklearn-silhouette.zip
   path:
   - click:
       role: link
@@ -298,7 +298,7 @@
   max_steps: 4
   check:
     url_contains: preprocessing.StandardScaler
-  har: data/bench_v2/har/sklearn-standardscaler.zip
+  har: data/bench_v3/har_v2/sklearn-standardscaler.zip
   path:
   - click:
       role: link
@@ -315,7 +315,7 @@
   max_steps: 4
   check:
     url_contains: pipeline.make_pipeline
-  har: data/bench_v2/har/sklearn-make-pipeline.zip
+  har: data/bench_v3/har_v2/sklearn-make-pipeline.zip
   path:
   - click:
       role: link
@@ -331,7 +331,7 @@
   max_steps: 5
   check:
     url_regex: keras\.io/api/layers/?$
-  har: data/bench_v2/har/keras-api-layers.zip
+  har: data/bench_v3/har_v2/keras-api-layers.zip
   path:
   - click:
       role: link
@@ -348,7 +348,7 @@
   max_steps: 4
   check:
     url_regex: ocaml\.org/(install|docs/installing-ocaml|docs/get-started)
-  har: data/bench_v2/har/ocaml-install-vague.zip
+  har: data/bench_v3/har_v2/ocaml-install-vague.zip
   path:
   - click:
       role: link
@@ -363,7 +363,7 @@
   max_steps: 5
   check:
     url_contains: /docs/lists
-  har: data/bench_v2/har/ocaml-lists-tutorial.zip
+  har: data/bench_v3/har_v2/ocaml-lists-tutorial.zip
   path:
   - click:
       role: link
@@ -383,7 +383,7 @@
   max_steps: 5
   check:
     url_contains: /documentation/quickstart
-  har: data/bench_v2/har/ruby-quickstart.zip
+  har: data/bench_v3/har_v2/ruby-quickstart.zip
   path:
   - click:
       role: link
@@ -401,7 +401,7 @@
   max_steps: 5
   check:
     url_contains: to-ruby-from-python
-  har: data/bench_v2/har/ruby-from-python.zip
+  har: data/bench_v3/har_v2/ruby-from-python.zip
   path:
   - click:
       role: link
@@ -418,7 +418,7 @@
   max_steps: 3
   check:
     url_contains: play.haskell.org
-  har: data/bench_v2/har/haskell-playground.zip
+  har: data/bench_v3/har_v2/haskell-playground.zip
   path:
   - click:
       role: link
@@ -433,7 +433,7 @@
   max_steps: 4
   check:
     url_contains: /download/desktop
-  har: data/bench_v2/har/ubuntu-desktop-download.zip
+  har: data/bench_v3/har_v2/ubuntu-desktop-download.zip
   path:
   - click:
       role: link
@@ -448,7 +448,7 @@
     url_contains: /contact
   answer_regex: 617[-\s.]*253[-\s.]*1000
   answer: Call 617-253-1000.
-  har: data/bench_v2/har/mit-phone.zip
+  har: data/bench_v3/har_v2/mit-phone.zip
   path:
   - click:
       role: link
@@ -462,7 +462,7 @@
   max_steps: 4
   check:
     url_contains: /visitmit
-  har: data/bench_v2/har/mit-visit-vague.zip
+  har: data/bench_v3/har_v2/mit-visit-vague.zip
   path:
   - click:
       role: link
@@ -478,7 +478,7 @@
   max_steps: 4
   check:
     url_contains: /visit/tate-modern
-  har: data/bench_v2/har/tate-power-station.zip
+  har: data/bench_v3/har_v2/tate-power-station.zip
   path:
   - click:
       role: link
@@ -492,7 +492,7 @@
   max_steps: 4
   check:
     url_contains: plan-your-visit
-  har: data/bench_v2/har/caltech-visit.zip
+  har: data/bench_v3/har_v2/caltech-visit.zip
   path:
   - click:
       role: link
@@ -509,7 +509,7 @@
     url_contains: /contact
   answer_regex: 646\D*688\D*2323
   answer: Call 1 (646) 688-2323.
-  har: data/bench_v2/har/charity-phone.zip
+  har: data/bench_v3/har_v2/charity-phone.zip
   path:
   - click:
       role: link
@@ -522,7 +522,7 @@
   max_steps: 4
   check:
     url_contains: /about-us/contact-us
-  har: data/bench_v2/har/met-contact.zip
+  har: data/bench_v3/har_v2/met-contact.zip
   path:
   - click:
       role: link
@@ -538,7 +538,7 @@
   max_steps: 5
   check:
     url_contains: /examples/click-to-edit
-  har: data/bench_v2/har/htmx-click-to-edit.zip
+  har: data/bench_v3/har_v2/htmx-click-to-edit.zip
   path:
   - click:
       role: link
@@ -556,7 +556,7 @@
   max_steps: 4
   check:
     url_contains: /stable/install.html
-  har: data/bench_v2/har/sklearn-install.zip
+  har: data/bench_v3/har_v2/sklearn-install.zip
   path:
   - click:
       role: link
@@ -573,7 +573,7 @@
   max_steps: 5
   check:
     url_contains: /uv/guides/install-python
-  har: data/bench_v2/har/uv-install-python.zip
+  har: data/bench_v3/har_v2/uv-install-python.zip
   path:
   - click:
       role: link
@@ -589,7 +589,7 @@
   max_steps: 5
   check:
     url_contains: intro_to_keras_for_engineers
-  har: data/bench_v2/har/keras-intro-engineers.zip
+  har: data/bench_v3/har_v2/keras-intro-engineers.zip
   path:
   - click:
       role: link
@@ -607,7 +607,7 @@
   max_steps: 4
   check:
     url_contains: /downloads
-  har: data/bench_v2/har/haskell-downloads.zip
+  har: data/bench_v3/har_v2/haskell-downloads.zip
   path:
   - click:
       role: link
@@ -624,7 +624,7 @@
   max_steps: 5
   check:
     url_contains: /download/server
-  har: data/bench_v2/har/ubuntu-server-download.zip
+  har: data/bench_v3/har_v2/ubuntu-server-download.zip
   path:
   - click:
       role: link
@@ -643,7 +643,7 @@
   max_steps: 4
   check:
     url_contains: /visit/schedule
-  har: data/bench_v2/har/mos-schedule.zip
+  har: data/bench_v3/har_v2/mos-schedule.zip
   path:
   - click:
       role: button
@@ -661,7 +661,7 @@
   max_steps: 4
   check:
     url_contains: /show/newshour
-  har: data/bench_v2/har/pbs-newshour.zip
+  har: data/bench_v3/har_v2/pbs-newshour.zip
   path:
   - click:
       role: link
@@ -676,7 +676,7 @@
   max_steps: 4
   check:
     url_contains: /collection
-  har: data/bench_v2/har/tate-collection.zip
+  har: data/bench_v3/har_v2/tate-collection.zip
   path:
   - click:
       role: link
@@ -690,7 +690,7 @@
   max_steps: 3
   check:
     url_contains: /play
-  har: data/bench_v2/har/ocaml-play.zip
+  har: data/bench_v3/har_v2/ocaml-play.zip
   path:
   - click:
       role: link

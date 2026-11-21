@@ -2,7 +2,7 @@
 
     uv run python -m tools.verify_tasks_v3
 
-The YAML locators identify the oracle's next link. Only refs actually returned by snapshot()
+The YAML locators identify the oracle's next link or menu button. Only refs actually returned by snapshot()
 are clicked through BenchServer. All pages replay through the dead-proxy HAR session.
 This validates the baseline interface, not an agent's ability to choose the correct link.
 """
@@ -32,12 +32,12 @@ def verify(raw: dict) -> dict:
                 for step in raw["path"]:
                     target = locate(session.page, step["click"])
                     label = " ".join(target.inner_text().split()).casefold()
-                    target.evaluate("el => el.setAttribute('data-v3-oracle-target', '1')")
+                    target.evaluate("el => (el.closest('a, button, [role=link], [role=button]') || el).setAttribute('data-v3-oracle-target', '1')")
                     first = server.invoke("snapshot")
                     pages = int(re.search(r"snapshot page 1 of (\d+)", first).group(1))
                     snapshots = [first] + [server.invoke("snapshot", page=i) for i in range(2, pages + 1)]
                     links = [line for snapshot in snapshots for line in snapshot.splitlines()
-                             if re.search(r'\blink\b.*\[ref=[a-z0-9]+\]', line)]
+                             if re.search(r'\b(?:link|button)\b.*\[ref=[a-z0-9]+\]', line)]
                     links.sort(key=lambda line: label not in " ".join(line.split()).casefold())
                     ref = None
                     for line in links:
@@ -45,12 +45,13 @@ def verify(raw: dict) -> dict:
                         if session.page.locator(f"aria-ref={candidate}").get_attribute("data-v3-oracle-target"):
                             ref = candidate
                             break
-                    target.evaluate("el => el.removeAttribute('data-v3-oracle-target')")
+                    target.evaluate("el => (el.closest('a, button, [role=link], [role=button]') || el).removeAttribute('data-v3-oracle-target')")
                     if ref is None:
-                        raise ValueError(f"scripted link absent from accessibility snapshot: {label}")
+                        raise ValueError(f"scripted control absent from accessibility snapshot: {label}")
                     before = session.url
+                    navigates = target.evaluate("el => !!el.closest('a[href]')")
                     server.invoke("click", id=ref)
-                    if session.url == before:
+                    if navigates and session.url == before:
                         raise ValueError(f"accessibility click did not navigate: {label}")
                     result["refs"].append({"label": label, "ref": ref, "snapshot_pages": pages, "url": session.url})
                 final_first = server.invoke("snapshot")

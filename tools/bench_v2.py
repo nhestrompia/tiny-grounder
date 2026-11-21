@@ -6,6 +6,10 @@
 
 Use --out data/bench_v3 with a different --tasks-file to keep its manifest and verify results separate.
 --har-dir overrides the fallback for tasks without an explicit har field.
+--neighbours N also collects N same-site links from each scripted page, including the final page.
+--from-logs DIR prioritizes pilot top-level archive misses. These opt-in modes respect robots.txt,
+wait --delay seconds between extra pages, and cap extras at --max-extra (default 60).
+--also-tasks-file hashes a milestone task file and all its snapshots alongside the primary freeze.
 
 Each task in the tasks file carries, besides what `demo.browser.Task` reads, the scripted solution used here:
 
@@ -33,9 +37,12 @@ data/bench_v2/verify.json, or to `--results FILE`.
 from __future__ import annotations
 
 import argparse
+import asyncio
+import concurrent.futures
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urldefrag, urlsplit
@@ -43,7 +50,7 @@ from urllib.parse import urldefrag, urlsplit
 import yaml
 
 from demo.browser import BrowserSession, Task, ToolError, answer_matches, load_tasks, parse_tasks
-from grounder.data.crawl import registrable_domain
+from grounder.data.crawl import registrable_domain, load_robots, RobotsError, USER_AGENT
 
 ROOT = Path(__file__).resolve().parent.parent
 TASKS_V2 = ROOT / "demo" / "tasks_v2.yaml"
@@ -90,7 +97,7 @@ def settle(page: Any) -> None:
     page.wait_for_timeout(STEP_SETTLE_MS)
 
 
-def run_steps(page: Any, steps: list[dict[str, Any]], recording: bool, scroll: bool) -> None:
+def run_steps(page: Any, steps: list[dict[str, Any]], recording: bool, scroll: bool, on_page=None) -> None:
     for step in steps:
         if recording and step.get("external"):
             continue
@@ -116,6 +123,38 @@ def run_steps(page: Any, steps: list[dict[str, Any]], recording: bool, scroll: b
         settle(page)
         if scroll:
             scroll_through(page)
+        if on_page:
+            on_page(page)
+
+
+def page_url(url: str, site: str) -> str | None:
+    url = urldefrag(url)[0]
+    parts = urlsplit(url)
+    if parts.scheme not in {"http", "https"} or registrable_domain(url) != site:
+        return None
+    if re.search(r"\.(pdf|zip|png|jpe?g|svg|gif|webp|ico|mp[34]|webm|woff2?|ttf|css|js|xml|json|gz|tgz|tbz2?|txz|bz2|xz|tar|7z|rar|dmg|exe|deb|rpm|epub|iso|whl|gem|gpg|sig|asc|docx?|xlsx?|pptx?)(?:$)", parts.path, re.I):
+        return None
+    if re.search(r"(?:^|&)(?:form|action)=", parts.query, re.I) or parts.path.startswith("/cdn-cgi/"):
+        return None
+    if re.search(r"(?:^|[/&?=_-])(logout|logoff|signout|sign-out|delete|unsubscribe|submit)(?:$|[/&?=_-])", url, re.I):
+        return None
+    return url
+
+
+def neighbour_links(page: Any, limit: int) -> list[str]:
+    """Distinct same-domain links in DOM order, excluding fragments, files and form actions."""
+    if limit <= 0:
+        return []
+    site = registrable_domain(page.url)
+    hrefs = page.evaluate("[...document.querySelectorAll('a[href]:not([download])')].filter(a => !a.closest('form') && !a.getAttribute('href').trim().startsWith('#')).map(a => a.href)")
+    seen: list[str] = []
+    for href in hrefs:
+        url = page_url(href, site)
+        if url and url != urldefrag(page.url)[0] and url not in seen:
+            seen.append(url)
+            if len(seen) >= limit:
+                break
+    return seen
 
 
 def same_site_links(page: Any, limit: int) -> list[str]:
@@ -133,6 +172,44 @@ def same_site_links(page: Any, limit: int) -> list[str]:
         if len(seen) >= limit:
             break
     return seen
+
+
+def pilot_misses(directory: Path, task_id: str) -> list[str]:
+    """Read top-level archive misses from every pilot arm for this task, in log order."""
+    urls = []
+    for path in sorted(directory.glob(f"*__{task_id}__*.server.jsonl")):
+        for line in path.read_text().splitlines():
+            row = json.loads(line)
+            result = row.get("result", "")
+            if isinstance(result, str) and "title: page not archived" in result:
+                match = re.search(r"(?:^|\n)url: (https?://[^\s]+)", result)
+                if match:
+                    url = urldefrag(match[1])[0]
+                    if url not in urls:
+                        urls.append(url)
+    return urls
+
+
+class Robots:
+    def __init__(self):
+        self.parsers = {}
+
+    def allowed(self, url: str) -> bool:
+        import httpx
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        if origin not in self.parsers:
+            async def fetch():
+                async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+                    return await load_robots(client, origin)
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    self.parsers[origin] = pool.submit(lambda: asyncio.run(fetch())).result()
+            except RobotsError as exc:
+                print(f"robots skip {origin}: {exc}", flush=True)
+                self.parsers[origin] = None
+        parser = self.parsers[origin]
+        return parser is not None and parser.can_fetch(USER_AGENT, url)
 
 
 def load_raw(path: Path) -> list[dict[str, Any]]:
@@ -163,7 +240,7 @@ def sanitize_har(path: Path) -> int:
     return dropped
 
 
-def write_manifest(tasks: list[Task], tasks_file: Path) -> Path:
+def write_manifest(tasks: list[Task], tasks_file: Path, also_tasks_file: Path | None = None) -> Path:
     """data/bench_v2/manifest.json: sha256 of the task file and of every snapshot, so 'frozen' is checkable."""
     import hashlib
 
@@ -174,6 +251,13 @@ def write_manifest(tasks: list[Task], tasks_file: Path) -> Path:
     manifest = {"tasks_file": {"path": str(tasks_file.relative_to(ROOT)), "sha256": sha(tasks_file), "tasks": len(tasks)},
                 "snapshots": {t.id: {"sha256": sha(har_path(t)), "bytes": har_path(t).stat().st_size}
                               for t in tasks if har_path(t).exists()}}
+    if also_tasks_file:
+        milestone = parse_tasks(load_raw(also_tasks_file))
+        manifest["milestone_tasks_file"] = {"path": str(also_tasks_file.relative_to(ROOT)),
+                                             "sha256": sha(also_tasks_file), "tasks": len(milestone)}
+        manifest["milestone_snapshots"] = {
+            t.id: {"path": str(har_path(t).relative_to(ROOT)), "sha256": sha(har_path(t)),
+                   "bytes": har_path(t).stat().st_size} for t in milestone}
     out.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     return out
 
@@ -182,26 +266,66 @@ def har_path(task: Task) -> Path:
     return ROOT / task.har if task.har else HAR_DIR / f"{task.id}.zip"
 
 
-def record_task(task: Task, raw: dict[str, Any], branches: int) -> Path:
+def record_task(task: Task, raw: dict[str, Any], branches: int, neighbours: int = 0,
+                from_logs: Path | None = None, max_extra: int = 60, delay: float = .25) -> Path:
     out = har_path(task)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.unlink(missing_ok=True)
-    with BrowserSession(task.start_url, record_har=out) as s:
-        page = s.page
-        scroll_through(page)
-        extra = same_site_links(page, branches)
-        run_steps(page, raw.get("path", []), recording=True, scroll=True)
-        for wrong in raw.get("wrong", []):
-            page.goto(task.start_url, wait_until="load")
-            run_steps(page, wrong, recording=True, scroll=True)
-        for url in extra:  # plausible wrong clicks from the start page
-            try:
-                page.goto(url, wait_until="load", timeout=20_000)
-                settle(page)
-                scroll_through(page)
-            except Exception:
-                pass
-    sanitize_har(out)
+    # Keep the previous freeze intact if live navigation fails.
+    pending = out.with_name(out.stem + ".recording.zip")
+    pending.unlink(missing_ok=True)
+    widened = bool(neighbours or from_logs)
+    robots = Robots()
+    candidates: list[str] = []
+    visited: set[str] = set()
+
+    def collect(page):
+        visited.add(urldefrag(page.url)[0])
+        if neighbours:
+            for url in neighbour_links(page, neighbours):
+                if url not in candidates:
+                    candidates.append(url)
+
+    try:
+        with BrowserSession(task.start_url, record_har=pending) as s:
+            page = s.page
+            scroll_through(page)
+            extra = neighbour_links(page, branches) if widened else same_site_links(page, branches)
+            collect(page)
+            run_steps(page, raw.get("path", []), recording=True, scroll=True, on_page=collect)
+            for wrong in raw.get("wrong", []):
+                page.goto(task.start_url, wait_until="load")
+                run_steps(page, wrong, recording=True, scroll=True)
+            known = pilot_misses(from_logs, task.id) if from_logs else []
+            site = registrable_domain(task.start_url)
+            queue = list(dict.fromkeys([*known, *extra, *candidates]))
+            count = 0
+            for url in queue:
+                if widened and count >= max_extra:
+                    break
+                url = page_url(url, site) if widened else url
+                if not url or (widened and (url in visited or not robots.allowed(url))):
+                    continue
+                visited.add(url)
+                count += 1
+                if widened:
+                    print(f"extra {task.id} {count}/{max_extra}: {url}", flush=True)
+                try:
+                    time.sleep(delay if widened else 0)
+                    page.goto(url, wait_until="load", timeout=15_000 if widened else 20_000)
+                    if widened:
+                        page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+                        page.wait_for_timeout(250)
+                        page.evaluate("window.scrollTo(0, 0)")
+                    else:
+                        settle(page)
+                        scroll_through(page)
+                except Exception as exc:
+                    if widened:
+                        print(f"extra skip {task.id} {url}: {str(exc).splitlines()[0]}", flush=True)
+        sanitize_har(pending)
+        pending.replace(out)
+    finally:
+        pending.unlink(missing_ok=True)
     return out
 
 
@@ -236,11 +360,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("command", choices=["record", "verify", "sanitize", "manifest"])
     p.add_argument("--tasks-file", type=Path, default=TASKS_V2)
     p.add_argument("--out", type=Path, default=VERIFY_FILE.parent, help="snapshot root: har/, manifest.json, verify.json")
+    p.add_argument("--also-tasks-file", type=Path, help="manifest: also hash the milestone file and snapshots")
     p.add_argument("--har-dir", type=Path, help="override snapshot directory")
     p.add_argument("--ids", nargs="+")
     p.add_argument("--results", type=Path, default=VERIFY_FILE, help="verify: results file (merged with what it holds)")
     p.add_argument("--branches", type=int, default=6, help="record: same-site links of the start page to visit as wrong branches")
+    p.add_argument("--neighbours", type=int, default=0, help="record: links per scripted page, within --max-extra")
+    p.add_argument("--from-logs", type=Path, help="record: prioritize same-site pilot archive misses")
+    p.add_argument("--max-extra", type=int, default=60, help="record: maximum extra pages per task in widened mode")
+    p.add_argument("--delay", type=float, default=.25, help="record: delay between extra pages, seconds")
     args = p.parse_args(argv)
+    if args.neighbours < 0 or args.max_extra < 0 or args.delay < 0:
+        p.error("neighbours, max-extra and delay must be nonnegative")
     args.tasks_file = args.tasks_file.resolve()
     HAR_DIR = args.har_dir or args.out / "har"
     HAR_DIR.mkdir(parents=True, exist_ok=True)
@@ -249,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
     raws = {r["id"]: r for r in load_raw(args.tasks_file)}
     tasks = [t for t in parse_tasks(list(raws.values())) if not args.ids or t.id in args.ids]
     if args.command == "manifest":
-        print(f"wrote {write_manifest(tasks, args.tasks_file)}")
+        print(f"wrote {write_manifest(tasks, args.tasks_file, args.also_tasks_file.resolve() if args.also_tasks_file else None)}")
         return 0
     results: dict[str, Any] = {}
     if args.results.exists() and args.command == "verify":
@@ -261,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{t.id}: dropped {n} failed entries")
         elif args.command == "record":
             try:
-                out = record_task(t, raws[t.id], args.branches)
+                out = record_task(t, raws[t.id], args.branches, args.neighbours, args.from_logs, args.max_extra, args.delay)
                 print(f"recorded {t.id}: {out.stat().st_size / 1e6:.1f} MB", flush=True)
             except Exception as exc:  # noqa: BLE001
                 bad += 1
