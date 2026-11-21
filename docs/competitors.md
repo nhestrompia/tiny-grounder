@@ -263,3 +263,29 @@ The prior logs lacked safety and child-runtime timers. Their zero-valued timer
 columns in the JSON mean unmeasured, not zero overhead. Calls not exercised by
 the scripted paths, such as console/network reads and get_text, have classification
 and wrapper coverage but no latency sample here.
+
+## Pre-registered full comparison (2026-11-21, before any full-run result)
+
+- **Run:** 134 milestone tasks × 4 arms × 4 agents (Claude Haiku 5.5, Claude Sonnet 5.5, GPT-6 Luna, GPT-6.1 Terra),
+  one run each, arm order shuffled per task (seeded). Output: `runs/bench-v4`.
+- **Arms:**
+  - `find+observe@exact` (B, tiny-grounder standalone);
+  - `pw-mcp+observe` (M, tiny-grounder as the view for Playwright MCP);
+  - `pw-mcp-compact`;
+  - `agent-browser`.
+
+  Default `pw-mcp` was dropped after the pilot. It was the worst arm, and it is not anyone's best configuration.
+- **Analysis:** pooled over agents and paired by (task, agent), with a site-cluster bootstrap (4,000 draws, seed 0,
+  95% percentile CIs). These are the same methods as the Plan v3 milestone.
+- **Primary comparisons:** B vs `pw-mcp-compact` and B vs `agent-browser`. "Beats the existing compact tools" is
+  claimed only if B passes **both**.
+- **Middleware comparison:** M vs `pw-mcp-compact`. This tests whether tiny-grounder improves a Playwright MCP
+  workflow as a drop-in view.
+- **Gates, per comparison:**
+  - success Δ, lower CI > −10 pp;
+  - total input tokens per success ratio, upper CI < 1.0;
+  - median paired wall-time ratio, upper CI ≤ 1.10.
+- **Secondary (no gates):** tool-output tokens, uncached input, Claude cost per success, wall time per success, p90
+  latency, tool calls, harness overhead (safety, settle, proxy), per-agent tables, and harness failures (runs without
+  a server summary are reported and excluded pairwise).
+- The pilot tasks (`runs/bench-v4-pilot`) are part of the 134 and are rerun; pilot runs are not pooled in.
