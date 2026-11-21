@@ -274,3 +274,35 @@ def test_proxy_settle_and_cached_label(tmp_path, arm, read_tool, action_tool, ac
             assert b.summary('test')['safety_ms'] > 0
             b.finish('test')
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("arm", ["pw-mcp+observe", "agent-browser"])
+def test_summary_written_when_agent_exits_without_done(tmp_path, arm):
+    """Pilot regression: a run that ended without done() lost its summary while the child tool shut down."""
+    from pathlib import Path
+    import yaml
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from demo.browser import parse_tasks
+    from demo.cli_bench import REPO, server_argv, task_har
+    from demo.competitor_specs import BIN_DIR
+    exe = BIN_DIR / ("agent-browser" if arm == "agent-browser" else "playwright-mcp")
+    task = next(t for t in parse_tasks(yaml.safe_load((REPO / "demo/tasks_milestone.yaml").read_text())) if t.id == "elv-str")
+    har = task_har(task, live=False)
+    if not exe.exists() or har is None or not har.exists():
+        pytest.skip("pinned competitor binaries or frozen snapshot not installed")
+    log = tmp_path / "server.jsonl"
+    argv = server_argv(task, arm, "exact", Path("dist/xs-s0"), log, 60, True, har=har)
+
+    async def run():
+        params = StdioServerParameters(command=argv[0], args=argv[1:], cwd=str(REPO), env={**__import__("os").environ, "PYTHONPATH": str(REPO)})
+        async with stdio_client(params) as streams:
+            async with ClientSession(*streams) as session:
+                await session.initialize()
+                assert (await session.list_tools()).tools
+        # client exits without calling done: stdin EOF must still produce exactly one summary
+
+    asyncio.run(run())
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    summaries = [e for e in events if e.get("type") == "summary"]
+    assert len(summaries) == 1 and summaries[0]["done_called"] is False

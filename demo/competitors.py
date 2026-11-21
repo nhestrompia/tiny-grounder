@@ -418,7 +418,12 @@ async def competitor_session(args):
                         tool.inputSchema['properties']['id'] = {'anyOf': [{'type': 'string'}, {'type': 'integer'}, {'type': 'null'}]}
                 proxy = Proxy(bench, pool, child, local)
                 await proxy.list_tools()
-                yield proxy
+                try:
+                    yield proxy
+                finally:
+                    # Write the summary before closing the child tools: a slow child shutdown must not lose it
+                    # (bench.finish writes once; the later call in the outer finally is then a no-op).
+                    await owner(lambda: bench.finish(getattr(args, "shutdown_reason", "exit")))
     finally:
         pumping = False
         await pump_task
