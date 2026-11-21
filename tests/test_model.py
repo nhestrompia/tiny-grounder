@@ -137,5 +137,8 @@ def test_rank_model_same_with_static_shapes(model, synth_data, tokenizer):
     plain = rank_model(model, tokenizer, pages, exs, batch_size=4)
     fixed = rank_model(model, tokenizer, pages, exs, batch_size=4, shapes=StaticShapes(model.cfg.max_q, 4))
     for p, f in zip(plain, fixed):
-        assert p.ids == f.ids
-        np.testing.assert_allclose(f.scores, p.scores, atol=1e-4, rtol=1e-4)
+        # padding changes GEMM shapes, so ~1e-9 float noise can reorder near-tied scores
+        assert sorted(p.ids) == sorted(f.ids)
+        fixed_scores = dict(zip(f.ids, f.scores))
+        np.testing.assert_allclose([fixed_scores[i] for i in p.ids], p.scores, atol=1e-4, rtol=1e-4)
+        assert f.null_prob == pytest.approx(p.null_prob, abs=1e-4)
