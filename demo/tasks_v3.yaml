@@ -1,0 +1,1850 @@
+# Agent benchmark v3: frozen held-out multistep tasks for Plan v3 steps 4-5.
+# Each path uses 2-5 page navigations. max_steps = path length + 3.
+# Fields: id, start_url, goal, tags (multistep; vague for descriptive goals;
+# long for pages with over 12000 visible characters), max_steps, check (strict final URL),
+# answer_regex (case-insensitive fact required in done(answer) and frozen page),
+# har (offline HAR zip), path (scripted clicks), answer, wrong (recorded alternate paths).
+# Domains exclude training, v1/v2 tasks, and human select/confirm pages.
+# Record and verify without an LLM:
+#   uv run python -m tools.bench_v2 record --tasks-file demo/tasks_v3.yaml --out data/bench_v3 --branches 0
+#   uv run python -m tools.bench_v2 verify --tasks-file demo/tasks_v3.yaml --out data/bench_v3
+#   uv run python -m tools.bench_v2 manifest --tasks-file demo/tasks_v3.yaml --out data/bench_v3
+# Milestone sweep (run only after freezing, not part of authoring):
+#   uv run --extra demo python -m demo.cli_bench --tasks-file demo/tasks_v3.yaml --out runs/bench-v3 \
+#     --agents claude:claude-haiku-5-5 claude:claude-sonnet-5-5 codex:gpt-6-luna codex:gpt-6.1-terra \
+#     --arms a11y-cap vision find@exact find+observe@exact find+observe@exact+blend:dist/xs-s0:8 --repeats 1
+# Freeze hashes: data/bench_v3/manifest.json. Scripted replay is not an agent-arm evaluation.
+- id: bearssl-structbr-hash-class
+  start_url: https://bearssl.org/
+  goal: In BearSSL, what other name is used for constant instances of a hash implementation class?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://bearssl\.org/apidoc/structbr__hash__class__\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bearssl-structbr-hash-class.zip
+  path:
+  - click:
+      css: a[href="apidoc/index.html"]:visible
+  - click:
+      css: a[href="bearssl__hash_8h.html"]:visible
+  - click:
+      css: a[href="structbr__hash__class__.html"]:visible
+  answer: They are called vtables.
+  wrong: []
+  answer_regex: vtable
+- id: bearssl-structbr-hmac-key-context
+  start_url: https://bearssl.org/
+  goal: Does the BearSSL HMAC key context need a release function? Explain why.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://bearssl\.org/apidoc/structbr__hmac__key__context\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bearssl-structbr-hmac-key-context.zip
+  path:
+  - click:
+      css: a[href="apidoc/index.html"]:visible
+  - click:
+      css: a[href="bearssl__hmac_8h.html"]:visible
+  - click:
+      css: a[href="structbr__hmac__key__context.html"]:visible
+  answer: No. Initialization and use incur no dynamic allocation.
+  wrong: []
+  answer_regex: no dynamic allocation
+- id: bearssl-structbr-hkdf-context
+  start_url: https://bearssl.org/
+  goal: What two inputs initialize the BearSSL HKDF context?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://bearssl\.org/apidoc/structbr__hkdf__context\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bearssl-structbr-hkdf-context.zip
+  path:
+  - click:
+      css: a[href="apidoc/index.html"]:visible
+  - click:
+      css: a[href="bearssl__kdf_8h.html"]:visible
+  - click:
+      css: a[href="structbr__hkdf__context.html"]:visible
+  answer: A hash function implementation and a salt value.
+  wrong: []
+  answer_regex: hash function implementation and a salt
+- id: bearssl-structbr-rsa-public-key
+  start_url: https://bearssl.org/
+  goal: Find the BearSSL structure reference that describes the public part of an RSA key.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://bearssl\.org/apidoc/structbr__rsa__public__key\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bearssl-structbr-rsa-public-key.zip
+  path:
+  - click:
+      css: a[href="apidoc/index.html"]:visible
+  - click:
+      css: a[href="bearssl__rsa_8h.html"]:visible
+  - click:
+      css: a[href="structbr__rsa__public__key.html"]:visible
+  answer: ''
+  wrong: []
+- id: libzip-zipcmp
+  start_url: https://libzip.org/
+  goal: When comparing two ZIP archives with libzip tools, which differences does zipcmp ignore?
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://libzip\.org/documentation/zipcmp/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libzip-zipcmp.zip
+  path:
+  - click:
+      css: a[href="./tutorials/"]:visible
+  - click:
+      css: a[href="../documentation/"]:visible
+  - click:
+      css: a[href="zipcmp/"]:visible
+  answer: File order and compressed size differences.
+  wrong: []
+  answer_regex: file order and compressed size
+- id: libzip-coding
+  start_url: https://libzip.org/
+  goal: Which version of the C language does libzip ask contributors to use?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libzip\.org/explanations/coding/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libzip-coding.zip
+  path:
+  - click:
+      css: a[href="./tutorials/"]:visible
+  - click:
+      css: a[href="../contact/"]:visible
+  - click:
+      css: a[href="https://libzip.org/explanations/coding/"]:visible
+  answer: C89.
+  wrong: []
+  answer_regex: C89
+- id: libzip-zipmerge
+  start_url: https://libzip.org/
+  goal: Find the libzip command manual for combining several ZIP archives into one.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libzip\.org/documentation/zipmerge/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libzip-zipmerge.zip
+  path:
+  - click:
+      css: a[href="./guides/"]:visible
+  - click:
+      css: a[href="../documentation/"]:visible
+  - click:
+      css: a[href="zipmerge/"]:visible
+  answer: ''
+  wrong: []
+- id: libzip-zip-file-add
+  start_url: https://libzip.org/
+  goal: Find the libzip API reference for adding a file to an archive or replacing one already there.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libzip\.org/documentation/zip_file_add/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libzip-zip-file-add.zip
+  path:
+  - click:
+      css: a[href="./tutorials/"]:visible
+  - click:
+      css: a[href="../documentation/"]:visible
+  - click:
+      css: a[href="zip_file_add/"]:visible
+  answer: ''
+  wrong: []
+- id: botan-python
+  start_url: https://botan.randombit.net/
+  goal: Which Python standard-library module does Botan use for its Python binding?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://botan\.randombit\.net/handbook/api_ref/python\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/botan-python.zip
+  path:
+  - click:
+      css: a[href="https://botan.randombit.net/handbook"]:visible
+  - click:
+      css: a[href="genindex.html"]:visible
+  - click:
+      css: a[href="api_ref/python.html#botan3.X509CRLReason.AA_COMPROMISE"]:visible
+  answer: The binding uses ctypes.
+  wrong: []
+  answer_regex: ctypes
+- id: botan-cipher-modes
+  start_url: https://botan.randombit.net/
+  goal: In Botan, which base class do all cipher mode implementations derive from?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://botan\.randombit\.net/handbook/api_ref/cipher_modes\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/botan-cipher-modes.zip
+  path:
+  - click:
+      css: a[href="https://botan.randombit.net/handbook"]:visible
+  - click:
+      css: a[href="api_ref/block_cipher.html#block-cipher-example"]:visible
+  - click:
+      css: a[href="cipher_modes.html#cipher-modes"]:visible
+  answer: Cipher_Mode.
+  wrong: []
+  answer_regex: Cipher_Mode
+- id: botan-pbkdf
+  start_url: https://botan.randombit.net/
+  goal: Find the Botan reference for turning a password into a cryptographic key.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://botan\.randombit\.net/handbook/api_ref/pbkdf\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/botan-pbkdf.zip
+  path:
+  - click:
+      css: a[href="https://botan.randombit.net/handbook"]:visible
+  - click:
+      css: a[href="api_ref/pbkdf.html#pbkdf-example"]:visible
+  answer: ''
+  wrong: []
+- id: botan-ec-group
+  start_url: https://botan.randombit.net/
+  goal: Find the Botan reference for the object that represents an elliptic curve group.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://botan\.randombit\.net/handbook/api_ref/ec_group\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/botan-ec-group.zip
+  path:
+  - click:
+      css: a[href="https://botan.randombit.net/handbook"]:visible
+  - click:
+      css: a[href="api_ref/pubkey.html#ecdh-example"]:visible
+  - click:
+      css: a[href="ec_group.html#_CPPv48EC_Group"]:visible
+  answer: ''
+  wrong: []
+- id: libevent-ref9-dns
+  start_url: https://libevent.org/
+  goal: Find the Libevent chapter about resolving host names and implementing a simple DNS server.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://libevent\.org/libevent\-book/Ref9_dns\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libevent-ref9-dns.zip
+  path:
+  - click:
+      css: a[href="https://libevent.org/libevent-book/"]:visible
+  - click:
+      css: a[href="Ref6_bufferevent.html"]:visible
+  - click:
+      css: a[href="Ref9_dns.html"]:visible
+  answer: ''
+  wrong: []
+- id: libevent-ref7-evbuffer
+  start_url: https://libevent.org/
+  goal: What kind of data structure does Libevent evbuffer implement?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://libevent\.org/libevent\-book/Ref7_evbuffer\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libevent-ref7-evbuffer.zip
+  path:
+  - click:
+      css: a[href="https://libevent.org/libevent-book/"]:visible
+  - click:
+      css: a[href="Ref6a_advanced_bufferevents.html"]:visible
+  - click:
+      css: a[href="Ref7_evbuffer.html"]:visible
+  answer: A queue of bytes, optimized for adding at the end and removing from the front.
+  wrong: []
+  answer_regex: queue of bytes
+- id: libevent-structevent
+  start_url: https://libevent.org/
+  goal: Which Libevent function makes an event pending?
+  tags:
+  - multistep
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://libevent\.org/doc/structevent\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libevent-structevent.zip
+  path:
+  - click:
+      css: a[href="/doc"]:visible
+  - click:
+      css: a[href="event_8h.html#a19d60cb72a1af398247f40e92cf07056"]:visible
+  - click:
+      css: a[href="structevent.html"]:visible
+  answer: event_add().
+  wrong: []
+  answer_regex: event_add
+- id: libevent-structevthread-condition-callbacks
+  start_url: https://libevent.org/
+  goal: Find the Libevent structure reference used to provide condition-variable callbacks from a threading library.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libevent\.org/doc/structevthread__condition__callbacks\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libevent-structevthread-condition-callbacks.zip
+  path:
+  - click:
+      css: a[href="/doc"]:visible
+  - click:
+      css: a[href="thread_8h.html#acc0cc708c566c14f4659331ec12f8a5b"]:visible
+  - click:
+      css: a[href="structevthread__condition__callbacks.html"]:visible
+  answer: ''
+  wrong: []
+- id: libssh2-direct-tcpip
+  start_url: https://libssh2.org/
+  goal: Find the libssh2 C example for forwarding traffic through a direct TCP/IP channel.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libssh2\.org/examples/direct_tcpip\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libssh2-direct-tcpip.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="/examples/"]:visible
+  - click:
+      css: a[href="direct_tcpip.html"]:visible
+  answer: ''
+  wrong: []
+- id: libssh2-libssh2-agent-init
+  start_url: https://libssh2.org/
+  goal: Which function releases a libssh2 ssh-agent handle after initialization?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libssh2\.org/libssh2_agent_init\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libssh2-libssh2-agent-init.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="libssh2_agent_connect.html"]:visible
+  - click:
+      css: a[href="./libssh2_agent_init.html"]:visible
+  answer: libssh2_agent_free.
+  wrong: []
+  answer_regex: libssh2_agent_free
+- id: libssh2-libssh2-agent-free
+  start_url: https://libssh2.org/
+  goal: Besides the handle itself, what does libssh2_agent_free release?
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://libssh2\.org/libssh2_agent_free\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libssh2-libssh2-agent-free.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="libssh2_agent_disconnect.html"]:visible
+  - click:
+      css: a[href="./libssh2_agent_free.html"]:visible
+  answer: The internal collection of public keys.
+  wrong: []
+  answer_regex: internal collection of public keys
+- id: libssh2-libssh2-agent-userauth
+  start_url: https://libssh2.org/
+  goal: Find the libssh2 function reference for authenticating a session using a public key from ssh-agent.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://libssh2\.org/libssh2_agent_userauth\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libssh2-libssh2-agent-userauth.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="libssh2_agent_get_identity.html"]:visible
+  - click:
+      css: a[href="./libssh2_agent_userauth.html"]:visible
+  answer: ''
+  wrong: []
+- id: libuv-errors
+  start_url: https://libuv.org/
+  goal: Find the libuv reference explaining how errors are represented and translated into messages.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.libuv\.org/en/v1\.x/errors\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libuv-errors.zip
+  path:
+  - click:
+      css: a[href="https://docs.libuv.org"]:visible
+  - click:
+      css: a[href="api.html"]:visible
+  - click:
+      css: a[href="errors.html"]:visible
+  answer: ''
+  wrong: []
+- id: libuv-introduction
+  start_url: https://libuv.org/
+  goal: Which two operating-system families does the libuv user-guide introduction say share the same API?
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.libuv\.org/en/v1\.x/guide/introduction\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libuv-introduction.zip
+  path:
+  - click:
+      css: a[href="https://docs.libuv.org"]:visible
+  - click:
+      css: a[href="guide.html"]:visible
+  - click:
+      css: a[href="guide/introduction.html"]:visible
+  answer: Windows and Unix.
+  wrong: []
+  answer_regex: Windows and Unix
+- id: libuv-loop
+  start_url: https://libuv.org/
+  goal: Find the libuv API reference for creating and running the event loop.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.libuv\.org/en/v1\.x/loop\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libuv-loop.zip
+  path:
+  - click:
+      css: a[href="https://docs.libuv.org"]:visible
+  - click:
+      css: a[href="api.html"]:visible
+  - click:
+      css: a[href="loop.html"]:visible
+  answer: ''
+  wrong: []
+- id: libuv-stream
+  start_url: https://libuv.org/
+  goal: Find the libuv API page for handles that provide ordered byte-stream communication.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.libuv\.org/en/v1\.x/stream\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/libuv-stream.zip
+  path:
+  - click:
+      css: a[href="https://docs.libuv.org"]:visible
+  - click:
+      css: a[href="api.html"]:visible
+  - click:
+      css: a[href="stream.html"]:visible
+  answer: ''
+  wrong: []
+- id: mesonbuild-reference-manual-elementary-str
+  start_url: https://mesonbuild.com/
+  goal: Are strings mutable in Meson, and how do string operations return their results?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://mesonbuild\.com/Reference\-manual_elementary_str\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/mesonbuild-reference-manual-elementary-str.zip
+  path:
+  - click:
+      css: a[href="Manual.html"]:visible
+  - click:
+      css: a[href="Syntax.html"]:visible
+  - click:
+      css: a[href="Reference-manual_elementary_str.html"]:visible
+  answer: Strings are immutable. Operations return a new string.
+  wrong: []
+  answer_regex: immutable
+- id: mesonbuild-reference-manual-returned-env
+  start_url: https://mesonbuild.com/
+  goal: Which Meson function creates the object that stores changes to environment variables?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 7
+  check:
+    url_regex: ^https://mesonbuild\.com/Reference\-manual_returned_env\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/mesonbuild-reference-manual-returned-env.zip
+  path:
+  - click:
+      css: a[href="Manual.html"]:visible
+  - click:
+      css: a[href="Syntax.html"]:visible
+  - click:
+      css: a[href="Reference-manual_functions.html#executable"]:visible
+  - click:
+      css: a[href="Reference-manual_returned_env.html"]:visible
+  answer: environment().
+  wrong: []
+  answer_regex: environment\(\)
+- id: mesonbuild-builtin-options
+  start_url: https://mesonbuild.com/
+  goal: Find the Meson documentation for the configuration options that are available to every project.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://mesonbuild\.com/Builtin\-options\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/mesonbuild-builtin-options.zip
+  path:
+  - click:
+      css: a[href="Manual.html"]:visible
+  - click:
+      css: a[href="Build-options.html"]:visible
+  - click:
+      css: a[href="https://mesonbuild.com/Builtin-options.html"]:visible
+  answer: ''
+  wrong: []
+- id: mesonbuild-reference-manual-elementary-dict
+  start_url: https://mesonbuild.com/
+  goal: Find the Meson language reference for dictionaries and their methods.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://mesonbuild\.com/Reference\-manual_elementary_dict\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/mesonbuild-reference-manual-elementary-dict.zip
+  path:
+  - click:
+      css: a[href="Manual.html"]:visible
+  - click:
+      css: a[href="Syntax.html"]:visible
+  - click:
+      css: a[href="Reference-manual_elementary_dict.html"]:visible
+  answer: ''
+  wrong: []
+- id: fossil-scm-checkin-names
+  start_url: https://fossil-scm.org/home/doc/trunk/www/index.wiki
+  goal: In Fossil, what is the canonical name of a check-in based on?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://fossil\-scm\.org/home/doc/trunk/www/checkin_names\.wiki/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fossil-scm-checkin-names.zip
+  path:
+  - click:
+      css: a[href="/home/doc/trunk/www/permutedindex.html"]:visible
+  - click:
+      css: a[href="quickstart.wiki"]:visible
+  - click:
+      css: a[href="./checkin_names.wiki"]:visible
+  answer: The hash of its manifest, expressed as a long lowercase hexadecimal number.
+  wrong: []
+  answer_regex: hash[\s\S]{0,150}manifest
+- id: fossil-scm-style
+  start_url: https://fossil-scm.org/home/doc/trunk/www/index.wiki
+  goal: Find the coding conventions that apply when contributing source code to Fossil.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://fossil\-scm\.org/home/doc/trunk/www/style\.wiki/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fossil-scm-style.zip
+  path:
+  - click:
+      css: a[href="/home/doc/trunk/www/permutedindex.html"]:visible
+  - click:
+      css: a[href="hacker-howto.wiki"]:visible
+  - click:
+      css: a[href="./style.wiki"]:visible
+  answer: ''
+  wrong: []
+- id: fishshell-interactive
+  start_url: https://fishshell.com/
+  goal: Which fish command displays help about syntax?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://fishshell\.com/docs/current/interactive\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fishshell-interactive.zip
+  path:
+  - click:
+      css: a[href="docs/current/tutorial.html"]:visible
+  - click:
+      css: a[href="index.html"]:visible
+  - click:
+      css: a[href="interactive.html"]:visible
+  answer: help syntax.
+  wrong: []
+  answer_regex: help\s+syntax
+- id: fishshell-language
+  start_url: https://fishshell.com/
+  goal: Find the comprehensive reference for writing scripts in fish.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://fishshell\.com/docs/current/language\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fishshell-language.zip
+  path:
+  - click:
+      css: a[href="docs/current/tutorial.html"]:visible
+  - click:
+      css: a[href="faq.html"]:visible
+  - click:
+      css: a[href="language.html"]:visible
+  answer: ''
+  wrong: []
+- id: fishshell-fish-update-completions
+  start_url: https://fishshell.com/
+  goal: Where does fish_update_completions obtain the information used to generate completions?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://fishshell\.com/docs/current/cmds/fish_update_completions\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fishshell-fish-update-completions.zip
+  path:
+  - click:
+      css: a[href="docs/current/tutorial.html"]:visible
+  - click:
+      css: a[href="commands.html"]:visible
+  - click:
+      css: a[href="cmds/fish_update_completions.html"]:visible
+  answer: It parses installed manual pages.
+  wrong: []
+  answer_regex: manual pages
+- id: fishshell-commands
+  start_url: https://fishshell.com/
+  goal: Find the fish command index so I can look up individual shell builtins.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://fishshell\.com/docs/current/commands\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fishshell-commands.zip
+  path:
+  - click:
+      css: a[href="docs/current/tutorial.html"]:visible
+  - click:
+      css: a[href="fish_for_bash_users.html"]:visible
+  - click:
+      css: a[href="commands.html"]:visible
+  answer: ''
+  wrong: []
+- id: elv-doc
+  start_url: https://elv.sh/
+  goal: Which kinds of modules does the Elvish documentation module currently support?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://elv\.sh/ref/doc\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/elv-doc.zip
+  path:
+  - click:
+      css: a[href="./learn/"]:visible
+  - click:
+      css: a[href="../ref/"]:visible
+  - click:
+      css: a[href="../ref/doc.html"]:visible
+  answer: Only builtin modules.
+  wrong: []
+  answer_regex: builtin modules
+- id: elv-language
+  start_url: https://elv.sh/
+  goal: In the Elvish language specification, what is the word character a synonym for?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://elv\.sh/ref/language\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/elv-language.zip
+  path:
+  - click:
+      css: a[href="./learn/"]:visible
+  - click:
+      css: a[href="../learn/tour.html"]:visible
+  - click:
+      css: a[href="../ref/language.html#bareword"]:visible
+  answer: A Unicode codepoint or its UTF-8 encoding.
+  wrong: []
+  answer_regex: Unicode codepoint
+- id: elv-str
+  start_url: https://elv.sh/
+  goal: Find the Elvish reference for manipulating strings.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://elv\.sh/ref/str\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/elv-str.zip
+  path:
+  - click:
+      css: a[href="./learn/"]:visible
+  - click:
+      css: a[href="../learn/scripting-case-studies.html"]:visible
+  - click:
+      css: a[href="../ref/str.html#str:trim-suffix"]:visible
+  answer: ''
+  wrong: []
+- id: typst-document
+  start_url: https://typst.app/
+  goal: Does Typst visibly render document metadata by default?
+  tags:
+  - multistep
+  max_steps: 7
+  check:
+    url_regex: ^https://typst\.app/docs/reference/model/document/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/typst-document.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/reference/"]:visible
+  - click:
+      css: a[href="/docs/reference/model/"]:visible
+  - click:
+      css: a[href="/docs/reference/model/document/"]:visible
+  answer: It embeds metadata in the output, but it is not visibly rendered.
+  wrong: []
+  answer_regex: not visibly rendered
+- id: typst-for-latex-users
+  start_url: https://typst.app/
+  goal: When does the local Typst compiler download packages?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://typst\.app/docs/guides/for\-latex\-users/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/typst-for-latex-users.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/guides/"]:visible
+  - click:
+      css: a[href="/docs/guides/for-latex-users/"]:visible
+  answer: Packages are downloaded when you first use them, then cached locally.
+  wrong: []
+  answer_regex: when you first use them
+- id: typst-page-setup
+  start_url: https://typst.app/
+  goal: Find the Typst guide for adjusting paper size, margins, headers and footers.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://typst\.app/docs/guides/page\-setup/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/typst-page-setup.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/guides/"]:visible
+  - click:
+      css: a[href="/docs/guides/page-setup/"]:visible
+  answer: ''
+  wrong: []
+- id: quarto-docusaurus
+  start_url: https://quarto.org/
+  goal: Find the Quarto guide for publishing computational output in a Docusaurus website.
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://quarto\.org/docs/output\-formats/docusaurus\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/quarto-docusaurus.zip
+  path:
+  - click:
+      role: link
+      name: Guide
+      exact: true
+  - click:
+      role: link
+      name: All Formats
+      exact: true
+  - click:
+      role: link
+      name: Docusaurus
+      exact: true
+  answer: ''
+  wrong: []
+- id: taskfile-integrations
+  start_url: https://taskfile.dev/
+  goal: What is the minimum Task version required by its official Visual Studio Code extension?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://taskfile\.dev/docs/integrations/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/taskfile-integrations.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/team"]:visible
+  - click:
+      css: a[href="/docs/integrations"]:visible
+  answer: Task v3.45.3 or newer.
+  wrong: []
+  answer_regex: 3\.45\.3
+- id: taskfile-defining-tasks
+  start_url: https://taskfile.dev/
+  goal: Which name should I give a Task task to run it when no task name is supplied?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://taskfile\.dev/docs/guide/defining\-tasks/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/taskfile-defining-tasks.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/installation"]:visible
+  - click:
+      css: a[href="/docs/guide/defining-tasks"]:visible
+  answer: default.
+  wrong: []
+  answer_regex: default
+- id: buck2-tutorial-adding-dependencies
+  start_url: https://buck2.build/
+  goal: In the Buck2 dependencies tutorial, what source file is added inside greeter_lib/src?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://buck2\.build/docs/getting_started/tutorial_adding_dependencies/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/buck2-tutorial-adding-dependencies.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_first_build/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_adding_dependencies/"]:visible
+  answer: lib.rs.
+  wrong: []
+  answer_regex: lib\.rs
+- id: buck2-tutorial-first-build
+  start_url: https://buck2.build/
+  goal: Which programming language does the first Buck2 application tutorial use?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://buck2\.build/docs/getting_started/tutorial_first_build/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/buck2-tutorial-first-build.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_adding_tests/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_first_build/"]:visible
+  answer: Rust.
+  wrong: []
+  answer_regex: Rust
+- id: buck2-tutorial-adding-tests
+  start_url: https://buck2.build/
+  goal: Find the Buck2 tutorial for adding unit tests to the application built in the earlier lessons.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://buck2\.build/docs/getting_started/tutorial_adding_tests/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/buck2-tutorial-adding-tests.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_to_concepts/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_adding_tests/"]:visible
+  answer: ''
+  wrong: []
+- id: buck2-tutorial-to-concepts
+  start_url: https://buck2.build/
+  goal: In Buck2, which global configuration file marks the root of a cell?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://buck2\.build/docs/getting_started/tutorial_to_concepts/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/buck2-tutorial-to-concepts.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/users/commands/docs/"]:visible
+  - click:
+      css: a[href="/docs/getting_started/tutorial_to_concepts/"]:visible
+  answer: .buckconfig.
+  wrong: []
+  answer_regex: \.buckconfig
+- id: nushell-configuration
+  start_url: https://www.nushell.sh/
+  goal: Find the Nushell instructions for changing what runs when the shell starts.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://www\.nushell\.sh/book/configuration\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nushell-configuration.zip
+  path:
+  - click:
+      css: a[href="/book/installation.html"]:visible
+  - click:
+      css: a[href="/book/plugins.html"]:visible
+  - click:
+      css: a[href="/book/configuration.html"]:visible
+  answer: ''
+  wrong: []
+- id: nushell-default-shell
+  start_url: https://www.nushell.sh/
+  goal: Is Nushell intended to be POSIX compliant?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://www\.nushell\.sh/book/default_shell\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nushell-default-shell.zip
+  path:
+  - click:
+      css: a[href="/book/installation.html"]:visible
+  - click:
+      css: a[href="/book/default_shell.html"]:visible
+  answer: Nu is not intended to be POSIX compliant.
+  wrong: []
+  answer_regex: not intended to be POSIX compliant
+- id: nushell-custom-commands
+  start_url: https://www.nushell.sh/
+  goal: Find the Nushell guide for saving reusable pipelines as your own commands.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://www\.nushell\.sh/book/custom_commands\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nushell-custom-commands.zip
+  path:
+  - click:
+      css: a[href="/book/getting_started.html"]:visible
+  - click:
+      css: a[href="/book/thinking_in_nu.html"]:visible
+  - click:
+      css: a[href="/book/custom_commands.html"]:visible
+  answer: ''
+  wrong: []
+- id: asciidoctor-document-attributes-ref
+  start_url: https://asciidoctor.org/
+  goal: What two purposes do built-in AsciiDoc document attributes serve?
+  tags:
+  - multistep
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.asciidoctor\.org/asciidoc/latest/attributes/document\-attributes\-ref/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/asciidoctor-document-attributes-ref.zip
+  path:
+  - click:
+      css: a[href="https://docs.asciidoctor.org/asciidoctor/latest/#relationship-to-asciidoc"]:visible
+  - click:
+      css: a[href="https://docs.asciidoctor.org/"]:visible
+  - click:
+      css: a[href="asciidoc/latest/attributes/document-attributes-ref/"]:visible
+  answer: They configure behavior in the processor or relay information about the document and its environment.
+  wrong: []
+  answer_regex: configure behavior[\s\S]*relay information
+- id: asciidoctor-install
+  start_url: https://asciidoctor.org/
+  goal: In what package format is the Ruby version of Asciidoctor published?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.asciidoctor\.org/asciidoctor/latest/install/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/asciidoctor-install.zip
+  path:
+  - click:
+      css: a[href="https://docs.asciidoctor.org/asciidoctor/latest/#relationship-to-asciidoc"]:visible
+  - click:
+      css: a[href="api/"]:visible
+  - click:
+      css: a[href="../install/"]:visible
+  answer: A gem, published on RubyGems.org.
+  wrong: []
+  answer_regex: gem
+- id: asciidoctor-docinfo
+  start_url: https://asciidoctor.org/
+  goal: Which feature lets AsciiDoc insert custom content into the head, header or footer of generated output?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.asciidoctor\.org/asciidoc/latest/docinfo/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/asciidoctor-docinfo.zip
+  path:
+  - click:
+      css: a[href="https://docs.asciidoctor.org/asciidoctor/latest/#relationship-to-asciidoc"]:visible
+  - click:
+      css: a[href="migrate/asciidoc-py/"]:visible
+  - click:
+      css: a[href="../../../../asciidoc/latest/docinfo/"]:visible
+  answer: Docinfo.
+  wrong: []
+  answer_regex: docinfo
+- id: asciidoctor-install-7
+  start_url: https://asciidoctor.org/
+  goal: Which Node release family does the Asciidoctor.js install guide recommend?
+  tags:
+  - multistep
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.asciidoctor\.org/asciidoctor\.js/latest/setup/install/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/asciidoctor-install-7.zip
+  path:
+  - click:
+      css: a[href="https://docs.asciidoctor.org"]:visible
+  - click:
+      css: a[href="asciidoctor.js/latest/"]:visible
+  - click:
+      css: a[href="setup/install/"]:visible
+  answer: The latest long term support (LTS) release.
+  wrong: []
+  answer_regex: long term support|LTS
+- id: ledger-cli-ledger-mode
+  start_url: https://ledger-cli.org/
+  goal: Find the manual for the Emacs mode that supports editing Ledger files.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://ledger\-cli\.org/doc/ledger\-mode\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/ledger-cli-ledger-mode.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="doc/ledger-mode.html"]:visible
+  answer: ''
+  wrong: []
+- id: ledger-cli-ledger
+  start_url: https://ledger-cli.org/
+  goal: Does the Ledger command-line accounting tool modify your data files?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://ledger\-cli\.org/doc/ledger\.1\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/ledger-cli-ledger.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="doc/ledger.1.html"]:visible
+  answer: No. It never modifies your data files.
+  wrong: []
+  answer_regex: never modifies your data files
+- id: breezy-vcs-centralized-workflow
+  start_url: https://breezy-vcs.org/
+  goal: Find the Breezy tutorial for working through a central shared repository.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://breezy\-vcs\.org/doc/en/tutorials/centralized_workflow\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/breezy-vcs-centralized-workflow.zip
+  path:
+  - click:
+      css: a[href="https://breezy-vcs.org/doc/en/tutorials/tutorial.html"]:visible
+  - click:
+      css: a[href="index.html"]:visible
+  - click:
+      css: a[href="centralized_workflow.html"]:visible
+  answer: ''
+  wrong: []
+- id: breezy-vcs-code-style
+  start_url: https://breezy-vcs.org/
+  goal: What should the first line of a Breezy docstring contain?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://breezy\-vcs\.org/developers/code\-style\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/breezy-vcs-code-style.zip
+  path:
+  - click:
+      css: a[href="/developers/"]:visible
+  - click:
+      css: a[href="HACKING.html"]:visible
+  - click:
+      css: a[href="code-style.html"]:visible
+  answer: A self-contained one-sentence summary.
+  wrong: []
+  answer_regex: self-contained one-sentence summary
+- id: breezy-vcs-whats-new-in-3
+  start_url: https://breezy-vcs.org/
+  goal: Which command replaced brz lp-propose in Breezy 3.2?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://breezy\-vcs\.org/doc/en/whats\-new/whats\-new\-in\-3\.2\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/breezy-vcs-whats-new-in-3.zip
+  path:
+  - click:
+      css: a[href="https://breezy-vcs.org/doc/en/tutorials/tutorial.html"]:visible
+  - click:
+      css: a[href="../whats-new/whats-new-in-3.2.html"]:visible
+  answer: brz propose.
+  wrong: []
+  answer_regex: brz propose
+- id: opus-codec-group-opus-encoder
+  start_url: https://opus-codec.org/
+  goal: Find the Opus 1.6 API reference for creating an encoder and encoding audio.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://opus\-codec\.org/docs/opus_api\-1\.6/group__opus__encoder\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/opus-codec-group-opus-encoder.zip
+  path:
+  - click:
+      css: a[href="/docs"]:visible
+  - click:
+      css: a[href="/docs/opus_api-1.6/index.html"]:visible
+  - click:
+      css: a[href="group__opus__encoder.html"]:visible
+  answer: ''
+  wrong: []
+- id: opus-codec-opus-api-1
+  start_url: https://opus-codec.org/
+  goal: Which two earlier codec technologies does Opus incorporate?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://opus\-codec\.org/docs/opus_api\-1\.3\.1/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/opus-codec-opus-api-1.zip
+  path:
+  - click:
+      css: a[href="/docs"]:visible
+  - click:
+      css: a[href="/docs/opusfile_api-0.12/index.html"]:visible
+  - click:
+      css: a[href="https://opus-codec.org/docs/opus_api-1.3.1/"]:visible
+  answer: Skype SILK and Xiph.Org CELT.
+  wrong: []
+  answer_regex: SILK[\s\S]*CELT
+- id: bazel-compile-source
+  start_url: https://bazel.build/
+  goal: Find the Bazel instructions for building the tool itself from source code.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://bazel\.build/install/compile\-source/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bazel-compile-source.zip
+  path:
+  - click:
+      css: a[href="/install"]:visible
+  - click:
+      css: a[href="/install/ubuntu"]:visible
+  - click:
+      css: a[href="/install/compile-source"]:visible
+  answer: ''
+  wrong: []
+- id: bazel-mise
+  start_url: https://bazel.build/
+  goal: Find the Bazel installation instructions that use the mise tool manager.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://bazel\.build/install/mise/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/bazel-mise.zip
+  path:
+  - click:
+      css: a[href="/install"]:visible
+  - click:
+      css: a[href="/install/mise"]:visible
+  answer: ''
+  wrong: []
+- id: just-modules
+  start_url: https://just.systems/
+  goal: Can recipes and variables in one just submodule be used in another?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://just\.systems/man/en/modules\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/just-modules.zip
+  path:
+  - click:
+      css: a[href="man/en/"]:visible
+  - click:
+      css: a[href="listing-available-recipes.html"]:visible
+  - click:
+      css: a[href="modules.html"]:visible
+  answer: No. They cannot be used in another submodule.
+  wrong: []
+  answer_regex: cannot be used in another
+- id: gnutls-faq
+  start_url: https://gnutls.org/
+  goal: Why does GnuTLS reject a server that offers a small Diffie-Hellman group?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://gnutls\.org/faq\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/gnutls-faq.zip
+  path:
+  - click:
+      css: a[href="support.html"]:visible
+  - click:
+      css: a[href="faq.html"]:visible
+  answer: The server offers a small and insecure DH group.
+  wrong: []
+  answer_regex: insecure DH group
+- id: mruby-executing-ruby-code-with-mruby
+  start_url: https://mruby.org/
+  goal: Which program does the mruby execution guide use to evaluate Ruby code interactively?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://mruby\.org/docs/articles/executing\-ruby\-code\-with\-mruby\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/mruby-executing-ruby-code-with-mruby.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/articles/executing-ruby-code-with-mruby.html"]:visible
+  answer: mirb.
+  wrong: []
+  answer_regex: \bmirb\b
+- id: fennel-lang-values
+  start_url: https://fennel-lang.org/
+  goal: According to the Fennel design principles, does Fennel have its own runtime?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://fennel\-lang\.org/values/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/fennel-lang-values.zip
+  path:
+  - click:
+      css: a[href="/style"]:visible
+  - click:
+      css: a[href="https://fennel-lang.org/values"]:visible
+  answer: Fennel is a compiler with no runtime.
+  wrong: []
+  answer_regex: compiler with no runtime
+- id: nickel-lang-tutorial
+  start_url: https://nickel-lang.org/
+  goal: Which export format is used for the list of users in the Nickel tutorial?
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://nickel\-lang\.org/user\-manual/tutorial/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nickel-lang-tutorial.zip
+  path:
+  - click:
+      css: a[href="/getting-started/"]:visible
+  - click:
+      css: a[href="/user-manual/introduction"]:visible
+  - click:
+      css: a[href="/user-manual/tutorial"]:visible
+  answer: YAML.
+  wrong: []
+  answer_regex: YAML
+- id: nickel-lang-syntax
+  start_url: https://nickel-lang.org/
+  goal: In Nickel identifiers, which character can appear zero or more times before the first alphabetic character?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://nickel\-lang\.org/user\-manual/syntax/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nickel-lang-syntax.zip
+  path:
+  - click:
+      css: a[href="/getting-started/"]:visible
+  - click:
+      css: a[href="/user-manual/"]:visible
+  - click:
+      css: a[href="/user-manual/syntax"]:visible
+  answer: Underscores.
+  wrong: []
+  answer_regex: underscores?
+- id: nickel-lang-correctness
+  start_url: https://nickel-lang.org/
+  goal: Find the Nickel discussion of how configuration correctness is checked.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://nickel\-lang\.org/user\-manual/correctness/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nickel-lang-correctness.zip
+  path:
+  - click:
+      css: a[href="/user-manual/"]:visible
+  - click:
+      css: a[href="/user-manual/merging"]:visible
+  - click:
+      css: a[href="/user-manual/correctness"]:visible
+  answer: ''
+  wrong: []
+- id: zeromq-messages
+  start_url: https://zeromq.org/
+  goal: From ZeroMQ itself, how is a message payload interpreted?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://zeromq\.org/messages/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/zeromq-messages.zip
+  path:
+  - click:
+      css: a[href="/get-started"]:visible
+  - click:
+      css: a[href="/messages/"]:visible
+  answer: As opaque binary data.
+  wrong: []
+  answer_regex: opaque binary data
+- id: zeromq-c
+  start_url: https://zeromq.org/
+  goal: Which two ZeroMQ library options are available to C developers?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://zeromq\.org/languages/c/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/zeromq-c.zip
+  path:
+  - click:
+      css: a[href="/get-started"]:visible
+  - click:
+      css: a[href="/languages/c/"]:visible
+  answer: CZMQ or libzmq.
+  wrong: []
+  answer_regex: CZMQ[\s\S]*libzmq
+- id: zeromq-csharp
+  start_url: https://zeromq.org/
+  goal: Which two ZeroMQ implementations or bindings are listed for C# developers?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://zeromq\.org/languages/csharp/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/zeromq-csharp.zip
+  path:
+  - click:
+      css: a[href="/get-started"]:visible
+  - click:
+      css: a[href="/languages/csharp/"]:visible
+  answer: NetMQ and clrzmq4.
+  wrong: []
+  answer_regex: NetMQ[\s\S]*clrzmq4
+- id: openexr-symbolvisibility
+  start_url: https://openexr.com/en/latest/
+  goal: What is the default symbol-visibility policy on Unix when OpenEXR 3.0 manages symbols explicitly?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://openexr\.com/en/latest/SymbolVisibility\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/openexr-symbolvisibility.zip
+  path:
+  - click:
+      css: a[href="PortingGuide.html"]:visible
+  - click:
+      css: a[href="SymbolVisibility.html"]:visible
+  answer: Hidden-by-default.
+  wrong: []
+  answer_regex: hidden-by-default
+- id: openexr-technicalintroduction
+  start_url: https://openexr.com/en/latest/
+  goal: In OpenEXR pixel space, in which direction does the y coordinate increase?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://openexr\.com/en/latest/TechnicalIntroduction\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/openexr-technicalintroduction.zip
+  path:
+  - click:
+      css: a[href="PortingGuide.html"]:visible
+  - click:
+      css: a[href="concepts.html"]:visible
+  - click:
+      css: a[href="TechnicalIntroduction.html"]:visible
+  answer: From top to bottom.
+  wrong: []
+  answer_regex: top to bottom
+- id: openexr-readingandwritingimagefiles
+  start_url: https://openexr.com/en/latest/
+  goal: Find the OpenEXR guide to reading and writing image files with C++.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://openexr\.com/en/latest/ReadingAndWritingImageFiles\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/openexr-readingandwritingimagefiles.zip
+  path:
+  - click:
+      css: a[href="PortingGuide.html"]:visible
+  - click:
+      css: a[href="API.html"]:visible
+  - click:
+      css: a[href="ReadingAndWritingImageFiles.html"]:visible
+  answer: ''
+  wrong: []
+- id: openexr-standardattributes
+  start_url: https://openexr.com/en/latest/
+  goal: Where do OpenEXR files store metadata?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://openexr\.com/en/latest/StandardAttributes\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/openexr-standardattributes.zip
+  path:
+  - click:
+      css: a[href="PortingGuide.html"]:visible
+  - click:
+      css: a[href="python.html"]:visible
+  - click:
+      css: a[href="StandardAttributes.html#standard-attributes"]:visible
+  answer: In attributes.
+  wrong: []
+  answer_regex: attributes
+- id: htslib-annot-tsv
+  start_url: https://www.htslib.org/
+  goal: Find the HTSlib command reference for annotating tab-separated tables by transferring columns.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://www\.htslib\.org/doc/annot\-tsv\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/htslib-annot-tsv.zip
+  path:
+  - click:
+      css: a[href="/doc"]:visible
+      nth: 1
+  - click:
+      css: a[href="annot-tsv.html"]:visible
+  answer: ''
+  wrong: []
+- id: htslib-bcftools
+  start_url: https://www.htslib.org/
+  goal: Which two variant file formats does the bcftools manual say it manipulates?
+  tags:
+  - multistep
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://www\.htslib\.org/doc/bcftools\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/htslib-bcftools.zip
+  path:
+  - click:
+      css: a[href="/doc"]:visible
+      nth: 1
+  - click:
+      css: a[href="bcftools.html"]:visible
+  answer: VCFs and BCFs.
+  wrong: []
+  answer_regex: VCF[\s\S]*BCF
+- id: htslib-htsfile
+  start_url: https://www.htslib.org/
+  goal: Which three sequencing data formats can htsfile identify?
+  tags:
+  - multistep
+  max_steps: 5
+  check:
+    url_regex: ^https://www\.htslib\.org/doc/htsfile\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/htslib-htsfile.zip
+  path:
+  - click:
+      css: a[href="/doc"]:visible
+      nth: 1
+  - click:
+      css: a[href="htsfile.html"]:visible
+  answer: SAM, BAM and CRAM.
+  wrong: []
+  answer_regex: SAM[\s\S]*BAM[\s\S]*CRAM
+- id: babeltrace-babeltrace2-sink
+  start_url: https://babeltrace.org/
+  goal: Which parameter makes the Babeltrace pretty-printing sink write to a file instead of standard output?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://babeltrace\.org/docs/v2\.1/man7/babeltrace2\-sink\.text\.pretty\.7/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/babeltrace-babeltrace2-sink.zip
+  path:
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-intro.7"]:visible
+  - click:
+      css: a[href="/docs/v2.1/man1/babeltrace2.1"]:visible
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-sink.text.pretty.7/#doc-param-verbose"]:visible
+  answer: The path parameter.
+  wrong: []
+  answer_regex: \bpath\b
+- id: babeltrace-babeltrace2-source
+  start_url: https://babeltrace.org/
+  goal: Find the Babeltrace 2 source-component reference for reading CTF traces from a file system.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://babeltrace\.org/docs/v2\.1/man7/babeltrace2\-source\.ctf\.fs\.7/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/babeltrace-babeltrace2-source.zip
+  path:
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-intro.7"]:visible
+  - click:
+      css: a[href="/docs/v2.1/man1/babeltrace2-convert.1"]:visible
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-source.ctf.fs.7/#doc-param-inputs"]:visible
+  answer: ''
+  wrong: []
+- id: open-mpi-index
+  start_url: https://www.open-mpi.org/
+  goal: Find the Open MPI 5.0 developer guide for exploring the implementation internals.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://docs\.open\-mpi\.org/en/v5\.0\.x/developers/index\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/open-mpi-index.zip
+  path:
+  - click:
+      css: a[href="./doc/"]:visible
+  - click:
+      css: a[href="https://docs.open-mpi.org/en/v5.0.x"]:visible
+  - click:
+      css: a[href="developers/index.html"]:visible
+  answer: ''
+  wrong: []
+- id: open-mpi-index-3
+  start_url: https://www.open-mpi.org/
+  goal: Where are Open MPI manual pages installed by default?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://docs\.open\-mpi\.org/en/v5\.0\.x/man\-openmpi/index\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/open-mpi-index-3.zip
+  path:
+  - click:
+      css: a[href="https://docs.open-mpi.org/"]:visible
+  - click:
+      css: a[href="man-openmpi/index.html"]:visible
+  answer: $prefix/share/man.
+  wrong: []
+  answer_regex: \$prefix/share/man
+- id: lttng-v2
+  start_url: https://lttng.org/
+  goal: What does the abbreviation LTTng expand to?
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://lttng\.org/man/1/lttng/v2\.16/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/lttng-v2.zip
+  path:
+  - click:
+      css: a[href="/features/"]:visible
+  - click:
+      css: a[href="/man/"]:visible
+  - click:
+      css: a[href="/man/1/lttng/v2.16"]:visible
+  answer: 'Linux Trace Toolkit: next generation.'
+  wrong: []
+  answer_regex: Linux Trace Toolkit
+- id: lttng-v2-3
+  start_url: https://lttng.org/
+  goal: Find the LTTng command manual for adding context fields to recorded event records.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://lttng\.org/man/1/lttng\-add\-context/v2\.16/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/lttng-v2-3.zip
+  path:
+  - click:
+      css: a[href="/features/"]:visible
+  - click:
+      css: a[href="/man/"]:visible
+  - click:
+      css: a[href="/man/1/lttng-add-context/v2.16"]:visible
+  answer: ''
+  wrong: []
+- id: tcl-lang-tcl0
+  start_url: https://www.tcl-lang.org/
+  goal: In the Tcl tutorial introduction, which Unix command opens the reference for the while command?
+  tags:
+  - multistep
+  max_steps: 6
+  check:
+    url_regex: ^https://www\.tcl\-lang\.org/man/tcl8\.5/tutorial/Tcl0\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/tcl-lang-tcl0.zip
+  path:
+  - click:
+      css: a[href="/doc/"]:visible
+  - click:
+      css: a[href="/man/tcl8.5/tutorial/tcltutorial.html"]:visible
+  - click:
+      css: a[href="Tcl0.html"]:visible
+  answer: man while.
+  wrong: []
+  answer_regex: man\s+while
+- id: typst-accessibility
+  start_url: https://typst.app/
+  goal: Which two Typst export formats produce accessible files?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://typst\.app/docs/guides/accessibility/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/typst-accessibility.zip
+  path:
+  - click:
+      css: a[href="/docs/"]:visible
+  - click:
+      css: a[href="/docs/guides/"]:visible
+  - click:
+      css: a[href="/docs/guides/accessibility/"]:visible
+  answer: PDF and HTML.
+  wrong: []
+  answer_regex: PDF[\s\S]*HTML
+- id: elv-arguments-and-outputs
+  start_url: https://elv.sh/
+  goal: Find the Elvish lesson explaining how quoting changes the arguments passed to echo.
+  tags:
+  - multistep
+  - vague
+  max_steps: 6
+  check:
+    url_regex: ^https://elv\.sh/learn/arguments\-and\-outputs\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/elv-arguments-and-outputs.zip
+  path:
+  - click:
+      css: a[href="./learn/"]:visible
+  - click:
+      css: a[href="../learn/first-commands.html"]:visible
+  - click:
+      css: a[href="arguments-and-outputs.html"]:visible
+  answer: ''
+  wrong: []
+- id: breezy-vcs-upgrade-guide
+  start_url: https://breezy-vcs.org/
+  goal: Find the Breezy guide to upgrading the software and migrating repository formats.
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 6
+  check:
+    url_regex: ^https://breezy\-vcs\.org/doc/en/upgrade\-guide/index\.html/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/breezy-vcs-upgrade-guide.zip
+  path:
+  - click:
+      css: a[href="https://breezy-vcs.org/doc/en/tutorials/tutorial.html"]:visible
+  - click:
+      css: a[href="../user-guide/index.html"]:visible
+  - click:
+      css: a[href="../upgrade-guide/index.html"]:visible
+  answer: ''
+  wrong: []
+- id: nickel-lang-types-vs-contracts
+  start_url: https://nickel-lang.org/
+  goal: For reusable functions, does Nickel generally recommend type annotations or contracts?
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://nickel\-lang\.org/user\-manual/types\-vs\-contracts/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/nickel-lang-types-vs-contracts.zip
+  path:
+  - click:
+      css: a[href="/user-manual/"]:visible
+  - click:
+      css: a[href="/user-manual/types-vs-contracts"]:visible
+  answer: Type annotations.
+  wrong: []
+  answer_regex: type annotation
+- id: babeltrace-lttng-live
+  start_url: https://babeltrace.org/
+  goal: How many output ports does a Babeltrace LTTng live source component have?
+  tags:
+  - multistep
+  - vague
+  - long
+  max_steps: 5
+  check:
+    url_regex: ^https://babeltrace\.org/docs/v2\.1/man7/babeltrace2\-source\.ctf\.lttng\-live\.7/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/babeltrace-lttng-live.zip
+  path:
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-intro.7"]:visible
+  - click:
+      css: a[href="/docs/v2.1/man7/babeltrace2-source.ctf.lttng-live.7"]:visible
+  answer: A single output port.
+  wrong: []
+  answer_regex: single output port|one output port|1 output port
+- id: ledger-cli-cpp-api
+  start_url: https://ledger-cli.org/
+  goal: Find the reference documentation for the Ledger C++ API.
+  tags:
+  - multistep
+  - vague
+  max_steps: 5
+  check:
+    url_regex: ^https://ledger\-cli\.org/doc/api/?(?:\?[^#]*)?(?:#.*)?$
+  har: data/bench_v3/har/ledger-cli-cpp-api.zip
+  path:
+  - click:
+      css: a[href="/docs.html"]:visible
+  - click:
+      css: a[href="doc/api"]:visible
+  answer: ''
+  wrong: []

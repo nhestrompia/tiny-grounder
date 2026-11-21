@@ -4,6 +4,9 @@
     uv run python -m tools.bench_v2 verify [--tasks-file demo/tasks_v2.yaml] [--ids a b]
     uv run python -m tools.bench_v2 manifest
 
+Use --out data/bench_v3 with a different --tasks-file to keep its manifest and verify results separate.
+--har-dir overrides the fallback for tasks without an explicit har field.
+
 Each task in the tasks file carries, besides what `demo.browser.Task` reads, the scripted solution used here:
 
     path:   [step, ...]      the correct route from start_url (record: drives the live site; verify: replays it)
@@ -228,13 +231,21 @@ def verify_task(task: Task, raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global HAR_DIR
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("command", choices=["record", "verify", "sanitize", "manifest"])
     p.add_argument("--tasks-file", type=Path, default=TASKS_V2)
+    p.add_argument("--out", type=Path, default=VERIFY_FILE.parent, help="snapshot root: har/, manifest.json, verify.json")
+    p.add_argument("--har-dir", type=Path, help="override snapshot directory")
     p.add_argument("--ids", nargs="+")
     p.add_argument("--results", type=Path, default=VERIFY_FILE, help="verify: results file (merged with what it holds)")
     p.add_argument("--branches", type=int, default=6, help="record: same-site links of the start page to visit as wrong branches")
     args = p.parse_args(argv)
+    args.tasks_file = args.tasks_file.resolve()
+    HAR_DIR = args.har_dir or args.out / "har"
+    HAR_DIR.mkdir(parents=True, exist_ok=True)
+    if args.results == VERIFY_FILE:
+        args.results = args.out / "verify.json"
     raws = {r["id"]: r for r in load_raw(args.tasks_file)}
     tasks = [t for t in parse_tasks(list(raws.values())) if not args.ids or t.id in args.ids]
     if args.command == "manifest":
