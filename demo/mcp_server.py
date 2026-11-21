@@ -396,7 +396,7 @@ class BenchServer:
     def _t_read(self, query: str, budget: int = 400) -> str:
         passages = self._passages()
         start = time.perf_counter()
-        result = read_passages(query, passages, budget)
+        result = read_passages(query, passages, budget, self.digest.ranker)
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
 

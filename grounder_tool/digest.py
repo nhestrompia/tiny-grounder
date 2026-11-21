@@ -82,7 +82,7 @@ def observe(
         lines.append(outline)
         used += len(outline) + 1
     text_used = 0
-    for passage, _ in rank_passages(goal or page.title, passages or []):
+    for passage, _ in rank_passages(goal or page.title, passages or [], ranker):
         line = passage_line(passage)
         cost = len(line) + 1
         if text_used + cost > int(cap * 0.30):
@@ -187,11 +187,20 @@ def inspect(
     return "\n".join(lines)
 
 
-def rank_passages(query: str, passages: list[Passage]) -> list[tuple[Passage, float]]:
-    """Use exact/BM25 lexical scoring in every arm; ties retain document order."""
+def rank_passages(query: str, passages: list[Passage], ranker: Ranker | None = None) -> list[tuple[Passage, float]]:
+    """Rank passages for the query; ties retain document order.
+
+    Without a ranker this is exact/BM25 lexical scoring and drops zero-score passages. With one, the ranker
+    decides the order (model/blend scores are logits or probabilities, not lexical match counts, so they are
+    not thresholded); lexical rankers keep the score > 0 drop."""
     elements = [Element(i, "text", p.text, p.heading) for i, p in enumerate(passages)]
-    ranked = lexical_rank(query, elements)
-    return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
+    if ranker is None:
+        ranked = lexical_rank(query, elements)
+        return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
+    ranked = ranker.rank(query, elements, "goal")
+    if getattr(ranker, "name", "") in ("exact", "bm25"):
+        return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
+    return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores)]
 
 
 def passage_line(passage: Passage) -> str:
@@ -199,12 +208,12 @@ def passage_line(passage: Passage) -> str:
     return f"> {_clip(passage.text, 300)}{heading}"
 
 
-def read(query: str, passages: list[Passage], budget: int = 400) -> str:
+def read(query: str, passages: list[Passage], budget: int = 400, ranker: Ranker | None = None) -> str:
     """Return relevant text with an intact count footer within the clamped budget."""
     cap = max(MIN_BUDGET, min(MAX_BUDGET, budget)) * 4
     lines: list[str] = []
     used = 0
-    for passage, _ in rank_passages(query, passages):
+    for passage, _ in rank_passages(query, passages, ranker):
         line = passage_line(passage)
         footer = f"showing {len(lines) + 1} of {len(passages)} passages"
         if used + len(line) + 1 + len(footer) <= cap:
