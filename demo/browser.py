@@ -7,6 +7,8 @@ this module only adds id addressing on top of it.
 from __future__ import annotations
 
 import re
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -177,7 +179,7 @@ class BrowserSession:
     """
 
     def __init__(self, start_url: str, headless: bool = True, har: str | Path | None = None, replay_miss: str = "stub",
-                 record_har: str | Path | None = None) -> None:
+                 record_har: str | Path | None = None, cdp: bool = False) -> None:
         self.replay: Replay | None = Replay() if har else None
         self._playwright = sync_playwright().start()
         try:
@@ -189,10 +191,26 @@ class BrowserSession:
             if record_har:
                 ctx.update(record_har_path=str(record_har), record_har_content="attach", record_har_mode="full",
                            service_workers="block", record_har_url_filter=RECORD_URL_FILTER)
+            if cdp:
+                import socket
+                with socket.socket() as sock:
+                    sock.bind(("127.0.0.1", 0))
+                    port = sock.getsockname()[1]
+                launch["args"] = [f"--remote-debugging-port={port}", "--remote-debugging-address=127.0.0.1"]
+                self.cdp_endpoint = f"http://127.0.0.1:{port}"
             self._browser = self._playwright.chromium.launch(**launch)
             self.context = self._browser.new_context(**ctx)
             if har:
                 self._install_replay(Path(har), replay_miss)
+            if cdp:
+                # External new tabs can miss Playwright's context routes. Keep all navigation on the routed page.
+                self.context.add_init_script("""(() => {
+                  window.open = (url) => { if (url) window.location.assign(url); return window; };
+                  document.addEventListener('click', event => {
+                    const a = event.target.closest && event.target.closest('a[target]');
+                    if (a) a.removeAttribute('target');
+                  }, true);
+                })();""")
             self.page = self.context.new_page()
             self.page.set_default_timeout(NAV_TIMEOUT_MS)
             self._guard(lambda: self.page.goto(start_url, wait_until="load"))
@@ -245,13 +263,22 @@ class BrowserSession:
         except PlaywrightError as exc:
             raise ToolError(str(exc).splitlines()[0]) from exc
 
+    @contextmanager
+    def overhead(self, field):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            setattr(self, field, getattr(self, field, 0.0) + (time.perf_counter() - start) * 1000)
+
     def _settle(self) -> None:
         """Let a navigation triggered by the last action finish; a page that never settles is not an error."""
-        try:
-            self.page.wait_for_load_state("load", timeout=10_000)
-        except PlaywrightError:
-            pass
-        self.page.wait_for_timeout(SETTLE_MS)
+        with self.overhead("settle_ms"):
+            try:
+                self.page.wait_for_load_state("load", timeout=10_000)
+            except PlaywrightError:
+                pass
+            self.page.wait_for_timeout(SETTLE_MS)
 
     @property
     def url(self) -> str:
@@ -314,12 +341,13 @@ class BrowserSession:
 
     def click(self, element_id: int) -> Element:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
-        element = self._element(element_id)
-        if word := ph.blocked_word(element):
-            raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
-        if not element.enabled:
-            raise ToolError("refused: the element is disabled")
-        probe = self._locate(element, click_action=True)
+        with self.overhead("safety_ms"):
+            element = self._element(element_id)
+            if word := ph.blocked_word(element):
+                raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
+            if not element.enabled:
+                raise ToolError("refused: the element is disabled")
+            probe = self._locate(element, click_action=True)
         self._guard(lambda: self.page.mouse.click(probe["x"], probe["y"]))
         self._settle()
         return element
@@ -327,12 +355,13 @@ class BrowserSession:
     def type_text(self, element_id: int, text: str, press_enter: bool) -> Element:
         """Focus a text field by clicking it, replace its content with `text`, optionally press Enter. Returns the
         element."""
-        element = self._element(element_id)
-        if element.role not in ph.TYPEABLE_ROLES:
-            raise ToolError(f"element {element_id} is a {element.role}, not a text field")
-        if not element.enabled:
-            raise ToolError("refused: the element is disabled")
-        probe = self._locate(element, click_action=False)
+        with self.overhead("safety_ms"):
+            element = self._element(element_id)
+            if element.role not in ph.TYPEABLE_ROLES:
+                raise ToolError(f"element {element_id} is a {element.role}, not a text field")
+            if not element.enabled:
+                raise ToolError("refused: the element is disabled")
+            probe = self._locate(element, click_action=False)
 
         def act() -> None:
             self.page.mouse.click(probe["x"], probe["y"])

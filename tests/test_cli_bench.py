@@ -92,6 +92,10 @@ def test_grounder_configs_navigate_and_log(make, config: str) -> None:
     calls = [e for e in events if e["type"] == "call"]
     assert [c["name"] for c in calls] == [("find" if config == "find" else "snapshot"), "click"] * 2 + ["done"]
     assert summary["tool_chars"] == sum(c["chars"] for c in calls) > 0
+    for key in ("safety_ms", "settle_ms", "proxy_ms", "harness_overhead_ms"):
+        assert summary[key] == pytest.approx(sum(c[key] for c in calls) + (summary["startup_settle_ms"] if key in ("settle_ms", "harness_overhead_ms") else 0))
+    assert summary["safety_ms"] > 0 and summary["settle_ms"] >= 1000
+    assert summary["proxy_ms"] == 0
     assert all("image_bytes" not in c for c in calls)
 
 
@@ -223,7 +227,7 @@ def test_vision_refusals_and_bounds(make) -> None:
 # ---- MCP surface ------------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("config", mcp_server.BENCH_CONFIGS)
+@pytest.mark.parametrize("config", [c for c in mcp_server.BENCH_CONFIGS if c not in mcp_server.COMPETITOR_CONFIGS])
 def test_mcp_exposes_exactly_the_config_tools(config: str) -> None:
     app = mcp_server.build_mcp(config, lambda name, **kw: "ok")
     names = [t.name for t in asyncio.run(app.list_tools())]

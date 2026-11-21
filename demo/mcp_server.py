@@ -68,7 +68,9 @@ from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET, read as read_passages
 from grounder_tool.rankers import Ranker as DigestRanker, make_ranker as make_digest_ranker
 
 SERVER_NAME = "ui"
-BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap", "find+observe")
+from demo.competitor_specs import COMPETITOR_CONFIGS, COMPETITOR_HINTS, competitor_tools
+
+BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap", "find+observe", *COMPETITOR_CONFIGS)
 A11Y_CAP_CHARS = 20_000
 A11Y_CONFIGS = ("a11y", "a11y-cap")
 ACTION_TOOLS = ("click", "type", "go_back", "click_xy", "type_text", "scroll")
@@ -81,6 +83,7 @@ IMAGE_PX_PER_TOKEN = 750  # Anthropic's rule of thumb: tokens ~ width * height /
 _REF_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 
 CONFIG_HINTS: dict[str, str] = {
+    **COMPETITOR_HINTS,
     "find+observe": "Call observe() for a compact goal-aware digest, find(query) for other controls, "
     "read(query) for facts in page text, and inspect(id=...) or inspect(region=...) for detail. "
     "Actions return a fresh digest of the new page.",
@@ -156,6 +159,8 @@ def tools_for(config: str) -> tuple[str, ...]:
     """Names of the MCP tools a configuration exposes."""
     if config not in BENCH_CONFIGS:
         raise ValueError(f"unknown config {config!r}; choose from {', '.join(BENCH_CONFIGS)}")
+    if config in COMPETITOR_CONFIGS:
+        return competitor_tools(config)
     return {
         "find+observe": ("find", "observe", "inspect", "read", "click", "type", "go_back", "done"),
         "full": ("snapshot", "click", "type", "go_back", "done"),
@@ -223,6 +228,11 @@ class BenchServer:
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = self.log_path.open("a", encoding="utf-8")
+        # Include the initial owner settle in run totals, outside individual calls.
+        self.session.safety_ms = getattr(self.session, "safety_ms", 0.0)
+        self.session.settle_ms = getattr(self.session, "settle_ms", 0.0)
+        self.startup_settle_ms = self.session.settle_ms
+        self.proxy_ms = 0.0
         self.started = time.perf_counter()
         self.calls = 0
         self.steps = 0
@@ -251,6 +261,12 @@ class BenchServer:
         self._fh.write(json.dumps(event, ensure_ascii=False) + "\n")
         self._fh.flush()
 
+    def overhead_totals(self):
+        safety = getattr(self.session, "safety_ms", 0.0)
+        settle = getattr(self.session, "settle_ms", 0.0)
+        return dict(safety_ms=safety, settle_ms=settle, proxy_ms=self.proxy_ms,
+                    harness_overhead_ms=safety + settle + self.proxy_ms)
+
     def summary(self, reason: str) -> dict[str, Any]:
         try:
             url = self.session.url
@@ -263,6 +279,8 @@ class BenchServer:
         answer_ok = answer_matches(self.answer_regex, self.answer if self.done_called else "")
         replay = getattr(self.session, "replay", None)
         return {
+            **self.overhead_totals(),
+            "startup_settle_ms": self.startup_settle_ms,
             "type": "summary", "reason": reason, "task_id": self.task_id, "config": self.config, "goal": self.goal,
             "success": check_ok and answer_ok, "check_ok": check_ok, "answer_ok": answer_ok,
             "answer_regex": self.answer_regex, "done_called": self.done_called, "answer": self.answer, "final_url": url,
@@ -291,6 +309,7 @@ class BenchServer:
         if name not in tools_for(self.config):
             raise ToolError(f"unknown tool {name!r}")
         self.extract_ms = self.rank_ms = 0.0
+        before = self.overhead_totals()
         t0 = time.perf_counter()
         event: dict[str, Any] = {"type": "call", "n": self.calls + 1, "name": name, "args": args}
         try:
@@ -308,10 +327,12 @@ class BenchServer:
             self.chars += len(text)
             self._log({**event, "n": self.calls, "is_error": True, "chars": len(text), "result": text[:RESULT_LOG_CHARS],
                        "ms": round((time.perf_counter() - t0) * 1000),
-                       "extract_ms": self.extract_ms, "rank_ms": self.rank_ms})
+                       "extract_ms": self.extract_ms, "rank_ms": self.rank_ms,
+                       **{k: v - before[k] for k, v in self.overhead_totals().items()}})
             raise ToolError(text) from exc
         text, png = (out, None) if isinstance(out, str) else out
         self.chars += len(text)
+        event.update({k: v - before[k] for k, v in self.overhead_totals().items()})
         event.update(extract_ms=self.extract_ms, rank_ms=self.rank_ms)
         event.update(is_error=False, chars=len(text), result=text[:RESULT_LOG_CHARS], ms=round((time.perf_counter() - t0) * 1000))
         if png is not None:
@@ -423,23 +444,25 @@ class BenchServer:
         return loc.first
 
     def _click_ref(self, ref: str) -> str:
-        loc = self._ref(ref)
-        facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
-        if word := ph.blocked_text(facts["label"]):
-            raise ToolError(f"refused: risky: the element mentions the blocked word {word!r}")
-        if facts["submit"]:
-            raise ToolError("refused: risky: the element submits a form")
+        with self.session.overhead("safety_ms"):
+            loc = self._ref(ref)
+            facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
+            if word := ph.blocked_text(facts["label"]):
+                raise ToolError(f"refused: risky: the element mentions the blocked word {word!r}")
+            if facts["submit"]:
+                raise ToolError("refused: risky: the element submits a form")
         self.session._guard(lambda: loc.click(timeout=10_000))
         self.session._settle()
         return f"clicked {facts['tag']} {facts['label']!r}"
 
     def _type_ref(self, ref: str, text: str, press_enter: bool) -> str:
-        loc = self._ref(ref)
-        facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
-        if not facts["editable"]:
-            raise ToolError(f"ref {ref} is a {facts['tag']}, not a text field")
-        if facts["password"]:
-            raise ToolError("refused: the element is a password field")
+        with self.session.overhead("safety_ms"):
+            loc = self._ref(ref)
+            facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
+            if not facts["editable"]:
+                raise ToolError(f"ref {ref} is a {facts['tag']}, not a text field")
+            if facts["password"]:
+                raise ToolError("refused: the element is a password field")
         page = self.session.page
 
         def act() -> None:
@@ -498,24 +521,26 @@ class BenchServer:
         vw, vh = page.viewport_size["width"], page.viewport_size["height"]
         if not (0 <= x < vw and 0 <= y < vh):
             raise ToolError(f"({x}, {y}) is outside the {vw}x{vh} screenshot")
-        facts = self.session._guard(lambda: page.evaluate(_POINT_FACTS_JS, [x, y]))
-        if facts is None:
-            raise ToolError("nothing at that point")
-        if word := ph.blocked_text(facts["label"]):
-            raise ToolError(f"refused: risky: the element at that point mentions the blocked word {word!r}")
-        if facts["submit"]:
-            raise ToolError("refused: risky: the element at that point submits a form")
+        with self.session.overhead("safety_ms"):
+            facts = self.session._guard(lambda: page.evaluate(_POINT_FACTS_JS, [x, y]))
+            if facts is None:
+                raise ToolError("nothing at that point")
+            if word := ph.blocked_text(facts["label"]):
+                raise ToolError(f"refused: risky: the element at that point mentions the blocked word {word!r}")
+            if facts["submit"]:
+                raise ToolError("refused: risky: the element at that point submits a form")
         self.session._guard(lambda: page.mouse.click(x, y))
         self.session._settle()
         return self._after(f"clicked at ({x:g}, {y:g})")
 
     def _t_type_text(self, text: str, press_enter: bool = False) -> str | tuple[str, bytes]:
         page = self.session.page
-        facts = self.session._guard(lambda: page.evaluate(_FOCUS_FACTS_JS))
-        if facts is None or not facts["editable"]:
-            raise ToolError("no text field is focused; click on one first")
-        if facts["password"]:
-            raise ToolError("refused: the element is a password field")
+        with self.session.overhead("safety_ms"):
+            facts = self.session._guard(lambda: page.evaluate(_FOCUS_FACTS_JS))
+            if facts is None or not facts["editable"]:
+                raise ToolError("no text field is focused; click on one first")
+            if facts["password"]:
+                raise ToolError("refused: the element is a password field")
 
         def act() -> None:
             page.keyboard.press("ControlOrMeta+A")
@@ -531,7 +556,8 @@ class BenchServer:
     def _t_scroll(self, dy: float) -> str | tuple[str, bytes]:
         page = self.session.page
         self.session._guard(lambda: page.mouse.wheel(0, dy))
-        page.wait_for_timeout(SCROLL_SETTLE_MS)
+        with self.session.overhead("settle_ms"):
+            page.wait_for_timeout(SCROLL_SETTLE_MS)
         return self._after(f"scrolled by {dy:g}px")
 
 
@@ -575,6 +601,8 @@ def build_mcp(config: str, call: Any) -> Any:
     """A FastMCP app exposing `tools_for(config)`; `call(name, **args)` runs a handler (on the browser thread)."""
     from mcp.server.fastmcp import FastMCP, Image
 
+    if config in COMPETITOR_CONFIGS:
+        raise ValueError("competitor tools are built dynamically by demo.competitors.Proxy")
     mcp = FastMCP(SERVER_NAME, instructions=CONFIG_HINTS[config])
 
     def out(result: str | tuple[str, bytes]) -> Any:
@@ -703,6 +731,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.config in COMPETITOR_CONFIGS:
+        from demo.competitors import main as competitor_main
+        return competitor_main(args)
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser")
 
     def build() -> BenchServer:

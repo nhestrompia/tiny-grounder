@@ -306,6 +306,14 @@ def foreign(agent_tools: list[str]) -> list[str]:
     return [t for t in agent_tools if not t.startswith(ours)]
 
 
+def run_overhead(summary, calls, wall):
+    fields = {key: summary.get(key, sum(c.get(key, 0.0) for c in calls))
+              for key in ("safety_ms", "settle_ms", "proxy_ms")}
+    total = sum(fields.values())
+    return {**fields, "harness_overhead_ms": total,
+            "wall_seconds_without_harness": max(0.0, wall - total / 1000)}
+
+
 def read_server_log(path: Path) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     """(summary or None, call events) of a server log."""
     summary, calls = None, []
@@ -429,8 +437,10 @@ def execute(agent: Agent, task: Task, config: str, repeat: int, out: Path, ranke
         "replay": bool(summary.get("replay")), "replay_requests": summary.get("replay_requests", 0),
         "replay_misses": summary.get("replay_misses", 0), "replay_network_failures": summary.get("replay_network_failures", 0),
         "replay_live_requests": summary.get("replay_live_requests", 0),
+        **({"competitor": summary["competitor"]} if "competitor" in summary else {}),
         **tokens,
         "answer": summary.get("answer", ""), "final_url": summary["final_url"], "wall_seconds": round(wall, 1),
+        **run_overhead(summary, calls, wall),
         "grounding_ms": sum(c.get("extract_ms", 0) + c.get("rank_ms", 0) for c in calls),
         "tool_calls": summary["calls"], "steps": summary["steps"], "tool_errors": summary.get("errors", 0),
         "tool_chars": summary["tool_chars"], "image_bytes": summary.get("image_bytes", 0), "images": summary.get("images", 0),
@@ -513,7 +523,10 @@ def main(argv: list[str] | None = None) -> int:
             done += 1
             print(f"[{done}/{total}] {rec['agent']} {rec['arm']} {rec['task_id']} #{rec['repeat']}: "
                   f"{'ok' if rec['success'] else 'FAIL'} calls={rec['tool_calls']} chars={rec['tool_chars']} "
-                  f"in={rec.get('input_tokens')} {rec['wall_seconds']}s {rec.get('agent_error', '')[:80]}"
+                  f"in={rec.get('input_tokens')} {rec['wall_seconds']}s "
+                  f"safety_ms={rec['safety_ms']:.1f} settle_ms={rec['settle_ms']:.1f} "
+                  f"proxy_ms={rec['proxy_ms']:.1f} adjusted={rec['wall_seconds_without_harness']:.2f}s "
+                  f"{rec.get('agent_error', '')[:80]}"
                   f"{' FOREIGN=' + ','.join(rec[FOREIGN_NOTE]) if rec[FOREIGN_NOTE] else ''}", file=sys.stderr)
     from demo.cli_report import write_results
 

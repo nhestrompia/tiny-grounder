@@ -34,6 +34,7 @@ datasets-convert = [
 demo = [
     "anthropic>=2",
     "mcp>=1.2,<2",
+    "pillow>=11",
     "playwright>=1.45",
     "pyyaml>=6",
     "rank-bm25>=0.2.2",
