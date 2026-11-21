@@ -57,7 +57,33 @@
 - **Clicked element is a weak label.** The element an agent clicked is its own choice, influenced by the list it was shown, so it isn't ground-truth top-1.
 - **GUIrilla is report-only.** Its licence excludes commercial benchmarking, so it must never pick weights, thresholds or the shipped model size.
 
-## Plan v3: perception for frontier agents (current, 2026-11-21)
+## Plan v4: beat the existing tools, then make the model earn its place (current, 2026-11-21)
+
+Plan v3 passed against a weak baseline ([results-v3.md](results-v3.md)): keyword `observe` (B) kept pooled success
+within 1.3 points, cut tool output 7× and Claude cost 3×, at median latency parity. The model arm (C) failed against
+B. Compact, goal-directed views already exist in Playwright MCP (`browser_find`, depth-limited and subtree snapshots)
+and agent-browser (`snapshot -i -c`). A small element ranker is prior art too (MindAct, LCoW, Prune4Web). The claim
+therefore has to be relative to those tools.
+
+1. **Competitor benchmark** ([competitors.md](competitors.md)). The real pinned binaries attach over CDP to the same
+   replayed browser: `pw-mcp`, `pw-mcp-compact`, `agent-browser`, B, and `pw-mcp+observe` (Playwright executes,
+   tiny-grounder supplies the view). It uses the same 134 tasks and 4 agents, with every tool output measured by our
+   server.
+   - Gate: cost per success and total input tokens below the **best** competitor arm, with success non-inferior and
+     median latency no worse.
+   - Deliverable: a Pareto chart of cost per success against success rate.
+2. **A harder task slice** where selection matters: 8–15-step sessions (snapshot accumulation), commerce and app-like
+   pages, icon-only controls, and vague goals. Docs sites favour keywords.
+3. **Model work, aimed at the measured failures.** Each item is gated offline (next-step recall at a fixed budget, on
+   held-out sites) before any agent run:
+   - Distil from frontier traces. The elements a full-view agent clicked and the passages it quoted are labels.
+   - Add a confidence or sufficiency head so the digest is small when confident and widens otherwise. This targets
+     the one extra tool call per run that B makes.
+   - Rank text passages with the model. They are keyword-only today.
+4. **If the model still does not beat keywords on the hard slice**, ship tiny-grounder as deterministic perception
+   middleware and drop the model claim.
+
+## Plan v3: perception for frontier agents (completed 2026-11-21; see results-v3.md)
 
 **Milestone:** a frontier agent completes the same multi-step task with substantially fewer tokens, no worse
 latency and comparable reliability, compared with its best default way of seeing the page. Ranking accuracy and

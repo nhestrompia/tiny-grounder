@@ -3,7 +3,19 @@
 Updated 2026-11-21, after Plan v2.1. Full numbers are in [results-v2.md](results-v2.md); the next plan is in
 [improvement-plan.md](improvement-plan.md).
 
-## 1. Bottom line
+## 0. Update after the Plan v3 milestone (2026-11-21)
+
+- **Ship `observe` with keyword ranking (B).**
+  - On 134 multistep tasks, 4 agents and 1,608 runs, pooled success is within 1.3 points of a capped snapshot
+    [−5.9, +3.0].
+  - Tool output is 7× smaller, total input 28% lower and Claude cost 3× lower, at median latency parity.
+  - Claude agents hold or gain success. GPT-6 Luna loses 8 points.
+  - Details: [results-v3.md](results-v3.md).
+- **The model does not ship in `observe` either.** C ≈ B on every measure.
+- **No competitive claim yet.** The baseline is weaker than Playwright MCP's or agent-browser's compact modes. Plan v4
+  benchmarks against the real tools ([competitors.md](competitors.md)).
+
+## 1. Bottom line (Plan v2.1)
 
 - **The tool is the win: a compact `find(query)` instead of page dumps or screenshots.**
   - On 66 frozen, held-out web tasks, it returned about **600 tool tokens per successful task**, against 11–16k for screenshots or a capped accessibility snapshot. That is roughly 25× less.
