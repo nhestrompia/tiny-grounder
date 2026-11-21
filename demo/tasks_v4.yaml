@@ -231,7 +231,7 @@
   answer_regex: "790"
 - id: saucedemo-checkout-remove-item
   start_url: https://www.saucedemo.com/
-  goal: Put two items in the cart, take one back out, then take the other through checkout to the order overview.
+  goal: Put the backpack and the bike light in the cart, take the bike light back out, then take the backpack through checkout to the order overview.
   tags: [multistep, app, icon, vague]
   max_steps: 16
   allow_actions: true
