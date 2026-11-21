@@ -55,7 +55,7 @@
       css: a[href="structbr__hmac__key__context.html"]:visible
   answer: No. Initialization and use incur no dynamic allocation.
   wrong: []
-  answer_regex: no dynamic allocation
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:allocat|malloc|heap))"
 - id: bearssl-structbr-hkdf-context
   start_url: https://bearssl.org/
   goal: What two inputs initialize the BearSSL HKDF context?
@@ -76,7 +76,7 @@
       css: a[href="structbr__hkdf__context.html"]:visible
   answer: A hash function implementation and a salt value.
   wrong: []
-  answer_regex: hash function implementation and a salt
+  answer_regex: "(?=[\\s\\S]*\\bhash)(?=[\\s\\S]*\\bsalt)"
 - id: bearssl-structbr-rsa-public-key
   start_url: https://bearssl.org/
   goal: Find the BearSSL structure reference that describes the public part of an RSA key.
@@ -115,7 +115,7 @@
       css: a[href="zipcmp/"]:visible
   answer: File order and compressed size differences.
   wrong: []
-  answer_regex: file order and compressed size
+  answer_regex: "(?=[\\s\\S]*\\border)(?=[\\s\\S]*compress)"
 - id: libzip-coding
   start_url: https://libzip.org/
   goal: Which version of the C language does libzip ask contributors to use?
@@ -294,7 +294,7 @@
       css: a[href="Ref7_evbuffer.html"]:visible
   answer: A queue of bytes, optimized for adding at the end and removing from the front.
   wrong: []
-  answer_regex: queue of bytes
+  answer_regex: "queue|\\bfifo\\b"
 - id: libevent-structevent
   start_url: https://libevent.org/
   goal: Which Libevent function makes an event pending?
@@ -391,7 +391,7 @@
       css: a[href="./libssh2_agent_free.html"]:visible
   answer: The internal collection of public keys.
   wrong: []
-  answer_regex: internal collection of public keys
+  answer_regex: "public[\\s-]+keys?|identities"
 - id: libssh2-libssh2-agent-userauth
   start_url: https://libssh2.org/
   goal: Find the libssh2 function reference for authenticating a session using a public key from ssh-agent.
@@ -448,7 +448,7 @@
       css: a[href="guide/introduction.html"]:visible
   answer: Windows and Unix.
   wrong: []
-  answer_regex: Windows and Unix
+  answer_regex: "(?=[\\s\\S]*windows)(?=[\\s\\S]*(?:unix|posix))"
 - id: libuv-loop
   start_url: https://libuv.org/
   goal: Find the libuv API reference for creating and running the event loop.
@@ -591,7 +591,7 @@
       css: a[href="./checkin_names.wiki"]:visible
   answer: The hash of its manifest, expressed as a long lowercase hexadecimal number.
   wrong: []
-  answer_regex: hash[\s\S]{0,150}manifest
+  answer_regex: "(?=[\\s\\S]*hash)(?=[\\s\\S]*manifest)"
 - id: fossil-scm-style
   start_url: https://fossil-scm.org/home/doc/trunk/www/index.wiki
   goal: Find the coding conventions that apply when contributing source code to Fossil.
@@ -672,7 +672,7 @@
       css: a[href="cmds/fish_update_completions.html"]:visible
   answer: It parses installed manual pages.
   wrong: []
-  answer_regex: manual pages
+  answer_regex: "man(?:ual)?[\\s-]*pages?|\\bman\\b"
 - id: fishshell-commands
   start_url: https://fishshell.com/
   goal: Find the fish command index so I can look up individual shell builtins.
@@ -712,7 +712,7 @@
       css: a[href="../ref/doc.html"]:visible
   answer: Only builtin modules.
   wrong: []
-  answer_regex: builtin modules
+  answer_regex: "built[\\s-]?in"
 - id: elv-language
   start_url: https://elv.sh/
   goal: In the Elvish language specification, what is the word character a synonym for?
@@ -733,7 +733,7 @@
       css: a[href="../ref/language.html#bareword"]:visible
   answer: A Unicode codepoint or its UTF-8 encoding.
   wrong: []
-  answer_regex: Unicode codepoint
+  answer_regex: "code[\\s-]?point"
 - id: elv-str
   start_url: https://elv.sh/
   goal: Find the Elvish reference for manipulating strings.
@@ -773,7 +773,7 @@
       css: a[href="/docs/reference/model/document/"]:visible
   answer: It embeds metadata in the output, but it is not visibly rendered.
   wrong: []
-  answer_regex: not visibly rendered
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:render|visib|display|shown|appear|invisib|hidden))"
 - id: typst-for-latex-users
   start_url: https://typst.app/
   goal: When does the local Typst compiler download packages?
@@ -794,7 +794,7 @@
       css: a[href="/docs/guides/for-latex-users/"]:visible
   answer: Packages are downloaded when you first use them, then cached locally.
   wrong: []
-  answer_regex: when you first use them
+  answer_regex: "first\\s+(?:use|import|time|need)|on[\\s-]demand|when\\s+(?:\\w+\\s+){0,3}(?:use|import|need|referenc)\\w*"
 - id: typst-page-setup
   start_url: https://typst.app/
   goal: Find the Typst guide for adjusting paper size, margins, headers and footers.
@@ -997,7 +997,7 @@
       css: a[href="/book/default_shell.html"]:visible
   answer: Nu is not intended to be POSIX compliant.
   wrong: []
-  answer_regex: not intended to be POSIX compliant
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:posix))"
 - id: nushell-custom-commands
   start_url: https://www.nushell.sh/
   goal: Find the Nushell guide for saving reusable pipelines as your own commands.
@@ -1037,7 +1037,7 @@
       css: a[href="asciidoc/latest/attributes/document-attributes-ref/"]:visible
   answer: They configure behavior in the processor or relay information about the document and its environment.
   wrong: []
-  answer_regex: configure behavior[\s\S]*relay information
+  answer_regex: "(?=[\\s\\S]*configur)(?=[\\s\\S]*(?:relay|conve|provid|expos|communicat|supply|pass)\\w*[\\s\\S]{0,60}information)"
 - id: asciidoctor-install
   start_url: https://asciidoctor.org/
   goal: In what package format is the Ruby version of Asciidoctor published?
@@ -1136,7 +1136,7 @@
       css: a[href="doc/ledger.1.html"]:visible
   answer: No. It never modifies your data files.
   wrong: []
-  answer_regex: never modifies your data files
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:modif|chang|writ|alter|edit|touch|read))"
 - id: breezy-vcs-centralized-workflow
   start_url: https://breezy-vcs.org/
   goal: Find the Breezy tutorial for working through a central shared repository.
@@ -1177,7 +1177,7 @@
       css: a[href="code-style.html"]:visible
   answer: A self-contained one-sentence summary.
   wrong: []
-  answer_regex: self-contained one-sentence summary
+  answer_regex: "(?=[\\s\\S]*summar)(?=[\\s\\S]*sentence)"
 - id: breezy-vcs-whats-new-in-3
   start_url: https://breezy-vcs.org/
   goal: Which command replaced brz lp-propose in Breezy 3.2?
@@ -1292,7 +1292,7 @@
       css: a[href="modules.html"]:visible
   answer: No. They cannot be used in another submodule.
   wrong: []
-  answer_regex: cannot be used in another
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:module|another|other|shar))"
 - id: gnutls-faq
   start_url: https://gnutls.org/
   goal: Why does GnuTLS reject a server that offers a small Diffie-Hellman group?
@@ -1310,7 +1310,7 @@
       css: a[href="faq.html"]:visible
   answer: The server offers a small and insecure DH group.
   wrong: []
-  answer_regex: insecure DH group
+  answer_regex: "insecure|\\bweak|unsafe|vulnerab|not\\s+secure|logjam"
 - id: mruby-executing-ruby-code-with-mruby
   start_url: https://mruby.org/
   goal: Which program does the mruby execution guide use to evaluate Ruby code interactively?
@@ -1347,7 +1347,7 @@
       css: a[href="https://fennel-lang.org/values"]:visible
   answer: Fennel is a compiler with no runtime.
   wrong: []
-  answer_regex: compiler with no runtime
+  answer_regex: "^(?![\\s\\S]*(?:could\\s*n['\u2019o]t|unable\\s+to|cannot\\s+(?:find|verify|determine|confirm)|did\\s*n['\u2019o]t\\s+find|not\\s+(?:able|found|sure)|n['\u2019]t\\s+(?:find|verify|confirm|determine)))(?=[\\s\\S]*(?:\\b(?:no|not|never|cannot)\\b|n['\u2019]t\\b))(?=[\\s\\S]*(?:runtime))"
 - id: nickel-lang-tutorial
   start_url: https://nickel-lang.org/
   goal: Which export format is used for the list of users in the Nickel tutorial?
@@ -1425,7 +1425,7 @@
       css: a[href="/messages/"]:visible
   answer: As opaque binary data.
   wrong: []
-  answer_regex: opaque binary data
+  answer_regex: "opaque|binary|\\bblob"
 - id: zeromq-c
   start_url: https://zeromq.org/
   goal: Which two ZeroMQ library options are available to C developers?
@@ -1501,7 +1501,7 @@
       css: a[href="TechnicalIntroduction.html"]:visible
   answer: From top to bottom.
   wrong: []
-  answer_regex: top to bottom
+  answer_regex: "top\\s+(?:to|towards?)\\s+(?:the\\s+)?bottom|downward|increases?\\s+(?:going\\s+)?down"
 - id: openexr-readingandwritingimagefiles
   start_url: https://openexr.com/en/latest/
   goal: Find the OpenEXR guide to reading and writing image files with C++.
@@ -1695,7 +1695,7 @@
       css: a[href="/man/1/lttng/v2.16"]:visible
   answer: 'Linux Trace Toolkit: next generation.'
   wrong: []
-  answer_regex: Linux Trace Toolkit
+  answer_regex: "linux\\s+trac(?:e|ing)\\s+toolkit"
 - id: lttng-v2-3
   start_url: https://lttng.org/
   goal: Find the LTTng command manual for adding context fields to recorded event records.
@@ -1811,7 +1811,7 @@
       css: a[href="/user-manual/types-vs-contracts"]:visible
   answer: Type annotations.
   wrong: []
-  answer_regex: type annotation
+  answer_regex: "type[\\s-]*annotation|static\\s+types?"
 - id: babeltrace-lttng-live
   start_url: https://babeltrace.org/
   goal: How many output ports does a Babeltrace LTTng live source component have?

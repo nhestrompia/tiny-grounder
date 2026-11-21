@@ -122,3 +122,14 @@ uv run python -m tools.bench_coverage --logs runs/bench-v3-pilot/logs
 Full validation: `uv run pytest -q` passed with 645 tests in 139.32 seconds.
 
 Coverage section prose lint score: 0.94 findings per 100 words.
+
+## Answer-regex loosening (before the milestone run)
+
+The second pilot showed correct paraphrases failing literal answer regexes. Asciidoctor answers such as
+"configure the processor's behavior and convey information about the document" failed `configure behavior[\s\S]*relay information`.
+Before any milestone run, 23 phrase-literal regexes in both task files were replaced with key-concept conjunctions.
+For example, HKDF now needs `hash` and `salt` rather than the exact sentence.
+The six yes/no questions now need a negation and the topic word, plus a guard that rejects non-answers
+such as "I could not find" or "couldn't verify". Each new regex matches the task's reference answer and rejects four stock non-answers.
+Regrading both pilots (120 runs) with the new regexes changes exactly four runs. All four are correct Asciidoctor paraphrases, they move from fail to pass, and all are observe arms.
+Task ids, goals, paths, URL checks and snapshots are unchanged. The manifest hashes the updated task files.
