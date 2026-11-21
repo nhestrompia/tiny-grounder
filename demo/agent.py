@@ -113,6 +113,8 @@ class Ranker(Protocol):
 class BM25Ranker:
     """Fallback ranker for running the demo before a model exists; ignores the mode and the history."""
 
+    lexical = True
+
     def rank(
         self, query: str, elements: Sequence[Element], k: int = 5, mode: Mode = "do", history: list[str] | None = None
     ) -> dict[str, Any]:

@@ -32,6 +32,7 @@ def exact_bm25(query: str, elements: Sequence[Element]) -> Ranked:
 
 class BM25Ranker:
     name = "bm25"
+    lexical = True  # scores are match counts: passages with no term overlap are dropped by rank_passages
 
     def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
         from grounder.baselines.bm25 import rank_elements
@@ -43,6 +44,7 @@ class ExactRanker:
     """Keyword ranking against the supplied query or goal; lexical scores do not use history."""
 
     name = "exact"
+    lexical = True  # scores are match counts: passages with no term overlap are dropped by rank_passages
 
     def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
         return exact_bm25(query, elements)

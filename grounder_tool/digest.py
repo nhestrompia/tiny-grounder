@@ -193,13 +193,19 @@ def rank_passages(query: str, passages: list[Passage], ranker: Ranker | None = N
     Without a ranker this is exact/BM25 lexical scoring and drops zero-score passages. With one, the ranker
     decides the order (model/blend scores are logits or probabilities, not lexical match counts, so they are
     not thresholded); lexical rankers keep the score > 0 drop."""
+    if not passages:
+        return []
     elements = [Element(i, "text", p.text, p.heading) for i, p in enumerate(passages)]
     if ranker is None:
         ranked = lexical_rank(query, elements)
         return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
     ranked = ranker.rank(query, elements, "goal")
-    if getattr(ranker, "name", "") in ("exact", "bm25"):
-        return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
+    if getattr(ranker, "lexical", False):
+        # Raw BM25 scores can be negative even on a match, so the no-overlap gate uses the exact scorer's
+        # positive match bonus rather than the ranker's own score.
+        lex = lexical_rank(query, elements)
+        keep = {i for i, s in zip(lex.ids, lex.scores) if s > 0}
+        return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if i in keep]
     return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores)]
 
 

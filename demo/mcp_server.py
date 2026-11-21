@@ -180,6 +180,7 @@ class GoalRanker:
 
     def __init__(self, ranker: Ranker) -> None:
         self.ranker = ranker
+        self.lexical = getattr(ranker, "lexical", False)  # propagate for rank_passages' no-overlap gate
 
     def rank(
         self, query: str, elements: Sequence[Element], mode: Mode = "goal", history: list[str] | None = None
