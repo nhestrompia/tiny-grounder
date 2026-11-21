@@ -35,8 +35,29 @@ class BrowserSession:
         self.elements: list[Element] = []
         self._extracted_url = ""
 
+    @classmethod
+    def attach(cls, endpoint: str, url_substring: str = "") -> BrowserSession:
+        """Read the last matching page in the first CDP context without owning its browser."""
+        session = cls.__new__(cls)
+        session._playwright = sync_playwright().start()
+        session._attached = True
+        try:
+            session._browser = session._playwright.chromium.connect_over_cdp(endpoint)
+            contexts = session._browser.contexts
+            pages = contexts[0].pages if contexts else []
+            matches = [p for p in pages if url_substring in p.url]
+            if not matches:
+                raise ToolError("no matching page in the first CDP context")
+            session.page = matches[-1]
+            session.elements = []
+            session._extracted_url = ""
+            return session
+        except BaseException:
+            session._playwright.stop()
+            raise
+
     def close(self) -> None:
-        if hasattr(self, "_browser"):
+        if hasattr(self, "_browser") and not getattr(self, "_attached", False):
             self._browser.close()
         self._playwright.stop()
 
@@ -47,6 +68,10 @@ class BrowserSession:
         except PlaywrightError as exc:
             raise ToolError(str(exc).splitlines()[0]) from exc
 
+    def _require_actions(self) -> None:
+        if getattr(self, "_attached", False):
+            raise ToolError("CDP attach is perception-only")
+
     def _settle(self) -> None:
         try:
             self.page.wait_for_load_state("load", timeout=10_000)
@@ -55,6 +80,7 @@ class BrowserSession:
         self.page.wait_for_timeout(SETTLE_MS)
 
     def goto(self, url: str) -> None:
+        self._require_actions()
         self._guard(lambda: self.page.goto(url, wait_until="load"))
         self._settle()
 
@@ -70,6 +96,7 @@ class BrowserSession:
 
     def extract(self) -> Page:
         page = self._guard(lambda: from_playwright(self.page))
+        self.landmarks, self.heading_positions = self._guard(lambda: ph.extract_landmarks(self.page))
         self.elements, self._extracted_url = page.elements, page.url
         return page
 
@@ -89,6 +116,7 @@ class BrowserSession:
         return probe
 
     def click(self, element_id: int) -> Element:
+        self._require_actions()
         element = self._element(element_id)
         if word := ph.blocked_word(element):
             raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
@@ -100,6 +128,7 @@ class BrowserSession:
         return element
 
     def type_text(self, element_id: int, text: str, press_enter: bool) -> Element:
+        self._require_actions()
         element = self._element(element_id)
         if element.role not in ph.TYPEABLE_ROLES:
             raise ToolError(f"element {element_id} is a {element.role}, not a text field")
@@ -119,6 +148,7 @@ class BrowserSession:
         return element
 
     def go_back(self) -> None:
+        self._require_actions()
         if self._guard(lambda: self.page.go_back(wait_until="load")) is None:
             raise ToolError("there is no previous page")
         self._settle()

@@ -10,6 +10,9 @@ Benchmark v2 (frozen, held-out tasks; see docs/bench-v2-power.md):
         --agents claude:claude-sonnet-5-5 --repeats 3 \
         --arms a11y-cap vision find@exact find@blend:dist/xs-s0:8
 
+`find+observe@exact+blend:dist/xs-s0:8` selects find and observe rankers independently;
+`find+observe@exact` uses exact for both. Actions return the new page digest.
+
 `--arms` are `config` or `config@ranker` (ranker: grounder | bm25 | any grounder_tool.rankers spec). A task with a `har`
 field is replayed offline from its frozen snapshot (`--live` ignores it and uses the live web). Success = the page
 check AND, when the task has an `answer_regex`, a matching done(answer).
@@ -52,7 +55,7 @@ REPO = Path(__file__).resolve().parent.parent
 DEFAULT_TIMEOUT_S = 360
 LOGS_DIR = "logs"
 FOREIGN_NOTE = "foreign_tools"
-RANKED_CONFIGS = ("top20", "find", "find+top20")  # configs whose behaviour depends on the ranker
+RANKED_CONFIGS = ("top20", "find", "find+top20", "find+observe")  # configs whose behaviour depends on the ranker
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,8 @@ class Arm:
     @property
     def label(self) -> str:
         """`a11y-cap`, `vision`, `find[exact]`, `find[blend]` (a ranker spec's kind, not its path and weight)."""
-        return f"{self.config}[{self.ranker.split(':')[0]}]" if self.ranker else self.config
+        kinds = "+".join(part.split(":")[0] for part in self.ranker.split("+"))
+        return f"{self.config}[{kinds}]" if self.ranker else self.config
 
 
 def parse_arm(spec: str, default_ranker: str = "grounder") -> Arm:
@@ -99,7 +103,11 @@ def parse_arm(spec: str, default_ranker: str = "grounder") -> Arm:
         if at:
             raise ValueError(f"arm {spec!r}: {config} has no ranker")
         return Arm(config, "")
-    return Arm(config, ranker if at else default_ranker)
+    selected = ranker if at else default_ranker
+    parts = selected.split("+")
+    if (selected and not all(parts)) or len(parts) > (2 if config == "find+observe" else 1):
+        raise ValueError(f"invalid ranker pair in arm {spec!r}")
+    return Arm(config, selected)
 
 
 def site_of(url: str) -> str:
@@ -116,6 +124,8 @@ def arm_label(arm: Arm, explicit: bool) -> str:
 def resolve_ranker_spec(spec: str, repo: Path = REPO) -> str:
     """Make the model dir of `model:<dir>`, `blend:<dir>:<alpha>`, `router:<dir>:<tau>` absolute (the MCP server runs in an
     empty temp cwd). Other specs are returned unchanged."""
+    if "+" in spec:
+        return "+".join(resolve_ranker_spec(part, repo) for part in spec.split("+"))
     kind, _, rest = spec.partition(":")
     if kind not in ("model", "blend", "router") or not rest:
         return spec
@@ -421,6 +431,7 @@ def execute(agent: Agent, task: Task, config: str, repeat: int, out: Path, ranke
         "replay_live_requests": summary.get("replay_live_requests", 0),
         **tokens,
         "answer": summary.get("answer", ""), "final_url": summary["final_url"], "wall_seconds": round(wall, 1),
+        "grounding_ms": sum(c.get("extract_ms", 0) + c.get("rank_ms", 0) for c in calls),
         "tool_calls": summary["calls"], "steps": summary["steps"], "tool_errors": summary.get("errors", 0),
         "tool_chars": summary["tool_chars"], "image_bytes": summary.get("image_bytes", 0), "images": summary.get("images", 0),
         "timed_out": timed_out, "returncode": code, "agent_tools": tools_used, FOREIGN_NOTE: foreign(tools_used),

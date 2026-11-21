@@ -76,8 +76,8 @@ def results_table(runs: list[dict[str, Any]]) -> str:
 
     lines = [
         "| agent | arm | success (n) | done called | median wall (s) | median tool calls | median tool-output chars "
-        "| median image KB | median input tokens | median output tokens | median cost ($) | tool tokens / success |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| median image KB | median input tokens | median output tokens | median grounding ms | median cost ($) | tool tokens / success |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for key in keys:
         rs = groups[key]
@@ -86,8 +86,10 @@ def results_table(runs: list[dict[str, Any]]) -> str:
         lines.append(
             f"| {key[0]} | {key[1]} | {ok / len(rs):.0%} ({ok}/{len(rs)}) | {done}/{len(rs)} "
             f"| {med([r['wall_seconds'] for r in rs], '{:.1f}')} | {med([r['tool_calls'] for r in rs], '{:.0f}')} "
-            f"| {med([r['tool_chars'] for r in rs])} | {med([r['image_bytes'] / 1024 for r in rs])} "
+            f"| {med([r['tool_chars'] for r in rs])} "
+            f"| {med([r['image_bytes'] / 1024 for r in rs])} "
             f"| {med([r.get('input_tokens') for r in rs])} | {med([r.get('output_tokens') for r in rs])} "
+            f"| {med([r.get('grounding_ms') for r in rs], '{:.1f}')} "
             f"| {med([r.get('cost_usd') for r in rs], '{:.4f}')} "
             f"| {'-' if (tps := tokens_per_success(rs)) is None else f'{tps:,.0f}'} |"
         )

@@ -265,6 +265,7 @@ class BrowserSession:
 
     def extract(self) -> Page:
         page = self._guard(lambda: extract_page_sync(self.page))
+        self.landmarks, self.heading_positions = self._guard(lambda: ph.extract_landmarks(self.page))
         self.elements, self._extracted_url = page.elements, page.url
         return page
 

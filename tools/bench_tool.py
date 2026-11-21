@@ -16,13 +16,13 @@ import subprocess
 import sys
 import tempfile
 import time
-import zipfile
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
 from grounder.extract.web import extract_page_sync
 from grounder.records import Element
+from grounder.playwright_helper import extract_landmarks
 from grounder_tool import UIGrounder, make_ranker
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,7 +105,9 @@ def main() -> int:
     big_src = max(pages, key=lambda x: len(x[1].elements))
     big500 = tile(big_src[1].elements, 500)
     rows = [(len(p.elements), statistics.median(t), t) for _, p, t in pages if len(p.elements) >= 100]
-    per_el = statistics.median(m / n for n, m, _ in rows)  # ms per element, real pages with >= 100 elements
+    if not rows:
+        rows = [(len(p.elements), statistics.median(t), t) for _, p, t in pages if p.elements]
+    per_el = statistics.median(m / n for n, m, _ in rows)
     est500 = per_el * 500
     print(f"extraction ~ {per_el:.3f} ms/element (median over {len(rows)} real pages with >= 100 elements) -> "
           f"~{per_el * 500:.0f} ms at 500 elements (ESTIMATE used by the 500 row; no real 500-element page was available)\n")
@@ -134,6 +136,26 @@ def main() -> int:
                     p95 = pct(xs, 95)
                     print(f"| {label} | {threads} | {name} | {len(xs)} | {pct(xs, 50):.1f} | {p95:.1f} | "
                           f"{'ok' if p95 <= 150 else 'FAIL'} |")
+    print("\n| observe ranker | elements | p50 ms incl extraction | p95 ms | gate <=200 |")
+    print("|---|---|---|---|---|")
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        tab = browser.new_page(viewport={"width": 1280, "height": 800})
+        tab.set_content("<title>Install documentation</title><h1>Docs</h1>" + "".join(
+            f'<a href="/docs/{i}">Install package {i}</a><br>' for i in range(500)))
+        for spec in ("exact", f"blend:{ROOT}/dist/xs-s0:8"):
+            grounder = UIGrounder(spec)
+            samples = []
+            for _ in range(args.reps + 1):
+                start = time.perf_counter()
+                page = extract_page_sync(tab)
+                landmarks, _ = extract_landmarks(tab)
+                grounder.observe(page, "Install a package", landmarks=landmarks)
+                samples.append((time.perf_counter() - start) * 1000)
+            samples = samples[1:]
+            print(f"| {spec} | {len(page.elements)} | {pct(samples, 50):.1f} | "
+                  f"{pct(samples, 95):.1f} | {'ok' if pct(samples, 95) <= 200 else 'FAIL'} |")
+        browser.close()
     print("\n| package | size | gate <=3 MB |\n|---|---|---|")
     print("\n".join(package_sizes()))
     return 0

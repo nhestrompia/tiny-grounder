@@ -40,6 +40,8 @@ class BM25Ranker:
 
 
 class ExactRanker:
+    """Keyword ranking against the supplied query or goal; lexical scores do not use history."""
+
     name = "exact"
 
     def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
@@ -111,7 +113,9 @@ class RouterRanker:
 
 
 def make_ranker(spec: str = "exact", int8: bool | None = None, threads: int = 1) -> Ranker:
-    """`bm25`, `model:<dir>` or `router:<dir>:<tau>` (tau defaults to 1.0). `int8=False` forces fp32."""
+    """Build a lexical, model, blend or router ranker; all accept goal mode and history.
+
+    Model paths use CPU ONNX inference. `int8=False` forces fp32; lexical rankers ignore history."""
     kind, _, rest = spec.partition(":")
     if kind == "bm25" and not rest:
         return BM25Ranker()

@@ -166,6 +166,7 @@ class ToolBox:
             raise ValueError(f"unknown config {config!r}; choose from {', '.join(CONFIGS)}")
         self.config, self.session, self.ranker, self.goal = config, session, ranker, goal
         self.history: list[str] = []
+        self.extract_ms = self.rank_ms = 0.0
         self.tools = [TOOLS[name] for name in TOOL_NAMES[config]]
         self.system = SYSTEM_BY_CONFIG[config]
 
@@ -182,12 +183,20 @@ class ToolBox:
         return f"{self.session.status()}\n{count} elements shown (id|role|text|context):"
 
     def _ranked(self, query: str, k: int, mode: Mode, history: list[str] | None) -> list[dict[str, Any]]:
+        started = time.perf_counter()
         elements = self.session.extract().elements
-        return self.ranker.rank(query, elements, k=k, mode=mode, history=history)["results"]
+        self.extract_ms += (time.perf_counter() - started) * 1000
+        started = time.perf_counter()
+        try:
+            return self.ranker.rank(query, elements, k=k, mode=mode, history=history)["results"]
+        finally:
+            self.rank_ms += (time.perf_counter() - started) * 1000
 
     def _snapshot(self) -> str:
         if self.config == "full":
+            started = time.perf_counter()
             shown = self.session.extract().elements
+            self.extract_ms += (time.perf_counter() - started) * 1000
         else:
             ranked = self._ranked(self.goal, TOP_N, "goal", self.history[-HISTORY_LEN:])
             by_id = {e.id: e for e in self.session.elements}

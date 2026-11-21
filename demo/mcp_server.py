@@ -15,6 +15,8 @@ coordinate equivalents for `vision`):
                 style. Every action returns the new screenshot (`--no-observe` turns that off).
     top20       snapshot() -> the grounder's 20 best elements for the goal (goal mode, last actions as history)
     find        find(query) -> the grounder's 5 best elements with scores (do mode); no snapshot
+    find+observe find, observe and inspect; actions return their status line followed by a fresh 600-token
+                digest for the task goal. observe() without a goal uses the task goal, with top20 action history.
     find+top20  both
     a11y-cap    `a11y` with a cap: snapshot(page=1) returns at most A11Y_CAP_CHARS (20,000) characters of the ARIA
                 snapshot per call and the tool says so; snapshot(page=n) pages through the rest of the same snapshot
@@ -24,6 +26,9 @@ coordinate equivalents for `vision`):
 BM25), or any `grounder_tool.rankers.make_ranker` spec (`exact`, `bm25`, `model:<dir>`, `blend:<dir>:<alpha>`,
 `router:<dir>:<tau>`) so the benchmarked code is the code that ships. Every ranker prints the same find lines (top 5,
 `id|role|text|context|score=`, scores on a 0..1 scale).
+
+`--ranker exact+blend:dist/xs-s0:8` selects independent find and observe rankers for find+observe;
+a single ranker spec applies to both. The cli_bench arm syntax is `find+observe@exact+blend:dist/xs-s0:8`.
 
 Benchmark v2 extras: `--har FILE` replays a frozen snapshot with no live network (see demo.browser.BrowserSession),
 `--answer-regex` makes done(answer) part of the success check (success = page check AND answer match).
@@ -51,14 +56,19 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
-from demo.agent import BM25Ranker, Ranker, ToolBox
+from demo.agent import HISTORY_LEN, BM25Ranker, Ranker, ToolBox
 from demo.browser import CHECK_KEYS, BrowserSession, ToolError, answer_matches
 from grounder import playwright_helper as ph
+from grounder.records import Element, Mode, Page
+from grounder.ranking import Ranked
+from grounder_tool.api import UIGrounder
+from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET
+from grounder_tool.rankers import Ranker as DigestRanker, make_ranker as make_digest_ranker
 
 SERVER_NAME = "ui"
-BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap")
+BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap", "find+observe")
 A11Y_CAP_CHARS = 20_000
 A11Y_CONFIGS = ("a11y", "a11y-cap")
 ACTION_TOOLS = ("click", "type", "go_back", "click_xy", "type_text", "scroll")
@@ -71,6 +81,8 @@ IMAGE_PX_PER_TOKEN = 750  # Anthropic's rule of thumb: tokens ~ width * height /
 _REF_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 
 CONFIG_HINTS: dict[str, str] = {
+    "find+observe": "Call observe() for a compact goal-aware digest, find(query) for other controls, "
+    "and inspect(id=...) or inspect(region=...) for detail. Actions return a fresh digest of the new page.",
     "full": "Call snapshot() to list every element on the current page as `id|role|text|context` lines. "
     "Element ids refer to the most recent snapshot.",
     "a11y": "Call snapshot() to get the page's accessibility tree; interactive nodes carry a [ref=eN] marker. "
@@ -144,6 +156,7 @@ def tools_for(config: str) -> tuple[str, ...]:
     if config not in BENCH_CONFIGS:
         raise ValueError(f"unknown config {config!r}; choose from {', '.join(BENCH_CONFIGS)}")
     return {
+        "find+observe": ("find", "observe", "inspect", "click", "type", "go_back", "done"),
         "full": ("snapshot", "click", "type", "go_back", "done"),
         "a11y": ("snapshot", "click", "type", "go_back", "done"),
         "a11y-cap": ("snapshot", "click", "type", "go_back", "done"),
@@ -154,11 +167,29 @@ def tools_for(config: str) -> tuple[str, ...]:
     }[config]
 
 
+class GoalRanker:
+    """Adapt the existing benchmark ranker protocol for a budgeted digest."""
+
+    name = "benchmark"
+
+    def __init__(self, ranker: Ranker) -> None:
+        self.ranker = ranker
+
+    def rank(
+        self, query: str, elements: Sequence[Element], mode: Mode = "goal", history: list[str] | None = None
+    ) -> Ranked:
+        """Return all goal-ranked ids and scores, preserving the benchmark history format."""
+        out = self.ranker.rank(query, elements, k=len(elements), mode=mode, history=history)
+        return Ranked([row["id"] for row in out["results"]],
+                      [row["score"] for row in out["results"]], out["null_prob"])
+
+
 class BenchToolBox(ToolBox):
     """demo.agent.ToolBox with the `find+top20` combination (snapshot = top20, plus find)."""
 
     def __init__(self, config: str, session: BrowserSession, ranker: Ranker, goal: str) -> None:
-        super().__init__("top20" if config == "find+top20" else config, session, ranker, goal)
+        mode = "top20" if config == "find+top20" else "find" if config == "find+observe" else config
+        super().__init__(mode, session, ranker, goal)
         self.allowed = set(tools_for(config))
 
     def call(self, name: str, args: dict[str, Any]) -> str:
@@ -180,7 +211,7 @@ class BenchServer:
     def __init__(
         self, config: str, session: BrowserSession, ranker: Ranker | None, goal: str, check: dict[str, str],
         log_path: str | Path, task_id: str = "", observe: bool = True, max_calls: int = DEFAULT_MAX_CALLS,
-        answer_regex: str = "", a11y_cap: int = A11Y_CAP_CHARS,
+        answer_regex: str = "", a11y_cap: int = A11Y_CAP_CHARS, observe_ranker: DigestRanker | None = None,
     ) -> None:
         tools_for(config)  # validates the name
         self.config, self.session, self.goal, self.check, self.task_id = config, session, goal, check, task_id
@@ -207,6 +238,11 @@ class BenchServer:
             if ranker is None:
                 raise ValueError(f"config {config} needs a ranker")
             self.box = BenchToolBox(config, session, ranker, goal)
+        digest_ranker = observe_ranker
+        if digest_ranker is None and ranker is not None:
+            digest_ranker = getattr(ranker, "inner", None) or GoalRanker(ranker)
+        self.digest = UIGrounder(digest_ranker or "exact")
+        self.extract_ms = self.rank_ms = 0.0
 
     # ---- logging ----------------------------------------------------------------------------------------
 
@@ -253,6 +289,7 @@ class BenchServer:
             raise ToolError("the task is over")
         if name not in tools_for(self.config):
             raise ToolError(f"unknown tool {name!r}")
+        self.extract_ms = self.rank_ms = 0.0
         t0 = time.perf_counter()
         event: dict[str, Any] = {"type": "call", "n": self.calls + 1, "name": name, "args": args}
         try:
@@ -262,18 +299,19 @@ class BenchServer:
             self.steps += name in ACTION_TOOLS
             self._state += name in ACTION_TOOLS
             out = getattr(self, f"_t_{name}")(**args)
-        except ToolError as exc:
+            if self.config == "find+observe" and name in ACTION_TOOLS:
+                out = out.splitlines()[0] + "\n" + self._t_observe()
+        except (ToolError, TypeError) as exc:
             self.errors += 1
-            text = str(exc)
+            text = f"invalid arguments: {exc}" if isinstance(exc, TypeError) else str(exc)
             self.chars += len(text)
             self._log({**event, "n": self.calls, "is_error": True, "chars": len(text), "result": text[:RESULT_LOG_CHARS],
-                       "ms": round((time.perf_counter() - t0) * 1000)})
-            raise
-        except TypeError as exc:
-            self.errors += 1
-            raise ToolError(f"invalid arguments: {exc}") from exc
+                       "ms": round((time.perf_counter() - t0) * 1000),
+                       "extract_ms": self.extract_ms, "rank_ms": self.rank_ms})
+            raise ToolError(text) from exc
         text, png = (out, None) if isinstance(out, str) else out
         self.chars += len(text)
+        event.update(extract_ms=self.extract_ms, rank_ms=self.rank_ms)
         event.update(is_error=False, chars=len(text), result=text[:RESULT_LOG_CHARS], ms=round((time.perf_counter() - t0) * 1000))
         if png is not None:
             width, height = png_size(png)
@@ -294,7 +332,12 @@ class BenchServer:
 
     def _grounder(self, name: str, **args: Any) -> str:
         assert self.box is not None
-        return self.box.call(name, args)
+        self.box.extract_ms = self.box.rank_ms = 0.0
+        try:
+            return self.box.call(name, args)
+        finally:
+            self.extract_ms += self.box.extract_ms
+            self.rank_ms += self.box.rank_ms
 
     def _t_snapshot(self, page: int | None = None) -> str:
         if self.config == "a11y-cap":
@@ -304,6 +347,31 @@ class BenchServer:
         if self.config == "a11y":
             return self._aria()
         return self._grounder("snapshot")
+
+    def _digest_page(self) -> Page:
+        start = time.perf_counter()
+        page = self.session.extract()
+        self.extract_ms += (time.perf_counter() - start) * 1000
+        return page
+
+    def _t_observe(self, goal: str = "", budget: int = 600) -> str:
+        page = self._digest_page()
+        start = time.perf_counter()
+        result = self.digest.observe(
+            page, goal or self.goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)),
+            self.box.history[-HISTORY_LEN:], landmarks=self.session.landmarks,
+        )
+        self.rank_ms += (time.perf_counter() - start) * 1000
+        return result
+
+    def _t_inspect(self, id: int | None = None, region: str = "") -> str:
+        page = self._digest_page()
+        start = time.perf_counter()
+        result = self.digest.inspect(
+            page, id, region, landmarks=self.session.landmarks, heading_positions=self.session.heading_positions,
+        )
+        self.rank_ms += (time.perf_counter() - start) * 1000
+        return result
 
     def _t_find(self, query: str) -> str:
         return self._grounder("find", query=query)
@@ -523,8 +591,28 @@ def build_mcp(config: str, call: Any) -> Any:
             return out(call("find", query=query))
         mcp.add_tool(find, name="find", description="Find the elements of the current page that best match a "
                      "description (top 5 with scores). Replaces earlier ids.")
+    if "observe" in tools_for(config):
+        def observe(goal: str = "", budget: int = 600) -> Any:
+            return out(call("observe", goal=goal, budget=budget))
+
+        def inspect(id: int | None = None, region: str = "") -> Any:
+            return out(call("inspect", id=id, region=region))
+
+        mcp.add_tool(
+            observe, name="observe",
+            description="Compact goal-ranked digest. Budget is clamped to 100-2000 tokens. "
+            "An empty goal uses the task goal. Call after navigation to choose the next action.",
+        )
+        mcp.add_tool(
+            inspect, name="inspect",
+            description="Expand an element id, heading or context prefix with details and nearby controls. "
+            "Call when observe lacks the detail needed to act.",
+        )
     if config == "vision":
-        mcp.add_tool(lambda: out(call("screenshot")), name="screenshot", description="Screenshot of the browser viewport (1280x800).")
+        mcp.add_tool(
+            lambda: out(call("screenshot")), name="screenshot",
+            description="Screenshot of the browser viewport (1280x800).",
+        )
 
         def click_xy(x: float, y: float) -> Any:
             return out(call("click_xy", x=x, y=y))
@@ -554,13 +642,17 @@ def build_mcp(config: str, call: Any) -> Any:
                 return out(call("type", id=id, text=text, press_enter=press_enter))
 
         mcp.add_tool(click, name="click", description=f"Click an element. {ident}")
-        mcp.add_tool(type_, name="type", description=f"Click a text field and type into it, optionally pressing Enter. {ident}")
+        mcp.add_tool(
+            type_, name="type", description=f"Click a text field and type into it, optionally pressing Enter. {ident}",
+        )
     mcp.add_tool(lambda: out(call("go_back")), name="go_back", description="Go back to the previous page.")
 
     def done(answer: str) -> Any:
         return out(call("done", answer=answer))
 
-    mcp.add_tool(done, name="done", description="Finish the task with a short answer (or the reason it cannot be done).")
+    mcp.add_tool(
+        done, name="done", description="Finish the task with a short answer (or the reason it cannot be done).",
+    )
     return mcp
 
 
@@ -593,10 +685,15 @@ def main(argv: list[str] | None = None) -> int:
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="browser")
 
     def build() -> BenchServer:
-        ranker = None if args.config in (*A11Y_CONFIGS, "vision") else make_ranker(args.ranker, args.model_dir)
+        find_spec, _, observe_spec = args.ranker.partition("+")
+        ranker = None if args.config in (*A11Y_CONFIGS, "vision") else make_ranker(find_spec, args.model_dir)
+        observation = make_digest_ranker(observe_spec) if observe_spec else None
         session = BrowserSession(args.start_url, har=args.har, replay_miss=args.replay_miss)
-        return BenchServer(args.config, session, ranker, args.goal, args.check, args.log, args.task_id,
-                           observe=not args.no_observe, max_calls=args.max_calls, answer_regex=args.answer_regex)
+        return BenchServer(
+            args.config, session, ranker, args.goal, args.check, args.log, args.task_id,
+            observe=not args.no_observe, max_calls=args.max_calls,
+            answer_regex=args.answer_regex, observe_ranker=observation,
+        )
 
     bench = pool.submit(build).result()
 

@@ -2,30 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Sequence
 
 from grounder.records import Element, Page
+from grounder_tool.digest import LineSuffix, inspect, observe
+from grounder_tool.lines import Hit, format_lines
 from grounder_tool.rankers import Ranker, make_ranker
-
-
-@dataclass
-class Hit:
-    id: int
-    role: str
-    text: str
-    context: str
-    score: float
-    box: list[float]
-
-    def line(self, with_score: bool = True) -> str:
-        base = f"{self.id}|{self.role}|{self.text}|{self.context}"
-        return f"{base}|score={self.score:.3f}" if with_score else base
-
-
-def format_lines(hits: Sequence[Hit], with_score: bool = True) -> str:
-    """`id|role|text|context|score=` lines (the format demo/mcp_server.py hands to agents)."""
-    return "\n".join(h.line(with_score) for h in hits)
 
 
 def _elements(source: Page | Sequence[Element]) -> list[Element]:
@@ -58,5 +40,21 @@ class UIGrounder:
     ) -> list[Hit]:
         """The `k` elements most relevant to a goal, best first (goal mode)."""
         return self._top(source, goal, k, "goal", history)
+
+    def observe(
+        self, source: Page, goal: str = "", budget: int = 600,
+        history: list[str] | None = None, landmarks: list[str] | None = None,
+        line_suffix: LineSuffix | None = None,
+    ) -> str:
+        """Return a goal-ranked digest within the estimated token budget."""
+        return observe(source, goal, self.ranker, budget, history, line_suffix, landmarks)
+
+    def inspect(
+        self, source: Page, id: int | None = None, region: str = "", budget: int = 400,
+        landmarks: list[str] | None = None, line_suffix: LineSuffix | None = None,
+        heading_positions: list[tuple[str, float]] | None = None,
+    ) -> str:
+        """Return element or heading-region details within the estimated token budget."""
+        return inspect(source, id, region, budget, line_suffix, landmarks, heading_positions)
 
     format_lines = staticmethod(format_lines)

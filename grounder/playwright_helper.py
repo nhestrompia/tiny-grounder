@@ -45,6 +45,41 @@ from grounder.ranking import example_elements, positive_ids
 from grounder.records import Element, Mode
 from grounder.runtime import Grounder
 
+# Headings include content below the fold. Hidden/mobile copies are excluded.
+LANDMARKS_JS = r"""() => {
+  const norm = s => (s || "").replace(/\s+/g, " ").trim();
+  const clip = s => s.length > 60 ? s.slice(0, 59) + "…" : s;
+  const landmarks = [], headings = [], seen = new Set();
+  const selector = 'h1,h2,h3,nav,main,aside,footer,[role=navigation],[role=main],'
+    + '[role=complementary],[role=contentinfo]';
+  for (const el of document.querySelectorAll(selector)) {
+    const style = getComputedStyle(el), box = el.getBoundingClientRect();
+    if (!el.getClientRects().length || !box.width || !box.height || style.visibility !== 'visible'
+        || el.closest('[hidden],[aria-hidden="true"]') || style.opacity === '0') continue;
+    const heading = /^H[123]$/.test(el.tagName);
+    const labelledby = norm(el.getAttribute('aria-labelledby')).split(' ')
+      .map(id => document.getElementById(id)?.textContent || '').join(' ');
+    const name = norm(labelledby) || norm(el.getAttribute('aria-label'));
+    // Docs sites append permalink anchors ("Install¶", "Install #"); drop them.
+    const text = clip(heading ? norm(el.innerText).replace(/\s*[¶#§🔗]+$/u, "") : name);
+    if (!text) continue;
+    if (heading) headings.push([text, box.top + scrollY]);
+    const key = text.toLocaleLowerCase();
+    if (!seen.has(key) && landmarks.length < 30) {
+      seen.add(key);
+      landmarks.push(text);
+    }
+  }
+  return {landmarks, headings};
+}"""
+
+
+def extract_landmarks(page: Any) -> tuple[list[str], list[tuple[str, float]]]:
+    """Return visible landmark names and heading document positions from one live page."""
+    result = page.evaluate(LANDMARKS_JS)
+    return result["landmarks"], [(text, float(y)) for text, y in result["headings"]]
+
+
 BLOCKED_WORDS: tuple[str, ...] = (
     "submit", "pay", "buy", "order", "purchase", "checkout", "delete", "remove", "send", "confirm",
     "transfer", "place order",

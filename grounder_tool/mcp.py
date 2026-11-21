@@ -13,21 +13,30 @@ All browser work runs on one dedicated thread (Playwright's sync API is thread-b
 from __future__ import annotations
 
 import argparse
+import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from grounder.records import action_repr
+from grounder.records import Element, Page, action_repr
 from grounder_tool.api import UIGrounder, format_lines
 from grounder_tool.browser import BrowserSession, ToolError
 from grounder_tool.rankers import make_ranker
+from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET, LineSuffix
 
 INSTRUCTIONS = (
-    "Browser tools that keep page content out of your context. Do NOT read the page to look for an element: call "
-    "find(query) with a short description of what you want (e.g. 'search box', 'link to the pricing page') and act on "
-    "the best match. If you only know the goal, call snapshot(goal) for the 20 most relevant elements. Both return "
-    "`id|role|text|context|score` lines, best first; ids refer to the most recent find or snapshot. Use read_text only "
-    "when you need to read content, not to locate controls."
+    "Call find(query) with a short description to locate a control. "
+    "Call observe(goal) after navigation for a compact page digest, or inspect(id) for details. "
+    "Element lines use `id|role|text|context` with scores for find/snapshot. "
+    "Ids refer to the latest extraction. Use read_text to read page content."
+)
+CDP_INSTRUCTIONS = (
+    "This server is perception-only. Call observe(goal) for a compact page digest, "
+    "find(query) to locate a control, or inspect(id) for details. "
+    "Element lines use `id|role|text|context`; ids refer to the latest extraction. "
+    "The @x,y suffix gives viewport coordinates for the executor's click. "
+    "Use read_text to read page content."
 )
 HISTORY_LEN = 3
 
@@ -35,8 +44,12 @@ HISTORY_LEN = 3
 class ToolServer:
     """Tool handlers over one browser. Call from a single thread."""
 
-    def __init__(self, grounder: UIGrounder, headless: bool = True) -> None:
+    def __init__(self, grounder: UIGrounder, headless: bool = True, observe_grounder: UIGrounder | None = None,
+                 cdp_endpoint: str = "", cdp_page_url_substring: str = "") -> None:
         self.grounder, self.headless = grounder, headless
+        self.observe_grounder = observe_grounder or grounder
+        self.cdp_endpoint, self.cdp_page_url_substring = cdp_endpoint, cdp_page_url_substring
+        self.extract_ms = self.rank_ms = 0.0
         self.session = None
         self.history: list[str] = []
 
@@ -45,7 +58,9 @@ class ToolServer:
             self.session.close()
             self.session = None
 
-    def _need(self):
+    def _need(self) -> BrowserSession:
+        if self.session is None and self.cdp_endpoint:
+            self.session = BrowserSession.attach(self.cdp_endpoint, self.cdp_page_url_substring)
         if self.session is None:
             raise ToolError("no page is open: call open(url) first")
         return self.session
@@ -54,6 +69,8 @@ class ToolServer:
         return f"{self._need().status()}\n{n} elements (id|role|text|context|score):"
 
     def open(self, url: str) -> str:
+        if self.cdp_endpoint:
+            raise ToolError("CDP attach is perception-only")
         if not re.match(r"https?://", url):
             raise ToolError("only http(s) URLs can be opened")
         if self.session is None:
@@ -65,16 +82,69 @@ class ToolServer:
 
     def find(self, query: str, k: int = 5) -> str:
         page = self._extract()
+        start = time.perf_counter()
         hits = self.grounder.find(page, query, k)
-        return "\n".join([self._header(len(hits)), format_lines(hits)])
+        self.rank_ms = (time.perf_counter() - start) * 1000
+        return self._coordinates("\n".join([self._header(len(hits)), format_lines(hits)]))
 
     def snapshot(self, goal: str, k: int = 20) -> str:
         page = self._extract()
+        start = time.perf_counter()
         hits = self.grounder.snapshot(page, goal, k, self.history[-HISTORY_LEN:])
-        return "\n".join([self._header(len(hits)), format_lines(hits)])
+        self.rank_ms = (time.perf_counter() - start) * 1000
+        return self._coordinates("\n".join([self._header(len(hits)), format_lines(hits)]))
 
-    def _extract(self):
-        return self._need().extract()
+    def observe(self, goal: str = "", budget: int = 600) -> str:
+        """Return a goal-aware digest within the estimated token budget, including coordinates."""
+        page = self._extract()
+        start = time.perf_counter()
+        out = self.observe_grounder.observe(
+            page, goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)), self.history[-HISTORY_LEN:],
+            landmarks=self._need().landmarks, line_suffix=self._coordinate_suffix(),
+        )
+        self.rank_ms = (time.perf_counter() - start) * 1000
+        return out
+
+    def inspect(self, id: int | None = None, region: str = "") -> str:
+        """Return element or section details within the default 400-token budget."""
+        page = self._extract()
+        start = time.perf_counter()
+        out = self.observe_grounder.inspect(
+            page, id, region, landmarks=self._need().landmarks,
+            heading_positions=self._need().heading_positions, line_suffix=self._coordinate_suffix(),
+        )
+        self.rank_ms = (time.perf_counter() - start) * 1000
+        return out
+
+    def _extract(self) -> Page:
+        start = time.perf_counter()
+        page = self._need().extract()
+        self.extract_ms = (time.perf_counter() - start) * 1000
+        return page
+
+    def _coordinate_suffix(self) -> LineSuffix | None:
+        if not self.cdp_endpoint:
+            return None
+        sx, sy = self._need().page.evaluate("() => [scrollX, scrollY]")
+
+        def suffix(element: Element) -> str:
+            x, y, w, h = element.abs_box
+            return f" @{x + w / 2 - sx:g},{y + h / 2 - sy:g}"
+
+        return suffix
+
+    def _coordinates(self, text: str) -> str:
+        suffix = self._coordinate_suffix()
+        if suffix is None:
+            return text
+        elements = {e.id: e for e in self._need().elements}
+        lines = []
+        for line in text.splitlines():
+            identifier = line.partition("|")[0]
+            if identifier.isdigit() and int(identifier) in elements:
+                line += suffix(elements[int(identifier)])
+            lines.append(line)
+        return "\n".join(lines)
 
     @staticmethod
     def _act(fn) -> Any:
@@ -98,6 +168,8 @@ class ToolServer:
         return session.status()
 
     def read_text(self, max_chars: int = 4000) -> str:
+        if self.cdp_endpoint:
+            self._extract()
         session = self._need()
         text = re.sub(r"\n{3,}", "\n\n", self._act(session.text)).strip()
         return text[:max_chars] + (f"\n[truncated, {len(text)} chars]" if len(text) > max_chars else "")
@@ -106,12 +178,21 @@ class ToolServer:
 def build_mcp(server: ToolServer):
     from mcp.server.fastmcp import FastMCP
 
-    mcp = FastMCP("grounder", instructions=INSTRUCTIONS)
+    mcp = FastMCP("grounder", instructions=CDP_INSTRUCTIONS if server.cdp_endpoint else INSTRUCTIONS)
     pool = ThreadPoolExecutor(max_workers=1)
 
     def run(fn, *args):
+        def timed():
+            server.extract_ms = server.rank_ms = 0.0
+            try:
+                return fn(*args)
+            finally:
+                logging.getLogger(__name__).info(
+                    "%s extract_ms=%.3f rank_ms=%.3f", fn.__name__, server.extract_ms, server.rank_ms
+                )
+
         try:
-            return pool.submit(fn, *args).result()
+            return pool.submit(timed).result()
         except ToolError as exc:
             raise ValueError(str(exc)) from exc
 
@@ -136,7 +217,18 @@ def build_mcp(server: ToolServer):
     def read_text(max_chars: int = 4000) -> str:
         return run(server.read_text, max_chars)
 
+    def observe(goal: str = "", budget: int = 600) -> str:
+        return run(server.observe, goal, budget)
+
+    def inspect(id: int | None = None, region: str = "") -> str:
+        return run(server.inspect, id, region)
+
     for fn, name, desc in [
+        (observe, "observe", "Compact page header, headings and goal-ranked controls. "
+         "Budget is clamped to 100-2000 tokens. "
+         "Call after navigation to choose the next action; an empty goal uses the title."),
+        (inspect, "inspect", "Expand an element id, heading or context prefix from observe for details and nearby controls. "
+         "Call when the digest lacks the detail needed to act."),
         (open_, "open", "Open an http(s) URL in the browser."),
         (find, "find", "Find the k (default 5) elements of the current page that best match a short description. "
                        "Use this instead of reading the page to locate links, buttons and fields."),
@@ -146,13 +238,17 @@ def build_mcp(server: ToolServer):
         (go_back, "go_back", "Go back to the previous page."),
         (read_text, "read_text", "Visible text of the page, truncated to max_chars (default 4000). For reading content only."),
     ]:
-        mcp.add_tool(fn, name=name, description=desc)
+        if not server.cdp_endpoint or name not in {"open", "click", "type", "go_back"}:
+            mcp.add_tool(fn, name=name, description=desc)
     return mcp, pool
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Compact UI-grounding MCP server (stdio).")
     p.add_argument("--ranker", default="exact", help="exact | bm25 | blend:<dir>:<alpha> | model:<dir> | router:<dir>:<tau> (default exact)")
+    p.add_argument("--observe-ranker", default=None, help="observation ranker spec (default: --ranker)")
+    p.add_argument("--cdp-endpoint", default="", help="attach perception-only to this Chromium CDP endpoint")
+    p.add_argument("--cdp-page-url-substring", default="", help="select the last matching page in the first context")
     p.add_argument("--fp32", action="store_true", help="use model.onnx instead of model.int8.onnx")
     p.add_argument("--threads", type=int, default=1)
     p.add_argument("--headed", action="store_true", help="show the browser window")
@@ -161,13 +257,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    logging.basicConfig(level=logging.INFO)
     grounder = UIGrounder(make_ranker(args.ranker, False if args.fp32 else None, args.threads))
-    server = ToolServer(grounder, headless=not args.headed)
+    observe_grounder = (
+        UIGrounder(make_ranker(args.observe_ranker, False if args.fp32 else None, args.threads))
+        if args.observe_ranker else grounder
+    )
+    server = ToolServer(grounder, headless=not args.headed, observe_grounder=observe_grounder,
+                        cdp_endpoint=args.cdp_endpoint, cdp_page_url_substring=args.cdp_page_url_substring)
     mcp, pool = build_mcp(server)
     try:
         mcp.run("stdio")
     finally:
         pool.submit(server.close).result()
+        pool.shutdown()
     return 0
 
 
