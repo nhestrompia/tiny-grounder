@@ -1,0 +1,438 @@
+# Agent benchmark v4 hard slice: frozen shop/app tasks for Plan v4 step 2.
+# Unlike v2/v3 (developer docs where keyword matching suffices), these are
+# commerce and app-control pages with icon-only controls, form flows and
+# vague goals. Most paths run 8-15 steps so re-sent snapshots pile up.
+# Fields: id, start_url, goal, tags (multistep; vague for descriptive goals;
+# icon for tasks whose path needs an icon-only control; app for app-style
+# pages; long for pages with over 12000 visible characters), max_steps
+# (= path length + 3), check (strict final URL and/or page text),
+# answer_regex (case-insensitive fact required in done(answer) and frozen
+# page), har (offline HAR zip), path (scripted steps), answer.
+# Steps: click{type{locator,text,enter},select{locator,option:{label|value|index}},
+# press, wait, scroll, goto, external}. Domains exclude training and v1/v2/v3 sites.
+# Record and verify without an LLM:
+#   uv run python -m tools.bench_v2 record --tasks-file demo/tasks_v4.yaml --out data/bench_v4 --branches 0
+#   uv run python -m tools.bench_v2 verify --tasks-file demo/tasks_v4.yaml --out data/bench_v4
+#   uv run python -m tools.bench_v2 manifest --tasks-file demo/tasks_v4.yaml --out data/bench_v4
+# Freeze hashes: data/bench_v4/manifest.json. Scripted replay is not an agent-arm evaluation.
+
+# --- saucedemo.com: login-gated shop; icon-only cart link and burger menu ---
+- id: saucedemo-checkout-backpack
+  start_url: https://www.saucedemo.com/
+  goal: Buy a Sauce Labs Backpack and finish the checkout.
+  tags: [multistep, app, icon]
+  max_steps: 14
+  check:
+    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
+    text_contains: Thank you for your order
+  har: data/bench_v4/har/saucedemo-checkout-backpack.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {css: "#add-to-cart-sauce-labs-backpack"}
+  - click: {css: "a.shopping_cart_link"}
+  - click: {css: "#checkout"}
+  - type: {css: "#first-name"}
+    text: Ada
+  - type: {css: "#last-name"}
+    text: Lovelace
+  - type: {css: "#postal-code"}
+    text: "12345"
+  - click: {css: "#continue"}
+  - click: {css: "#finish"}
+  answer: Order complete.
+  wrong: []
+- id: saucedemo-checkout-cheapest
+  start_url: https://www.saucedemo.com/
+  goal: Find the cheapest item in the store and buy it.
+  tags: [multistep, app, icon, vague]
+  max_steps: 15
+  check:
+    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
+    text_contains: Thank you for your order
+  har: data/bench_v4/har/saucedemo-checkout-cheapest.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - select: {css: "select.product_sort_container", option: {label: "Price (low to high)"}}
+  - click: {css: "#add-to-cart-sauce-labs-onesie"}
+  - click: {css: "a.shopping_cart_link"}
+  - click: {css: "#checkout"}
+  - type: {css: "#first-name"}
+    text: Grace
+  - type: {css: "#last-name"}
+    text: Hopper
+  - type: {css: "#postal-code"}
+    text: "54321"
+  - click: {css: "#continue"}
+  - click: {css: "#finish"}
+  answer: Order complete.
+  wrong: []
+- id: saucedemo-checkout-jacket-detail
+  start_url: https://www.saucedemo.com/
+  goal: Open the fleece jacket's details, add it to the cart, and check out.
+  tags: [multistep, app, icon, vague]
+  max_steps: 15
+  check:
+    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
+    text_contains: Thank you for your order
+  har: data/bench_v4/har/saucedemo-checkout-jacket-detail.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {text: "Sauce Labs Fleece Jacket", exact: true}
+  - click: {css: "#add-to-cart"}
+  - click: {css: "a.shopping_cart_link"}
+  - click: {css: "#checkout"}
+  - type: {css: "#first-name"}
+    text: Alan
+  - type: {css: "#last-name"}
+    text: Turing
+  - type: {css: "#postal-code"}
+    text: "90210"
+  - click: {css: "#continue"}
+  - click: {css: "#finish"}
+  answer: Order complete.
+  wrong: []
+- id: saucedemo-checkout-two-items
+  start_url: https://www.saucedemo.com/
+  goal: Put the bike light and the red t-shirt in the cart and complete the purchase.
+  tags: [multistep, app, icon, vague]
+  max_steps: 16
+  check:
+    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
+    text_contains: Thank you for your order
+  har: data/bench_v4/har/saucedemo-checkout-two-items.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {css: "#add-to-cart-sauce-labs-bike-light"}
+  - click: {css: "button[id*='red']"}
+  - click: {css: "a.shopping_cart_link"}
+  - click: {css: "#checkout"}
+  - type: {css: "#first-name"}
+    text: Edsger
+  - type: {css: "#last-name"}
+    text: Dijkstra
+  - type: {css: "#postal-code"}
+    text: "10001"
+  - click: {css: "#continue"}
+  - click: {css: "#finish"}
+  answer: Order complete.
+  wrong: []
+- id: saucedemo-bolt-tshirt-price
+  start_url: https://www.saucedemo.com/
+  goal: What does the Sauce Labs Bolt T-Shirt cost?
+  tags: [multistep, app]
+  max_steps: 8
+  check:
+    url_regex: ^https://www\.saucedemo\.com/inventory-item\.html\?id=1
+    text_contains: Sauce Labs Bolt T-Shirt
+  har: data/bench_v4/har/saucedemo-bolt-tshirt-price.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {text: "Sauce Labs Bolt T-Shirt", exact: true}
+  answer: $15.99
+  wrong: []
+  answer_regex: "15\\.99"
+- id: saucedemo-menu-links
+  start_url: https://www.saucedemo.com/
+  goal: Log in, open the side menu, and say which links it offers.
+  tags: [multistep, app, icon]
+  max_steps: 8
+  check:
+    url_regex: ^https://www\.saucedemo\.com/inventory\.html
+    text_contains: Reset App State
+  har: data/bench_v4/har/saucedemo-menu-links.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {css: "#react-burger-menu-btn"}
+  - wait: 800
+  answer: All Items, About, Logout, Reset App State.
+  wrong: []
+  answer_regex: "Logout"
+- id: saucedemo-most-expensive
+  start_url: https://www.saucedemo.com/
+  goal: What is the most expensive product in the store?
+  tags: [multistep, app, vague]
+  max_steps: 8
+  check:
+    url_regex: ^https://www\.saucedemo\.com/inventory\.html
+    text_contains: Sauce Labs Fleece Jacket
+  har: data/bench_v4/har/saucedemo-most-expensive.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - select: {css: "select.product_sort_container", option: {label: "Price (high to low)"}}
+  answer: Sauce Labs Fleece Jacket, $49.99
+  wrong: []
+  answer_regex: "(?=[\\s\\S]*Fleece\\s+Jacket)(?=[\\s\\S]*49\\.99)"
+
+# --- demoblaze.com: store with categories, product pages, checkout modal ---
+- id: demoblaze-nexus-screen
+  start_url: https://www.demoblaze.com/
+  goal: How much does the Nexus 6 phone cost?
+  tags: [multistep, app, vague]
+  max_steps: 7
+  check:
+    url_regex: prod\.html\?idp_=3
+    text_contains: Nexus 6
+  har: data/bench_v4/har/demoblaze-nexus-screen.zip
+  path:
+  - click: {text: "Phones", exact: true}
+  - wait: 1200
+  - click: {text: "Nexus 6", exact: true}
+  - wait: 1500
+  answer: $650
+  wrong: []
+  answer_regex: "650"
+- id: demoblaze-laptop-price
+  start_url: https://www.demoblaze.com/
+  goal: How much does the Sony vaio i5 laptop cost?
+  tags: [multistep, app]
+  max_steps: 7
+  check:
+    url_regex: prod\.html\?idp_=8
+    text_contains: Sony vaio i5
+  har: data/bench_v4/har/demoblaze-laptop-price.zip
+  path:
+  - click: {text: "Laptops", exact: true}
+  - click: {text: "Sony vaio i5", exact: true}
+  answer: $790
+  wrong: []
+  answer_regex: "790"
+- id: saucedemo-checkout-remove-item
+  start_url: https://www.saucedemo.com/
+  goal: Put two items in the cart, take one back out, then finish buying the other.
+  tags: [multistep, app, icon, vague]
+  max_steps: 16
+  check:
+    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
+    text_contains: Thank you for your order
+  har: data/bench_v4/har/saucedemo-checkout-remove-item.zip
+  path:
+  - type: {css: "#user-name"}
+    text: standard_user
+  - type: {css: "#password"}
+    text: secret_sauce
+  - click: {css: "#login-button"}
+  - click: {css: "#add-to-cart-sauce-labs-backpack"}
+  - click: {css: "#add-to-cart-sauce-labs-bike-light"}
+  - click: {css: "a.shopping_cart_link"}
+  - click: {css: "#remove-sauce-labs-bike-light"}
+  - click: {css: "#checkout"}
+  - type: {css: "#first-name"}
+    text: Barbara
+  - type: {css: "#last-name"}
+    text: Liskov
+  - type: {css: "#postal-code"}
+    text: "02139"
+  - click: {css: "#continue"}
+  - click: {css: "#finish"}
+  answer: Order complete for the backpack only.
+  wrong: []
+- id: demoblaze-cheapest-monitor
+  start_url: https://www.demoblaze.com/
+  goal: Find the cheapest monitor and report its price.
+  tags: [multistep, app, vague]
+  max_steps: 6
+  check:
+    text_contains: ASUS Full HD
+  har: data/bench_v4/har/demoblaze-cheapest-monitor.zip
+  path:
+  - click: {text: "Monitors", exact: true}
+  - wait: 1500
+  answer: $230
+  wrong: []
+  answer_regex: "230"
+
+# --- tutorialsninja.com/demo: OpenCart shop; icon search/cart/wishlist ---
+- id: tn-search-imac
+  start_url: https://tutorialsninja.com/demo/
+  goal: Find the price of the iMac desktop.
+  tags: [multistep, app, icon]
+  max_steps: 7
+  check:
+    url_regex: product_id=41
+    text_contains: iMac
+  har: data/bench_v4/har/tn-search-imac.zip
+  path:
+  - type: {css: "input[name='search']"}
+    text: iMac
+  - click: {css: "#search button"}
+  - click: {css: "a[href*='product_id=41&search']"}
+  answer: $100.00
+  wrong: []
+  answer_regex: "100\\.00|\\$100"
+- id: tn-add-macbook-cart
+  start_url: https://tutorialsninja.com/demo/
+  goal: Add a MacBook to the cart and open the shopping cart.
+  tags: [multistep, app, icon]
+  max_steps: 9
+  check:
+    url_regex: route=checkout/cart
+    text_contains: MacBook
+  har: data/bench_v4/har/tn-add-macbook-cart.zip
+  path:
+  - click: {css: "a[href*='product_id=43']", nth: 0}
+  - click: {css: "#button-cart"}
+  - wait: 1200
+  - click: {css: "#cart > button"}
+  - click: {text: "View Cart", exact: true}
+  answer: MacBook in cart.
+  wrong: []
+- id: tn-navigate-tablet
+  start_url: https://tutorialsninja.com/demo/
+  goal: What does the Samsung Galaxy Tab 10.1 cost on this store?
+  tags: [multistep, app]
+  max_steps: 8
+  check:
+    text_contains: Samsung Galaxy Tab 10.1
+  har: data/bench_v4/har/tn-navigate-tablet.zip
+  path:
+  - click: {text: "Tablets", exact: true}
+  - click: {css: "a[href*='product_id=49']", nth: 0}
+  answer: $199.99
+  wrong: []
+  answer_regex: "199\\.99"
+- id: tn-macbook-air-wishlist
+  start_url: https://tutorialsninja.com/demo/
+  goal: Try to save the MacBook Air to the wish list and report what the site asks for.
+  tags: [multistep, app, icon, vague]
+  max_steps: 8
+  check:
+    text_contains: "You must login or create an account"
+  har: data/bench_v4/har/tn-macbook-air-wishlist.zip
+  path:
+  - click: {text: "Laptops & Notebooks", exact: true}
+  - click: {text: "Show AllLaptops & Notebooks", exact: false}
+  - click: {css: "a[href*='product_id=44']", nth: 0}
+  - click: {css: "button[onclick*='wishlist']"}
+  - wait: 1000
+  answer: You must log in or create an account first.
+  wrong: []
+  answer_regex: "log\\s*in|account"
+- id: tn-checkout-guest
+  start_url: https://tutorialsninja.com/demo/
+  goal: Put an iPhone in the cart and start the checkout.
+  tags: [multistep, app, icon, vague]
+  max_steps: 11
+  check:
+    url_regex: route=checkout/checkout|route=checkout/cart
+    text_contains: iPhone
+  har: data/bench_v4/har/tn-checkout-guest.zip
+  path:
+  - click: {css: "a[href*='product_id=40']", nth: 0}
+  - click: {css: "#button-cart"}
+  - wait: 1200
+  - click: {css: "#cart > button"}
+  - click: {text: "Checkout", exact: true}
+  answer: Reached checkout.
+  wrong: []
+
+# --- the-internet.herokuapp.com: app controls, forms, dynamic content ---
+- id: internet-login
+  start_url: https://the-internet.herokuapp.com/login
+  goal: Log in with the demo credentials shown on the page.
+  tags: [multistep, app, vague]
+  max_steps: 7
+  check:
+    url_regex: /secure
+    text_contains: Secure Area
+  har: data/bench_v4/har/internet-login.zip
+  path:
+  - type: {css: "#username"}
+    text: tomsmith
+  - type: {css: "#password"}
+    text: SuperSecretPassword!
+  - click: {css: "button[type='submit']"}
+  answer: Logged into the Secure Area.
+  wrong: []
+- id: internet-login-logout
+  start_url: https://the-internet.herokuapp.com/login
+  goal: Log in, sign out, and log back in.
+  tags: [multistep, app]
+  max_steps: 11
+  check:
+    url_regex: /secure
+    text_contains: Secure Area
+  har: data/bench_v4/har/internet-login-logout.zip
+  path:
+  - type: {css: "#username"}
+    text: tomsmith
+  - type: {css: "#password"}
+    text: SuperSecretPassword!
+  - click: {css: "button[type='submit']"}
+  - click: {css: "a.button[href='/logout']"}
+  - type: {css: "#username"}
+    text: tomsmith
+  - type: {css: "#password"}
+    text: SuperSecretPassword!
+  - click: {css: "button[type='submit']"}
+  answer: Back in the Secure Area.
+  wrong: []
+- id: internet-dynamic-loading
+  start_url: https://the-internet.herokuapp.com/dynamic_loading/2
+  goal: Start the dynamic element and report what text appears.
+  tags: [multistep, app]
+  max_steps: 6
+  check:
+    text_contains: Hello World
+  har: data/bench_v4/har/internet-dynamic-loading.zip
+  path:
+  - click: {css: "#start button"}
+  - wait: 7000
+  answer: Hello World!
+  wrong: []
+  answer_regex: "Hello\\s+World"
+- id: internet-add-remove
+  start_url: https://the-internet.herokuapp.com/add_remove_elements/
+  goal: Add three delete buttons to the page.
+  tags: [multistep, app]
+  max_steps: 7
+  check:
+    text_contains: Delete
+  har: data/bench_v4/har/internet-add-remove.zip
+  path:
+  - click: {css: "button[onclick='addElement()']"}
+  - click: {css: "button[onclick='addElement()']"}
+  - click: {css: "button[onclick='addElement()']"}
+  answer: Three Delete buttons added.
+  wrong: []
+- id: internet-key-press
+  start_url: https://the-internet.herokuapp.com/key_presses
+  goal: Type a letter in the target field and report what the page says you entered.
+  tags: [multistep, app]
+  max_steps: 6
+  check:
+    text_contains: "You entered: K"
+  har: data/bench_v4/har/internet-key-press.zip
+  path:
+  - click: {css: "#target"}
+  - press: K
+  answer: "You entered: K"
+  wrong: []
+  answer_regex: "entered:\\s*K"
