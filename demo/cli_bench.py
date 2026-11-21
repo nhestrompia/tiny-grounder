@@ -146,13 +146,18 @@ def run_id(agent: Agent, config: str, task_id: str, repeat: int, arm: str | None
 
 def build_prompt(task: Task, config: str) -> str:
     tools = ", ".join(tools_for(config))
+    safety = (
+        "Actions on this disposable demo site are all permitted: log in with the credentials the page gives you, "
+        "submit forms, and complete checkouts."
+        if task.allow_actions else
+        "Some clicks are refused for safety (buttons that submit forms, or that mention paying, buying, deleting, "
+        "sending...); pick another way. You can only read and navigate; never log in or change anything."
+    )
     return (
         f"Goal: {task.goal}\n\n"
         f"A web browser is already open on {task.start_url}. You can only act through the browser tools provided by "
         f"the `{SERVER_NAME}` MCP server ({tools}); do not use any other tool, shell, file or web access, and do not "
-        "answer from memory. Some clicks are refused for safety (buttons that submit forms, or that mention paying, "
-        "buying, deleting, sending...); pick another way. You can only read and navigate; never log in or change "
-        "anything.\n\n"
+        f"answer from memory. {safety}\n\n"
         f"{CONFIG_HINTS[config]}\n\n"
         "Work efficiently. When the goal is reached, you MUST call done(answer) with a short answer; if the goal cannot "
         "be reached, call done with the reason."
@@ -176,6 +181,8 @@ def server_argv(task: Task, config: str, ranker: str, model_dir: Path, log: Path
     ]
     if task.answer_regex:
         argv += ["--answer-regex", task.answer_regex]
+    if task.allow_actions:
+        argv += ["--allow-actions"]
     if har is not None:
         argv += ["--har", str(har), "--replay-miss", replay_miss]
     return argv if observe else argv + ["--no-observe"]

@@ -87,8 +87,8 @@ class MiddlewareSession(BrowserSession):
         return selector if self.page.locator(selector).count() == 1 else target
 
 
-def check_label(label, click_action):
-    if click_action and (word := ph.blocked_text(label)):
+def check_label(label, click_action, allow=False):
+    if not allow and click_action and (word := ph.blocked_text(label)):
         raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
 
 
@@ -99,21 +99,22 @@ _SAFETY_JS = """el => {
 }"""
 
 
-def check_facts(facts, click_action):
-    check_label(facts['label'] + ' ' + facts.get('context', ''), click_action)
+def check_facts(facts, click_action, allow=False):
+    check_label(facts['label'] + ' ' + facts.get('context', ''), click_action, allow)
     if facts.get('disabled'):
         raise ToolError('refused: the element is disabled')
-    if reason := ph.verdict(dict(ok=True, **facts), click_action):
+    if not allow and (reason := ph.verdict(dict(ok=True, **facts), click_action)):
         raise ToolError(f'refused: {reason}')
 
 
 def check_locator(session, loc, click_action):
     # One non-waiting DOM read. The child retains its native actionability checks.
-    check_facts(loc.evaluate(_SAFETY_JS, timeout=100), click_action)
+    check_facts(loc.evaluate(_SAFETY_JS, timeout=100), click_action, getattr(session, 'allow_actions', False))
 
 
 def check_target(session, target, label, click_action):
-    check_label(label, click_action)
+    allow = getattr(session, 'allow_actions', False)
+    check_label(label, click_action, allow)
     # Child refs belong to another client. Resolve available labels in one DOM read,
     # conservatively checking every exact-label match rather than guessing a duplicate.
     facts = session.page.evaluate("""([target, label]) => {
@@ -127,7 +128,7 @@ def check_target(session, target, label, click_action):
         .map(facts);
     }""", [target, label])
     for item in facts:
-        check_facts(item, click_action)
+        check_facts(item, click_action, allow)
     return 'checked' if facts else 'label checked; DOM facts unavailable'
 
 
@@ -297,7 +298,8 @@ class Proxy:
                                 element = next((e for e in b.session.elements
                                                 if b.session.middleware_ids.get(e.id) == identifier), None)
                                 if element:
-                                    check_label(element.text + ' ' + element.context, click_action)
+                                    check_label(element.text + ' ' + element.context, click_action,
+                                                getattr(b.session, 'allow_actions', False))
                             checks.append(check_target(b.session, target, label, click_action))
                         return '; '.join(checks)
                     safety = await self.owner(safety_check)
@@ -367,6 +369,7 @@ async def competitor_session(args):
         return await loop.run_in_executor(pool, fn)
     def build():
         session = MiddlewareSession(args.start_url, har=args.har, replay_miss=args.replay_miss, cdp=True)
+        session.allow_actions = getattr(args, 'allow_actions', False)
         bench = CompetitorBench("find+observe", session, SpecRanker("exact"), args.goal, args.check, args.log,
                                 args.task_id, max_calls=args.max_calls, answer_regex=args.answer_regex)
         bench.config = args.config

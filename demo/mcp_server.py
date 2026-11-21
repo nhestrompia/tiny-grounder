@@ -222,6 +222,7 @@ class BenchServer:
         tools_for(config)  # validates the name
         self.config, self.session, self.goal, self.check, self.task_id = config, session, goal, check, task_id
         self.observe, self.max_calls = observe, max_calls
+        self.allow_actions = getattr(session, "allow_actions", False)  # task opted in: relax click-safety
         self.answer_regex, self.a11y_cap = answer_regex, a11y_cap
         self._aria_cache: tuple[int, str] | None = None  # (state version, full snapshot text) for a11y-cap paging
         self._state = 0  # bumped by every action, so a cached snapshot is only reused while the page is unchanged
@@ -447,10 +448,11 @@ class BenchServer:
         with self.session.overhead("safety_ms"):
             loc = self._ref(ref)
             facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
-            if word := ph.blocked_text(facts["label"]):
-                raise ToolError(f"refused: risky: the element mentions the blocked word {word!r}")
-            if facts["submit"]:
-                raise ToolError("refused: risky: the element submits a form")
+            if not self.allow_actions:
+                if word := ph.blocked_text(facts["label"]):
+                    raise ToolError(f"refused: risky: the element mentions the blocked word {word!r}")
+                if facts["submit"]:
+                    raise ToolError("refused: risky: the element submits a form")
         self.session._guard(lambda: loc.click(timeout=10_000))
         self.session._settle()
         return f"clicked {facts['tag']} {facts['label']!r}"
@@ -461,7 +463,7 @@ class BenchServer:
             facts = self.session._guard(lambda: loc.evaluate(_FACTS_JS))
             if not facts["editable"]:
                 raise ToolError(f"ref {ref} is a {facts['tag']}, not a text field")
-            if facts["password"]:
+            if facts["password"] and not self.allow_actions:
                 raise ToolError("refused: the element is a password field")
         page = self.session.page
 
@@ -525,10 +527,11 @@ class BenchServer:
             facts = self.session._guard(lambda: page.evaluate(_POINT_FACTS_JS, [x, y]))
             if facts is None:
                 raise ToolError("nothing at that point")
-            if word := ph.blocked_text(facts["label"]):
-                raise ToolError(f"refused: risky: the element at that point mentions the blocked word {word!r}")
-            if facts["submit"]:
-                raise ToolError("refused: risky: the element at that point submits a form")
+            if not self.allow_actions:
+                if word := ph.blocked_text(facts["label"]):
+                    raise ToolError(f"refused: risky: the element at that point mentions the blocked word {word!r}")
+                if facts["submit"]:
+                    raise ToolError("refused: risky: the element at that point submits a form")
         self.session._guard(lambda: page.mouse.click(x, y))
         self.session._settle()
         return self._after(f"clicked at ({x:g}, {y:g})")
@@ -539,7 +542,7 @@ class BenchServer:
             facts = self.session._guard(lambda: page.evaluate(_FOCUS_FACTS_JS))
             if facts is None or not facts["editable"]:
                 raise ToolError("no text field is focused; click on one first")
-            if facts["password"]:
+            if facts["password"] and not self.allow_actions:
                 raise ToolError("refused: the element is a password field")
 
         def act() -> None:
@@ -722,6 +725,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--model-dir", default=DEFAULT_MODEL_DIR)
     p.add_argument("--max-calls", type=int, default=DEFAULT_MAX_CALLS)
     p.add_argument("--no-observe", action="store_true", help="a11y / vision: actions do not return a new observation")
+    p.add_argument("--allow-actions", action="store_true",
+                   help="task opted in: skip click-safety refusals (blocked words, submits, password fields)")
     args = p.parse_args(argv)
     args.check = json.loads(args.check)
     if bad := set(args.check) - set(CHECK_KEYS):
@@ -741,6 +746,7 @@ def main(argv: list[str] | None = None) -> int:
         ranker = None if args.config in (*A11Y_CONFIGS, "vision") else make_ranker(find_spec, args.model_dir)
         observation = make_digest_ranker(observe_spec) if observe_spec else None
         session = BrowserSession(args.start_url, har=args.har, replay_miss=args.replay_miss)
+        session.allow_actions = args.allow_actions
         return BenchServer(
             args.config, session, ranker, args.goal, args.check, args.log, args.task_id,
             observe=not args.no_observe, max_calls=args.max_calls,
