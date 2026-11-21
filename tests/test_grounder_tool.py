@@ -153,6 +153,7 @@ def test_build_mcp_registers_tools(server):
     assert names == {"open", "find", "snapshot", "click", "type", "go_back", "read_text", "observe", "inspect", "read"}
 
 
+@pytest.mark.skipif(not (MODEL_DIR / "model.onnx").exists(), reason="dist/xs-s0 not present")
 def test_blend_ranker_spec_and_probabilities():
     from grounder_tool.rankers import BlendRanker, make_ranker
     from grounder.records import Element

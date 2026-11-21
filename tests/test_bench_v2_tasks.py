@@ -42,7 +42,10 @@ def test_tasks_parse_and_are_frozen_replays() -> None:
 
 
 def test_start_and_path_domains_are_held_out() -> None:
-    train = read_domain_file(ROOT / "data" / "leakage" / "heldout_domains.txt")  # lists TRAINING domains
+    train_file = ROOT / "data" / "leakage" / "heldout_domains.txt"  # lists TRAINING domains
+    if not train_file.exists():
+        pytest.skip("no training-domain list")
+    train = read_domain_file(train_file)
     demo = task_domains((ROOT / "demo" / "tasks.yaml").read_text(encoding="utf-8"))
     human = humaneval_sites()
     for t in raw():

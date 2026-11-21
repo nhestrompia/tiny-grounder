@@ -12,7 +12,7 @@ from grounder.data.dataset import GrounderDataset, collate
 from grounder.eval import rank, rank_model
 from grounder.export import export_model_dir, parity_check
 from grounder.features import MODEL_INPUTS, combine_chunk_logits, encode_page
-from grounder.model import Grounder
+from grounder.model import Grounder, listwise_loss
 from grounder.ranking import example_elements, ranked_from_logits
 from grounder.records import Element, Example, Page
 from grounder.runtime import Grounder as Runtime
@@ -20,9 +20,21 @@ from grounder.runtime import new_session, session_logits
 
 
 @pytest.fixture(scope="module")
-def exported(xs_config, tokenizer_path, tmp_path_factory):
+def exported(xs_config, tokenizer, tokenizer_path, synth_data, tmp_path_factory):
     torch.manual_seed(0)
-    model = Grounder(xs_config).eval()
+    model = Grounder(xs_config)
+    # an untrained model's logits are near-tied, so int8 noise flips argmax; train a few steps first
+    pages, examples = synth_data
+    subset = [e for e in examples if e.kind in ("plain", "paraphrase")][:100]
+    ds = GrounderDataset(pages, subset, tokenizer, augment=None)
+    batch = collate([ds[i] for i in range(len(ds))])
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3, weight_decay=0.0)
+    for _ in range(60):
+        loss = listwise_loss(model(**{k: batch[k] for k in MODEL_INPUTS}), batch["positive"])
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    model.eval()
     return model, export_model_dir(model, tokenizer_path, tmp_path_factory.mktemp("dist"))
 
 

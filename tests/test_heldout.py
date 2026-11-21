@@ -67,7 +67,10 @@ def test_shipped_site_list_avoids_training_and_demo_domains():
         pytest.skip("no site list")
     from grounder.data.crawl import read_sites, registrable_domain, start_url
 
-    train = sites.read_domain_file(root / "data/leakage/heldout_domains.txt")
+    train_file = root / "data/leakage/heldout_domains.txt"
+    if not train_file.exists():
+        pytest.skip("no training-domain list")
+    train = sites.read_domain_file(train_file)
     demo = sites.task_domains((root / "demo/tasks.yaml").read_text())
     domains = [registrable_domain(start_url(e)) for e in read_sites(listed)]
     assert len(domains) == len(set(domains))
