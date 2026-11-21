@@ -80,6 +80,60 @@ def extract_landmarks(page: Any) -> tuple[list[str], list[tuple[str, float]]]:
     return result["landmarks"], [(text, float(y)) for text, y in result["headings"]]
 
 
+@dataclass(frozen=True)
+class Passage:
+    """A visible text block, its preceding heading and document position."""
+
+    text: str
+    heading: str = ""
+    y: float = 0.0
+
+
+PASSAGES_JS = r"""() => {
+  const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+  const visible = el => {
+    const style = getComputedStyle(el), box = el.getBoundingClientRect();
+    return el.getClientRects().length && box.width && box.height && style.visibility === 'visible'
+      && !el.closest('[hidden],[aria-hidden="true"]') && style.opacity !== '0';
+  };
+  const chrome = 'nav,header,footer,aside,[role=navigation],[role=banner],'
+    + '[role=contentinfo],[role=complementary]';
+  const selector = 'p,li,dd,dt,tr,pre,code,blockquote,figcaption,h1,h2,h3,h4,h5,h6';
+  const nodes = [...document.querySelectorAll(selector)];
+  const hasContent = nodes.some(el => !el.closest(chrome) && visible(el) && norm(el.innerText));
+  const out = [];
+  let heading = '';
+  for (const el of nodes) {
+    if (!visible(el) || (hasContent && el.closest(chrome))) continue;
+    // Rows and preformatted blocks own their descendants; nested list items remain separate.
+    if (el.parentElement?.closest('tr,pre,blockquote,figcaption')) continue;
+    if (el.tagName === 'CODE' && el.parentElement?.closest('p,li,dd,dt')) continue;
+    if (el.tagName === 'P' && el.parentElement?.closest('li,dd,dt')) continue;
+    let text;
+    if (el.tagName === 'LI' && el.querySelector('li')) {
+      const copy = el.cloneNode(true);
+      copy.querySelectorAll('ul,ol').forEach(n => n.remove());
+      text = norm(copy.textContent);
+    } else text = norm(el.innerText);
+    if (!text) continue;
+    const isHeading = /^H[1-6]$/.test(el.tagName);
+    const links = [...el.querySelectorAll('a[href]')].filter(visible);
+    const linkOnly = links.length === 1 && norm(links[0].innerText) === text;
+    if (!linkOnly) out.push({text: text.length > 300 ? text.slice(0,299) + '…' : text,
+      heading, y: el.getBoundingClientRect().top + scrollY});
+    if (isHeading) heading = text.replace(/\s*[¶#§🔗]+$/u, '');
+    if (out.length >= 2000) break;
+  }
+  return out;
+}"""
+
+
+def extract_passages(page: Any) -> list[Passage]:
+    """Return at most 2,000 visible text blocks from a live Playwright page."""
+    return [Passage(row["text"], row["heading"], float(row["y"]))
+            for row in page.evaluate(PASSAGES_JS)]
+
+
 BLOCKED_WORDS: tuple[str, ...] = (
     "submit", "pay", "buy", "order", "purchase", "checkout", "delete", "remove", "send", "confirm",
     "transfer", "place order",

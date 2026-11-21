@@ -261,11 +261,13 @@ def test_heading_regions_and_fallback():
 
 @pytest.mark.parametrize("server_kind", ["tool", "demo"])
 @pytest.mark.parametrize("budget,expected", [(-10, 100), (0, 100), (300, 300), (50000, 2000)])
-def test_mcp_budget_clamp_and_shared_api(server_kind, budget, expected):
+def test_mcp_budget_clamp_and_shared_api(server_kind, budget, expected, monkeypatch):
     from types import SimpleNamespace
     from grounder_tool.mcp import ToolServer
     from demo.mcp_server import BenchServer
 
+    monkeypatch.setattr(ToolServer, "_passages", lambda self: [])
+    monkeypatch.setattr(BenchServer, "_passages", lambda self: [])
     calls = []
 
     class Capture:

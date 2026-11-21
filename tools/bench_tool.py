@@ -22,7 +22,8 @@ from playwright.sync_api import sync_playwright
 
 from grounder.extract.web import extract_page_sync
 from grounder.records import Element
-from grounder.playwright_helper import extract_landmarks
+from grounder.playwright_helper import extract_landmarks, extract_passages
+from grounder_tool.digest import read
 from grounder_tool import UIGrounder, make_ranker
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -142,7 +143,8 @@ def main() -> int:
         browser = pw.chromium.launch(headless=True)
         tab = browser.new_page(viewport={"width": 1280, "height": 800})
         tab.set_content("<title>Install documentation</title><h1>Docs</h1>" + "".join(
-            f'<a href="/docs/{i}">Install package {i}</a><br>' for i in range(500)))
+            f'<p>Install package {i} into the default directory /opt/packages/{i}. '
+            f'{"Package documentation details. " * 8}</p><a href="/docs/{i}">Install package {i}</a><br>' for i in range(500)))
         for spec in ("exact", f"blend:{ROOT}/dist/xs-s0:8"):
             grounder = UIGrounder(spec)
             samples = []
@@ -150,11 +152,21 @@ def main() -> int:
                 start = time.perf_counter()
                 page = extract_page_sync(tab)
                 landmarks, _ = extract_landmarks(tab)
-                grounder.observe(page, "Install a package", landmarks=landmarks)
+                passages = extract_passages(tab)
+                grounder.observe(page, "Install a package", landmarks=landmarks, passages=passages)
                 samples.append((time.perf_counter() - start) * 1000)
             samples = samples[1:]
             print(f"| {spec} | {len(page.elements)} | {pct(samples, 50):.1f} | "
                   f"{pct(samples, 95):.1f} | {'ok' if pct(samples, 95) <= 200 else 'FAIL'} |")
+        samples = []
+        for _ in range(args.reps + 1):
+            start = time.perf_counter()
+            passages = extract_passages(tab)
+            read("where are packages installed", passages)
+            samples.append((time.perf_counter() - start) * 1000)
+        samples = samples[1:]
+        print(f"| read lexical ({len(passages)} passages) | {len(page.elements)} | {pct(samples, 50):.1f} | "
+              f"{pct(samples, 95):.1f} | {'ok' if pct(samples, 95) <= 200 else 'FAIL'} |")
         browser.close()
     print("\n| package | size | gate <=3 MB |\n|---|---|---|")
     print("\n".join(package_sizes()))

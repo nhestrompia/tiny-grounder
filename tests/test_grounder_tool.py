@@ -150,7 +150,7 @@ def test_build_mcp_registers_tools(server):
         names = {t.name for t in asyncio.run(mcp.list_tools())}
     finally:
         pool.shutdown()
-    assert names == {"open", "find", "snapshot", "click", "type", "go_back", "read_text", "observe", "inspect"}
+    assert names == {"open", "find", "snapshot", "click", "type", "go_back", "read_text", "observe", "inspect", "read"}
 
 
 def test_blend_ranker_spec_and_probabilities():

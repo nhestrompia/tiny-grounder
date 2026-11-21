@@ -15,7 +15,7 @@ coordinate equivalents for `vision`):
                 style. Every action returns the new screenshot (`--no-observe` turns that off).
     top20       snapshot() -> the grounder's 20 best elements for the goal (goal mode, last actions as history)
     find        find(query) -> the grounder's 5 best elements with scores (do mode); no snapshot
-    find+observe find, observe and inspect; actions return their status line followed by a fresh 600-token
+    find+observe find, observe, inspect and read; actions return their status line followed by a fresh 600-token
                 digest for the task goal. observe() without a goal uses the task goal, with top20 action history.
     find+top20  both
     a11y-cap    `a11y` with a cap: snapshot(page=1) returns at most A11Y_CAP_CHARS (20,000) characters of the ARIA
@@ -64,7 +64,7 @@ from grounder import playwright_helper as ph
 from grounder.records import Element, Mode, Page
 from grounder.ranking import Ranked
 from grounder_tool.api import UIGrounder
-from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET
+from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET, read as read_passages
 from grounder_tool.rankers import Ranker as DigestRanker, make_ranker as make_digest_ranker
 
 SERVER_NAME = "ui"
@@ -82,7 +82,8 @@ _REF_RE = re.compile(r"^[A-Za-z0-9_]{1,16}$")
 
 CONFIG_HINTS: dict[str, str] = {
     "find+observe": "Call observe() for a compact goal-aware digest, find(query) for other controls, "
-    "and inspect(id=...) or inspect(region=...) for detail. Actions return a fresh digest of the new page.",
+    "read(query) for facts in page text, and inspect(id=...) or inspect(region=...) for detail. "
+    "Actions return a fresh digest of the new page.",
     "full": "Call snapshot() to list every element on the current page as `id|role|text|context` lines. "
     "Element ids refer to the most recent snapshot.",
     "a11y": "Call snapshot() to get the page's accessibility tree; interactive nodes carry a [ref=eN] marker. "
@@ -156,7 +157,7 @@ def tools_for(config: str) -> tuple[str, ...]:
     if config not in BENCH_CONFIGS:
         raise ValueError(f"unknown config {config!r}; choose from {', '.join(BENCH_CONFIGS)}")
     return {
-        "find+observe": ("find", "observe", "inspect", "click", "type", "go_back", "done"),
+        "find+observe": ("find", "observe", "inspect", "read", "click", "type", "go_back", "done"),
         "full": ("snapshot", "click", "type", "go_back", "done"),
         "a11y": ("snapshot", "click", "type", "go_back", "done"),
         "a11y-cap": ("snapshot", "click", "type", "go_back", "done"),
@@ -356,11 +357,25 @@ class BenchServer:
 
     def _t_observe(self, goal: str = "", budget: int = 600) -> str:
         page = self._digest_page()
+        passages = self._passages()
         start = time.perf_counter()
         result = self.digest.observe(
             page, goal or self.goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)),
-            self.box.history[-HISTORY_LEN:], landmarks=self.session.landmarks,
+            self.box.history[-HISTORY_LEN:], landmarks=self.session.landmarks, passages=passages,
         )
+        self.rank_ms += (time.perf_counter() - start) * 1000
+        return result
+
+    def _passages(self) -> list[ph.Passage]:
+        start = time.perf_counter()
+        passages = self.session._guard(lambda: ph.extract_passages(self.session.page))
+        self.extract_ms += (time.perf_counter() - start) * 1000
+        return passages
+
+    def _t_read(self, query: str, budget: int = 400) -> str:
+        passages = self._passages()
+        start = time.perf_counter()
+        result = read_passages(query, passages, budget)
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
 
@@ -608,6 +623,12 @@ def build_mcp(config: str, call: Any) -> Any:
             description="Expand an element id, heading or context prefix with details and nearby controls. "
             "Call when observe lacks the detail needed to act.",
         )
+    if "read" in tools_for(config):
+        def read(query: str, budget: int = 400) -> Any:
+            return out(call("read", query=query, budget=budget))
+
+        mcp.add_tool(read, name="read", description="Read the page text most relevant to a question; "
+                     "use it to find facts on the current page instead of guessing.")
     if config == "vision":
         mcp.add_tool(
             lambda: out(call("screenshot")), name="screenshot",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from grounder.playwright_helper import Passage
 from grounder.records import Element, Page
 from grounder_tool.digest import LineSuffix, inspect, observe
 from grounder_tool.lines import Hit, format_lines
@@ -44,10 +45,10 @@ class UIGrounder:
     def observe(
         self, source: Page, goal: str = "", budget: int = 600,
         history: list[str] | None = None, landmarks: list[str] | None = None,
-        line_suffix: LineSuffix | None = None,
+        line_suffix: LineSuffix | None = None, passages: list[Passage] | None = None,
     ) -> str:
         """Return a goal-ranked digest within the estimated token budget."""
-        return observe(source, goal, self.ranker, budget, history, line_suffix, landmarks)
+        return observe(source, goal, self.ranker, budget, history, line_suffix, landmarks, passages)
 
     def inspect(
         self, source: Page, id: int | None = None, region: str = "", budget: int = 400,

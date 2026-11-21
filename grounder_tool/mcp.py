@@ -19,6 +19,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from grounder.playwright_helper import Passage, extract_passages
+from grounder_tool.digest import read as read_passages
 from grounder.records import Element, Page, action_repr
 from grounder_tool.api import UIGrounder, format_lines
 from grounder_tool.browser import BrowserSession, ToolError
@@ -29,14 +31,14 @@ INSTRUCTIONS = (
     "Call find(query) with a short description to locate a control. "
     "Call observe(goal) after navigation for a compact page digest, or inspect(id) for details. "
     "Element lines use `id|role|text|context` with scores for find/snapshot. "
-    "Ids refer to the latest extraction. Use read_text to read page content."
+    "Ids refer to the latest extraction. Use read(query) to find facts in page text."
 )
 CDP_INSTRUCTIONS = (
     "This server is perception-only. Call observe(goal) for a compact page digest, "
     "find(query) to locate a control, or inspect(id) for details. "
     "Element lines use `id|role|text|context`; ids refer to the latest extraction. "
     "The @x,y suffix gives viewport coordinates for the executor's click. "
-    "Use read_text to read page content."
+    "Use read(query) to find facts in page text."
 )
 HISTORY_LEN = 3
 
@@ -97,11 +99,25 @@ class ToolServer:
     def observe(self, goal: str = "", budget: int = 600) -> str:
         """Return a goal-aware digest within the estimated token budget, including coordinates."""
         page = self._extract()
+        passages = self._passages()
         start = time.perf_counter()
         out = self.observe_grounder.observe(
             page, goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)), self.history[-HISTORY_LEN:],
-            landmarks=self._need().landmarks, line_suffix=self._coordinate_suffix(),
+            landmarks=self._need().landmarks, line_suffix=self._coordinate_suffix(), passages=passages,
         )
+        self.rank_ms = (time.perf_counter() - start) * 1000
+        return out
+
+    def _passages(self) -> list[Passage]:
+        start = time.perf_counter()
+        passages = self._need()._guard(lambda: extract_passages(self._need().page))
+        self.extract_ms += (time.perf_counter() - start) * 1000
+        return passages
+
+    def read(self, query: str, budget: int = 400) -> str:
+        passages = self._passages()
+        start = time.perf_counter()
+        out = read_passages(query, passages, budget)
         self.rank_ms = (time.perf_counter() - start) * 1000
         return out
 
@@ -223,8 +239,13 @@ def build_mcp(server: ToolServer):
     def inspect(id: int | None = None, region: str = "") -> str:
         return run(server.inspect, id, region)
 
+    def read(query: str, budget: int = 400) -> str:
+        return run(server.read, query, budget)
+
     for fn, name, desc in [
-        (observe, "observe", "Compact page header, headings and goal-ranked controls. "
+        (read, "read", "Read the page text most relevant to a question; "
+         "use it to find facts on the current page instead of guessing."),
+        (observe, "observe", "Compact page header, headings, relevant text and goal-ranked controls. "
          "Budget is clamped to 100-2000 tokens. "
          "Call after navigation to choose the next action; an empty goal uses the title."),
         (inspect, "inspect", "Expand an element id, heading or context prefix from observe for details and nearby controls. "

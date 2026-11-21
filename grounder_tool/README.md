@@ -46,7 +46,7 @@ score, box`. `from_macos_ax(app=None)` dumps an app's front window (frontmost ap
 
 Tools: `open(url)`, `find(query, k=5)`, `snapshot(goal, k=20)`, `click(id)`, `type(id, text, press_enter)`,
 `go_back()`, `read_text(max_chars)`, `observe(goal="", budget=600)` returns URL, title, live headings, goal-ranked element
-lines and a count footer. An empty goal uses the page title. Budgets use one estimate,
+lines and a count footer. Live pages also include relevant text passages after the headings. An empty goal uses the page title. Budgets use one estimate,
 ceil(characters / 4). Both MCP servers clamp the budget to 100-2000 tokens.
 Elements are ranked in goal mode with the last three actions. Duplicate role, case-folded
 text and href combinations appear once. Observe clips text to 80 characters and context to 40.
@@ -92,3 +92,21 @@ the page on each call. Element lines append `@x,y`, the center in viewport CSS p
 with the current scroll offset subtracted. Disconnecting leaves the browser open.
 Use Playwright MCP for actions, disable automatic screenshots in your agent setup,
 and call `observe` after navigation to get the compact page view.
+
+
+### Read facts from page text
+
+Use `read(query, budget=400)` to find facts on the current page. Both MCP modes and the
+benchmark `find+observe` arm expose this tool. The budget is clamped to 100-2000 tokens.
+Each result uses `> text  [§ heading]`, followed by `showing K of N passages`.
+Only passages with positive lexical scores appear. Ties keep document order.
+
+The shared live extractor returns paragraphs, list items, definitions, table rows,
+code blocks, quotations, captions and headings. It skips hidden blocks and navigation,
+headers, footers and sidebars when the page has other content. Blocks contain at most
+300 characters. The extractor returns at most 2,000 blocks.
+
+Passage ranking always uses the existing exact/BM25 scorer, regardless of the element
+ranker. Observe uses at most 30% of its total budget for text. Element lines fill the
+rest. Action digests in `find+observe` include fresh passages. Stored Pages retain their
+existing output unless the caller supplies `passages` to `UIGrounder.observe`.

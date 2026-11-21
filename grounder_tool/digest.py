@@ -5,6 +5,8 @@ from __future__ import annotations
 from math import ceil
 from typing import Callable
 
+from grounder.playwright_helper import Passage
+from grounder.baselines.exact import rank_elements as lexical_rank
 from grounder.records import Element, Page, equiv_key
 from grounder_tool.lines import Hit
 from grounder_tool.rankers import Ranker
@@ -55,6 +57,7 @@ def observe(
     history: list[str] | None = None,
     line_suffix: LineSuffix | None = None,
     landmarks: list[str] | None = None,
+    passages: list[Passage] | None = None,
 ) -> str:
     """Return header, outline and deduplicated goal-ranked lines within `budget` estimated tokens.
 
@@ -78,6 +81,17 @@ def observe(
     if outline and used + len(outline) + len(footer(0)) + 2 <= cap:
         lines.append(outline)
         used += len(outline) + 1
+    text_used = 0
+    for passage, _ in rank_passages(goal or page.title, passages or []):
+        line = passage_line(passage)
+        cost = len(line) + 1
+        if text_used + cost > int(cap * 0.30):
+            continue
+        if used + cost + len(footer(0)) + 1 > cap:
+            continue
+        lines.append(line)
+        used += cost
+        text_used += cost
     kept = 0
     if page.elements:
         ranked = ranker.rank(goal or page.title, page.elements, "goal", history)
@@ -171,3 +185,29 @@ def inspect(
         if used + len(more) <= cap:
             lines.append(more)
     return "\n".join(lines)
+
+
+def rank_passages(query: str, passages: list[Passage]) -> list[tuple[Passage, float]]:
+    """Use exact/BM25 lexical scoring in every arm; ties retain document order."""
+    elements = [Element(i, "text", p.text, p.heading) for i, p in enumerate(passages)]
+    ranked = lexical_rank(query, elements)
+    return [(passages[i], score) for i, score in zip(ranked.ids, ranked.scores) if score > 0]
+
+
+def passage_line(passage: Passage) -> str:
+    heading = f"  [§ {_clip(passage.heading, 40)}]" if passage.heading else ""
+    return f"> {_clip(passage.text, 300)}{heading}"
+
+
+def read(query: str, passages: list[Passage], budget: int = 400) -> str:
+    """Return relevant text with an intact count footer within the clamped budget."""
+    cap = max(MIN_BUDGET, min(MAX_BUDGET, budget)) * 4
+    lines: list[str] = []
+    used = 0
+    for passage, _ in rank_passages(query, passages):
+        line = passage_line(passage)
+        footer = f"showing {len(lines) + 1} of {len(passages)} passages"
+        if used + len(line) + 1 + len(footer) <= cap:
+            lines.append(line)
+            used += len(line) + 1
+    return "\n".join([*lines, f"showing {len(lines)} of {len(passages)} passages"])
