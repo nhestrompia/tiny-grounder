@@ -120,9 +120,12 @@ def parse_tasks(raw: Any) -> list[Task]:
         tags = item.get("tags") or []
         if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
             raise ValueError(f"task {name}: tags must be a list of strings")
+        allow_actions = item.get("allow_actions", False)
+        if not isinstance(allow_actions, bool):
+            raise ValueError(f"task {name}: allow_actions must be a boolean")
         tasks.append(Task(item["id"], item["start_url"], item["goal"], {k: str(v) for k, v in check.items()}, item["max_steps"],
                           answer_regex, tuple(tags), str(item.get("har") or ""), str(item.get("site") or ""),
-                          bool(item.get("allow_actions"))))
+                          allow_actions))
     if len({t.id for t in tasks}) != len(tasks):
         raise ValueError("duplicate task ids")
     return tasks
@@ -308,6 +311,9 @@ class BrowserSession:
 
     def _probe_point(self, cx: float, cy: float, tag: str, click_action: bool) -> dict[str, Any]:
         probe = self._guard(lambda: self.page.evaluate(ph.PROBE_JS, [cx, cy, tag]))
+        # Correctness failures (unreachable point, stale tag) always refuse — only safety refusals are opted out of.
+        if not probe["ok"]:
+            raise ToolError(f"refused: {probe['reason']}")
         if not getattr(self, "allow_actions", False) and (reason := ph.verdict(probe, click_action)):
             raise ToolError(f"refused: {reason}")
         return probe
