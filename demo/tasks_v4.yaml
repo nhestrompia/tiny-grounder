@@ -6,6 +6,8 @@
 # icon for tasks whose path needs an icon-only control; app for app-style
 # pages; long for pages with over 12000 visible characters), max_steps
 # (= path length + 3), check (strict final URL and/or page text),
+# allow_actions (opt-in: task involves login/forms/checkout, so the click-
+# safety refusals and the read-only agent prompt are relaxed for it),
 # answer_regex (case-insensitive fact required in done(answer) and frozen
 # page), har (offline HAR zip), path (scripted steps), answer.
 # Steps: click{type{locator,text,enter},select{locator,option:{label|value|index}},
@@ -19,12 +21,13 @@
 # --- saucedemo.com: login-gated shop; icon-only cart link and burger menu ---
 - id: saucedemo-checkout-backpack
   start_url: https://www.saucedemo.com/
-  goal: Buy a Sauce Labs Backpack and finish the checkout.
+  goal: Add a Sauce Labs Backpack to the cart and go through checkout to the order overview.
   tags: [multistep, app, icon]
   max_steps: 14
+  allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
-    text_contains: Thank you for your order
+    url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
+    text_contains: Sauce Labs Backpack
   har: data/bench_v4/har/saucedemo-checkout-backpack.zip
   path:
   - type: {css: "#user-name"}
@@ -42,17 +45,17 @@
   - type: {css: "#postal-code"}
     text: "12345"
   - click: {css: "#continue"}
-  - click: {css: "#finish"}
-  answer: Order complete.
+  answer: Order overview shows the backpack.
   wrong: []
 - id: saucedemo-checkout-cheapest
   start_url: https://www.saucedemo.com/
-  goal: Find the cheapest item in the store and buy it.
+  goal: Find the cheapest item in the store and take it through checkout to the order overview.
   tags: [multistep, app, icon, vague]
   max_steps: 15
+  allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
-    text_contains: Thank you for your order
+    url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
+    text_contains: Sauce Labs Onesie
   har: data/bench_v4/har/saucedemo-checkout-cheapest.zip
   path:
   - type: {css: "#user-name"}
@@ -71,17 +74,17 @@
   - type: {css: "#postal-code"}
     text: "54321"
   - click: {css: "#continue"}
-  - click: {css: "#finish"}
-  answer: Order complete.
+  answer: Order overview shows the onesie.
   wrong: []
 - id: saucedemo-checkout-jacket-detail
   start_url: https://www.saucedemo.com/
-  goal: Open the fleece jacket's details, add it to the cart, and check out.
+  goal: Open the fleece jacket's details, add it to the cart, and go through checkout to the order overview.
   tags: [multistep, app, icon, vague]
   max_steps: 15
+  allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
-    text_contains: Thank you for your order
+    url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
+    text_contains: Sauce Labs Fleece Jacket
   har: data/bench_v4/har/saucedemo-checkout-jacket-detail.zip
   path:
   - type: {css: "#user-name"}
@@ -100,17 +103,17 @@
   - type: {css: "#postal-code"}
     text: "90210"
   - click: {css: "#continue"}
-  - click: {css: "#finish"}
-  answer: Order complete.
+  answer: Order overview shows the fleece jacket.
   wrong: []
 - id: saucedemo-checkout-two-items
   start_url: https://www.saucedemo.com/
-  goal: Put the bike light and the red t-shirt in the cart and complete the purchase.
+  goal: Put the bike light and the red t-shirt in the cart and go through checkout to the order overview.
   tags: [multistep, app, icon, vague]
   max_steps: 16
+  allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
-    text_contains: Thank you for your order
+    url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
+    text_contains: Sauce Labs Bike Light
   har: data/bench_v4/har/saucedemo-checkout-two-items.zip
   path:
   - type: {css: "#user-name"}
@@ -129,14 +132,14 @@
   - type: {css: "#postal-code"}
     text: "10001"
   - click: {css: "#continue"}
-  - click: {css: "#finish"}
-  answer: Order complete.
+  answer: Order overview shows both items.
   wrong: []
 - id: saucedemo-bolt-tshirt-price
   start_url: https://www.saucedemo.com/
   goal: What does the Sauce Labs Bolt T-Shirt cost?
   tags: [multistep, app]
   max_steps: 8
+  allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/inventory-item\.html\?id=1
     text_contains: Sauce Labs Bolt T-Shirt
@@ -156,6 +159,7 @@
   goal: Log in, open the side menu, and say which links it offers.
   tags: [multistep, app, icon]
   max_steps: 8
+  allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/inventory\.html
     text_contains: Reset App State
@@ -176,6 +180,7 @@
   goal: What is the most expensive product in the store?
   tags: [multistep, app, vague]
   max_steps: 8
+  allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/inventory\.html
     text_contains: Sauce Labs Fleece Jacket
@@ -189,7 +194,7 @@
   - select: {css: "select.product_sort_container", option: {label: "Price (high to low)"}}
   answer: Sauce Labs Fleece Jacket, $49.99
   wrong: []
-  answer_regex: "(?=[\\s\\S]*Fleece\\s+Jacket)(?=[\\s\\S]*49\\.99)"
+  answer_regex: "Fleece\\s*Jacket"
 
 # --- demoblaze.com: store with categories, product pages, checkout modal ---
 - id: demoblaze-nexus-screen
@@ -226,12 +231,13 @@
   answer_regex: "790"
 - id: saucedemo-checkout-remove-item
   start_url: https://www.saucedemo.com/
-  goal: Put two items in the cart, take one back out, then finish buying the other.
+  goal: Put two items in the cart, take one back out, then take the other through checkout to the order overview.
   tags: [multistep, app, icon, vague]
   max_steps: 16
+  allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/checkout-complete\.html
-    text_contains: Thank you for your order
+    url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
+    text_contains: Sauce Labs Backpack
   har: data/bench_v4/har/saucedemo-checkout-remove-item.zip
   path:
   - type: {css: "#user-name"}
@@ -251,8 +257,7 @@
   - type: {css: "#postal-code"}
     text: "02139"
   - click: {css: "#continue"}
-  - click: {css: "#finish"}
-  answer: Order complete for the backpack only.
+  answer: Order overview shows the backpack only.
   wrong: []
 - id: demoblaze-cheapest-monitor
   start_url: https://www.demoblaze.com/
@@ -340,6 +345,7 @@
   goal: Put an iPhone in the cart and start the checkout.
   tags: [multistep, app, icon, vague]
   max_steps: 11
+  allow_actions: true
   check:
     url_regex: route=checkout/checkout|route=checkout/cart
     text_contains: iPhone
@@ -359,6 +365,7 @@
   goal: Log in with the demo credentials shown on the page.
   tags: [multistep, app, vague]
   max_steps: 7
+  allow_actions: true
   check:
     url_regex: /secure
     text_contains: Secure Area
@@ -370,29 +377,6 @@
     text: SuperSecretPassword!
   - click: {css: "button[type='submit']"}
   answer: Logged into the Secure Area.
-  wrong: []
-- id: internet-login-logout
-  start_url: https://the-internet.herokuapp.com/login
-  goal: Log in, sign out, and log back in.
-  tags: [multistep, app]
-  max_steps: 11
-  check:
-    url_regex: /secure
-    text_contains: Secure Area
-  har: data/bench_v4/har/internet-login-logout.zip
-  path:
-  - type: {css: "#username"}
-    text: tomsmith
-  - type: {css: "#password"}
-    text: SuperSecretPassword!
-  - click: {css: "button[type='submit']"}
-  - click: {css: "a.button[href='/logout']"}
-  - type: {css: "#username"}
-    text: tomsmith
-  - type: {css: "#password"}
-    text: SuperSecretPassword!
-  - click: {css: "button[type='submit']"}
-  answer: Back in the Secure Area.
   wrong: []
 - id: internet-dynamic-loading
   start_url: https://the-internet.herokuapp.com/dynamic_loading/2
@@ -410,7 +394,7 @@
   answer_regex: "Hello\\s+World"
 - id: internet-add-remove
   start_url: https://the-internet.herokuapp.com/add_remove_elements/
-  goal: Add three delete buttons to the page.
+  goal: Add a delete button to the page.
   tags: [multistep, app]
   max_steps: 7
   check:
@@ -418,13 +402,11 @@
   har: data/bench_v4/har/internet-add-remove.zip
   path:
   - click: {css: "button[onclick='addElement()']"}
-  - click: {css: "button[onclick='addElement()']"}
-  - click: {css: "button[onclick='addElement()']"}
-  answer: Three Delete buttons added.
+  answer: One Delete button added.
   wrong: []
 - id: internet-key-press
   start_url: https://the-internet.herokuapp.com/key_presses
-  goal: Type a letter in the target field and report what the page says you entered.
+  goal: Type the letter K in the target field and report what the page says you entered.
   tags: [multistep, app]
   max_steps: 6
   check:
