@@ -151,7 +151,7 @@ def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v
                                 page = browser.extract()
                                 if not page.elements or page.title.lower() == 'page not archived':
                                     raise ValueError('empty/unarchived page')
-                            page.page_id, page.site = pid, task.site or run.get('site', '')
+                            page.page_id, page.site = pid, task.site or run.get('site', '') or registrable_domain(url)
                             write_page(page, cache_dir)
                         cached[pid] = page
                         print(f'bench page {len(cached)}: {task.id} {url}', flush=True)
