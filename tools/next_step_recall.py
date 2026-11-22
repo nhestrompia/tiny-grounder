@@ -100,11 +100,18 @@ def parse_steps(events: list[dict], start_url: str) -> list[dict]:
     return steps
 
 
-def build_bench(root: Path = ROOT) -> tuple[EvalSet, dict]:
+def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v2.yaml',
+                name: str | None = None, root: Path = ROOT) -> tuple[EvalSet, dict]:
+    """Recover next-step labels from a benchmark run's server logs.
+
+    Only successful runs yield labels, and only click/type steps whose target element is
+    recoverable from the frozen page — the elements an agent actually used, not its failures.
+    """
     from demo.browser import BrowserSession, load_tasks
 
-    tasks = {t.id: t for t in load_tasks(root / 'demo/tasks_v2.yaml')}
-    run_rows = [json.loads(l) for l in (root / 'runs/bench-v2/runs.jsonl').read_text().splitlines() if l.strip()]
+    name = name or Path(runs_dir).name
+    tasks = {t.id: t for t in load_tasks(root / tasks_file)}
+    run_rows = [json.loads(l) for l in (root / runs_dir / 'runs.jsonl').read_text().splitlines() if l.strip()]
     runs = {}
     for r in run_rows:
         key = (r['agent'].replace(':', '-'), re.sub(r'[^a-zA-Z0-9_-]', '-', r.get('arm', r['config'])), r['task_id'], str(r['repeat']))
@@ -113,7 +120,7 @@ def build_bench(root: Path = ROOT) -> tuple[EvalSet, dict]:
     pages, examples, seen, cached = {}, [], set(), {}
     failures, provenance = [], []
     cache_dir = root / 'data/nextstep/pages'
-    for path in sorted((root / 'runs/bench-v2/logs').glob('*.server.jsonl')):
+    for path in sorted((root / runs_dir / 'logs').glob('*.server.jsonl')):
         key = tuple(path.name.removesuffix('.server.jsonl').split('__'))
         run = runs.get(key)
         if not run or not run.get('success'):
@@ -136,11 +143,12 @@ def build_bench(root: Path = ROOT) -> tuple[EvalSet, dict]:
                         if matches:
                             page = load_page(matches[0])
                         else:
-                            with BrowserSession(url, har=root / f'data/bench_v2/har/{task.id}.zip') as browser:
+                            har = getattr(task, 'har', '') or f'data/bench_v2/har/{task.id}.zip'
+                            with BrowserSession(url, har=root / har) as browser:
                                 page = browser.extract()
                                 if not page.elements or page.title.lower() == 'page not archived':
                                     raise ValueError('empty/unarchived page')
-                            page.page_id, page.site = pid, task.site or run['site']
+                            page.page_id, page.site = pid, task.site or run.get('site', '')
                             write_page(page, cache_dir)
                         cached[pid] = page
                         print(f'bench page {len(cached)}: {task.id} {url}', flush=True)
@@ -180,10 +188,10 @@ def build_bench(root: Path = ROOT) -> tuple[EvalSet, dict]:
     stats['usable_unique'] = len(examples)
     target = root / 'data/nextstep'
     target.mkdir(parents=True, exist_ok=True)
-    write_examples(examples, target / 'bench-v2.jsonl')
-    (target / 'bench-build.json').write_text(json.dumps({'counts': dict(stats), 'page_failures': failures,
-                                                       'provenance': provenance}, indent=2))
-    return EvalSet('bench-v2', pages, examples), dict(stats)
+    write_examples(examples, target / f'{name}.jsonl')
+    (target / f'{name}-build.json').write_text(json.dumps({'counts': dict(stats), 'page_failures': failures,
+                                                          'provenance': provenance}, indent=2))
+    return EvalSet(name, pages, examples), dict(stats)
 
 
 def rankings(s: EvalSet, ckpt: str, out: Path, device: str) -> list[Ranked]:
@@ -330,6 +338,12 @@ def main():
     for spec in args.set:
         if spec == 'bench-v2':
             s, stats = build_bench()
+        elif spec.startswith('bench:'):
+            # bench:<runs_dir>|<tasks_file>[|<name>] — any benchmark log dir becomes a label source.
+            parts = spec.removeprefix('bench:').split('|')
+            if len(parts) < 2:
+                parser.error('bench: sets need bench:<runs_dir>|<tasks_file>[|<name>]')
+            s, stats = build_bench(parts[0], parts[1], parts[2] if len(parts) > 2 else None)
         else:
             if '|' not in spec:
                 split = spec.removeprefix('mind2web_')
