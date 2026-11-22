@@ -418,3 +418,84 @@
   answer: "You entered: K"
   wrong: []
   answer_regex: "entered:\\s*K"
+
+# --- real-world sites: blazedemo.com flight booking, allbirds.com (Shopify), craigslist.org ---
+- id: blazedemo-book-flight
+  start_url: https://blazedemo.com/
+  goal: Book a flight from Boston to Rome and report the confirmation.
+  tags: [multistep, app, vague]
+  max_steps: 17
+  allow_actions: true
+  check:
+    url_regex: confirmation\.php
+    text_contains: Thank you for your purchase
+  har: data/bench_v4/har/blazedemo-book-flight.zip
+  path:
+  - select: {css: "select[name='fromPort']", option: {label: "Boston"}}
+  - select: {css: "select[name='toPort']", option: {label: "Rome"}}
+  - click: {css: "input[type='submit']"}
+  - click: {css: "input.btn.btn-small", nth: 0}
+  - type: {css: "#inputName"}
+    text: Grace Hopper
+  - type: {css: "#address"}
+    text: 1 Main St
+  - type: {css: "#city"}
+    text: Boston
+  - type: {css: "#state"}
+    text: MA
+  - type: {css: "#zipCode"}
+    text: "02139"
+  - type: {css: "#creditCardNumber"}
+    text: "4111111111111111"
+  - type: {css: "#nameOnCard"}
+    text: Grace Hopper
+  - click: {css: "input.btn.btn-primary"}
+  answer: Thank you for your purchase
+  wrong: []
+- id: blazedemo-cheapest-flight
+  start_url: https://blazedemo.com/
+  goal: Find the cheapest flight from Boston to Rome and report the airline and price.
+  tags: [multistep, app, vague]
+  max_steps: 6
+  check:
+    url_regex: reserve\.php
+    text_contains: "200.98"
+  answer_regex: '200\.98'
+  har: data/bench_v4/har/blazedemo-cheapest-flight.zip
+  path:
+  - select: {css: "select[name='fromPort']", option: {label: "Boston"}}
+  - select: {css: "select[name='toPort']", option: {label: "Rome"}}
+  - click: {css: "input[type='submit']"}
+  answer: Aer Lingus, $200.98
+  wrong: []
+- id: allbirds-wool-runner-price
+  start_url: https://www.allbirds.com/
+  goal: Go to the men's collection, open the Wool Runner, and report its price.
+  tags: [multistep, app, icon, vague]
+  max_steps: 6
+  check:
+    url_regex: wool-runner
+    text_contains: Wool Runner
+  answer_regex: '110'
+  har: data/bench_v4/har/allbirds-wool-runner-price.zip
+  path:
+  - goto: https://www.allbirds.com/collections/mens
+  - click: {css: "a[href*='wool-runner']", nth: 0}
+  - wait: 1500
+  answer: $110
+  wrong: []
+- id: craigslist-studio-rent
+  start_url: https://sfbay.craigslist.org/search/apa?query=studio
+  goal: Open the first studio apartment listing and report the rent.
+  tags: [multistep, app, vague]
+  max_steps: 5
+  check:
+    url_regex: craigslist\.org/view/d/
+    text_contains: "$1,545"
+  answer_regex: '1,?545'
+  har: data/bench_v4/har/craigslist-studio-rent.zip
+  path:
+  - click: {css: "a.posting-title", nth: 0}
+  - wait: 1500
+  answer: $1,545
+  wrong: []
