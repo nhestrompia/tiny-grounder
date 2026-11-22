@@ -180,7 +180,13 @@ class GoalRanker:
 
     def __init__(self, ranker: Ranker) -> None:
         self.ranker = ranker
-        self.lexical = getattr(ranker, "lexical", False)  # propagate for rank_passages' no-overlap gate
+
+    @property
+    def lexical(self) -> bool:
+        """Propagate the inner ranker's marker for rank_passages' no-overlap gate and observe sizing.
+
+        Read per call, not at construction: RouterRanker flips it between ranks."""
+        return getattr(self.ranker, "lexical", False)
 
     def rank(
         self, query: str, elements: Sequence[Element], mode: Mode = "goal", history: list[str] | None = None
