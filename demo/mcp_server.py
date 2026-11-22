@@ -180,6 +180,7 @@ class GoalRanker:
 
     def __init__(self, ranker: Ranker) -> None:
         self.ranker = ranker
+        self.lexical = getattr(ranker, "lexical", False)  # propagate for rank_passages' no-overlap gate
 
     def rank(
         self, query: str, elements: Sequence[Element], mode: Mode = "goal", history: list[str] | None = None
@@ -396,7 +397,7 @@ class BenchServer:
     def _t_read(self, query: str, budget: int = 400) -> str:
         passages = self._passages()
         start = time.perf_counter()
-        result = read_passages(query, passages, budget)
+        result = read_passages(query, passages, budget, self.digest.ranker)
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
 

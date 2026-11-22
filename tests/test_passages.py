@@ -58,6 +58,34 @@ def test_rank_ties_and_no_match():
     assert rank_passages('', passages) == []
 
 
+class _ReverseRanker:
+    """Non-lexical stub: returns every element in reverse order; stands in for a model ranker."""
+    name = "model:stub"
+
+    def rank(self, query, elements, mode="do", history=None):
+        from grounder.ranking import Ranked
+        ids = [e.id for e in elements][::-1]
+        return Ranked(ids, [1.0] * len(ids), 0.0)
+
+
+def test_read_and_observe_use_ranker_for_passages():
+    passages = [Passage('manual installation', y=1), Passage('zebra text unrelated to query', y=2)]
+    # Lexical ranking puts the matching passage first; the ranker's ordering wins when one is supplied.
+    assert read('manual installation', passages, 400, _ReverseRanker()).splitlines()[0].startswith('> zebra')
+    # The default exact ranker keeps lexical ordering and the zero-score drop: identical output to no ranker.
+    assert read('manual installation', passages, 400, UIGrounder().ranker) == read('manual installation', passages, 400)
+    # BM25 scores can be negative on matches; a lexical ranker must not drop them or keep non-matches.
+    from grounder_tool.rankers import BM25Ranker
+    bm25 = BM25Ranker()
+    assert [p.y for p, _ in rank_passages('manual installation', passages, bm25)]
+    assert rank_passages('kubernetes pods', passages, bm25) == []
+    assert rank_passages('q', [], bm25) == []
+    page = Page('p', 'https://example.test', 'example', 'Manual installation', [1280, 800], [1280, 5000],
+                [Element(i, 'link', f'Manual installation {i}') for i in range(50)])
+    out = UIGrounder(_ReverseRanker()).observe(page, 'manual installation', budget=600, passages=passages)
+    assert out.splitlines()[2].startswith('> zebra')
+
+
 @pytest.mark.parametrize('budget', [0, 1, 10, 50, 100, 400, 600, 2000])
 def test_observe_passage_budget(budget):
     page = Page('p', 'https://example.test', 'example', 'Manual installation', [1280,800], [1280,5000],
