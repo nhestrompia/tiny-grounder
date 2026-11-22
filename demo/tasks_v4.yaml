@@ -397,6 +397,9 @@
   goal: Add a delete button to the page.
   tags: [multistep, app]
   max_steps: 7
+  # The intended click is refused otherwise: the page's own "Add/Remove Elements" heading puts the
+  # blocked word "remove" into the button's context.
+  allow_actions: true
   check:
     text_contains: Delete
   har: data/bench_v4/har/internet-add-remove.zip
