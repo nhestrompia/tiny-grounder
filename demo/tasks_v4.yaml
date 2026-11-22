@@ -457,10 +457,11 @@
   goal: Find the cheapest flight from Boston to Rome and report the airline and price.
   tags: [multistep, app, vague]
   max_steps: 6
+  allow_actions: true
   check:
     url_regex: reserve\.php
     text_contains: "200.98"
-  answer_regex: '200\.98'
+  answer_regex: 'Aer Lingus.*200\.98|200\.98.*Aer Lingus'
   har: data/bench_v4/har/blazedemo-cheapest-flight.zip
   path:
   - select: {css: "select[name='fromPort']", option: {label: "Boston"}}
