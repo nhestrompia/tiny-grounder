@@ -112,6 +112,9 @@ def run_steps(page: Any, steps: list[dict[str, Any]], recording: bool, scroll: b
             page.keyboard.type(step["text"], delay=20)
             if step.get("enter"):
                 page.keyboard.press("Enter")
+        elif "select" in step:
+            sel = dict(step["select"])
+            locate(page, sel).select_option(timeout=10_000, **sel.pop("option", {}))
         elif "press" in step:
             page.keyboard.press(step["press"])
         elif "wait" in step:

@@ -86,6 +86,7 @@ class Task:
     tags: tuple[str, ...] = ()  # benchmark v2 categories: icon, vague, long, multistep, normal
     har: str = ""  # frozen snapshot (Playwright HAR), path relative to the repo root; empty = live web
     site: str = ""  # cluster for the paired analysis (default: registrable domain of start_url)
+    allow_actions: bool = False  # opt-in for demo/throwaway sites: relax click-safety and the agent's read-only instruction
 
 
 def parse_tasks(raw: Any) -> list[Task]:
@@ -119,8 +120,12 @@ def parse_tasks(raw: Any) -> list[Task]:
         tags = item.get("tags") or []
         if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
             raise ValueError(f"task {name}: tags must be a list of strings")
+        allow_actions = item.get("allow_actions", False)
+        if not isinstance(allow_actions, bool):
+            raise ValueError(f"task {name}: allow_actions must be a boolean")
         tasks.append(Task(item["id"], item["start_url"], item["goal"], {k: str(v) for k, v in check.items()}, item["max_steps"],
-                          answer_regex, tuple(tags), str(item.get("har") or ""), str(item.get("site") or "")))
+                          answer_regex, tuple(tags), str(item.get("har") or ""), str(item.get("site") or ""),
+                          allow_actions))
     if len({t.id for t in tasks}) != len(tasks):
         raise ValueError("duplicate task ids")
     return tasks
@@ -306,7 +311,10 @@ class BrowserSession:
 
     def _probe_point(self, cx: float, cy: float, tag: str, click_action: bool) -> dict[str, Any]:
         probe = self._guard(lambda: self.page.evaluate(ph.PROBE_JS, [cx, cy, tag]))
-        if reason := ph.verdict(probe, click_action):
+        # Correctness failures (unreachable point, stale tag) always refuse — only safety refusals are opted out of.
+        if not probe["ok"]:
+            raise ToolError(f"refused: {probe['reason']}")
+        if not getattr(self, "allow_actions", False) and (reason := ph.verdict(probe, click_action)):
             raise ToolError(f"refused: {reason}")
         return probe
 
@@ -343,7 +351,7 @@ class BrowserSession:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
         with self.overhead("safety_ms"):
             element = self._element(element_id)
-            if word := ph.blocked_word(element):
+            if not getattr(self, "allow_actions", False) and (word := ph.blocked_word(element)):
                 raise ToolError(f"refused: risky: text or context contains the blocked word {word!r}")
             if not element.enabled:
                 raise ToolError("refused: the element is disabled")
