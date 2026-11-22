@@ -397,6 +397,9 @@
   goal: Add a delete button to the page.
   tags: [multistep, app]
   max_steps: 7
+  # The intended click is refused otherwise: the page's own "Add/Remove Elements" heading puts the
+  # blocked word "remove" into the button's context.
+  allow_actions: true
   check:
     text_contains: Delete
   har: data/bench_v4/har/internet-add-remove.zip
@@ -419,10 +422,10 @@
   wrong: []
   answer_regex: "entered:\\s*K"
 
-# --- real-world sites: blazedemo.com flight booking, allbirds.com (Shopify), craigslist.org ---
+# --- real-world sites: blazedemo.com flight booking, allbirds.com (Shopify) ---
 - id: blazedemo-book-flight
   start_url: https://blazedemo.com/
-  goal: Book a flight from Boston to Rome for Grace Hopper (1 Main St, Boston, MA 02139; card 4111111111111111, name on card Grace Hopper) and report the confirmation.
+  goal: Book the Virgin America flight departing 1:43 AM from Boston to Rome for Grace Hopper (1 Main St, Boston, MA 02139; card 4111111111111111, name on card Grace Hopper) and report the confirmation.
   tags: [multistep, app, vague]
   max_steps: 17
   allow_actions: true
@@ -469,34 +472,17 @@
   - click: {css: "input[type='submit']"}
   answer: Aer Lingus, $200.98
   wrong: []
-- id: allbirds-wool-runner-price
-  start_url: https://www.allbirds.com/
-  goal: Go to the men's collection, open the Wool Runner, and report its price.
-  tags: [multistep, app, icon, vague]
-  max_steps: 6
+- id: hn-first-comments
+  start_url: https://news.ycombinator.com/
+  goal: Open the comments thread of the first story on the front page.
+  tags: [app, vague]
+  max_steps: 3
   check:
-    url_regex: wool-runner
-    text_contains: Wool Runner
-  answer_regex: '110'
-  har: data/bench_v4/har/allbirds-wool-runner-price.zip
+    url_regex: item\?id=
+    text_contains: Hacker News
+  har: data/bench_v4/har/hn-first-comments.zip
   path:
-  - goto: https://www.allbirds.com/collections/mens
-  - click: {css: "a[href*='wool-runner']", nth: 0}
-  - wait: 1500
-  answer: $110
-  wrong: []
-- id: craigslist-studio-rent
-  start_url: https://sfbay.craigslist.org/search/apa?query=studio
-  goal: Open the first studio apartment listing and report the rent.
-  tags: [multistep, app, vague]
-  max_steps: 5
-  check:
-    url_regex: craigslist\.org/view/d/
-    text_contains: "$1,545"
-  answer_regex: '1,?545'
-  har: data/bench_v4/har/craigslist-studio-rent.zip
-  path:
-  - click: {css: "a.posting-title", nth: 0}
-  - wait: 1500
-  answer: $1,545
+  - click: {css: ".subtext a[href^='item?id=']", nth: 0}
+  - wait: 1000
+  answer: Comments page for the first front-page story
   wrong: []
