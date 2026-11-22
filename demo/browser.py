@@ -356,13 +356,25 @@ class BrowserSession:
 
     def _click_at(self, probe: dict[str, Any]) -> None:
         """Click at the probed point, re-deriving the viewport position at click time: the page can keep scrolling
-        between the probe's scroll jump and the click (scroll anchoring, lazy layout), and the stale viewport point
-        then lands on a different control."""
-        if "sx" not in probe:
+        between the probe's scroll jump and the click (scroll anchoring, lazy layout, inner scroll containers),
+        and the stale viewport point then lands on a different control. The probe stashes the validated hit on
+        `window.__tg_hit`, so prefer its live rect — that survives any scroll, window or container. Fall back to
+        document-coordinate compensation when the stash is gone (navigation) and to raw coords for older probes."""
+        point = self.page.evaluate(
+            """() => {
+                const hit = window.__tg_hit;
+                if (!hit || !hit.isConnected) return null;
+                const r = hit.getBoundingClientRect();
+                return [r.left + r.width / 2, r.top + r.height / 2];
+            }"""
+        )
+        if point is not None:
+            self.page.mouse.click(point[0], point[1])
+        elif "sx" in probe:
+            sx, sy = self.page.evaluate("[scrollX, scrollY]")
+            self.page.mouse.click(probe["x"] + probe["sx"] - sx, probe["y"] + probe["sy"] - sy)
+        else:
             self.page.mouse.click(probe["x"], probe["y"])
-            return
-        sx, sy = self.page.evaluate("[scrollX, scrollY]")
-        self.page.mouse.click(probe["x"] + probe["sx"] - sx, probe["y"] + probe["sy"] - sy)
 
     def click(self, element_id: int) -> Element:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
