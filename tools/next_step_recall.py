@@ -30,6 +30,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from grounder.baselines.blend import blend
+from grounder.data.crawl import registrable_domain
 from grounder.data.pages import load_examples, load_page, write_examples, write_page
 from grounder.ranking import Ranked, positive_ids
 from grounder.records import Element, Example, action_repr, equiv_ids
@@ -136,14 +137,16 @@ def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v
                 reason = 'unlabelled_or_failed_action'
             else:
                 url = step['url']
-                pid = 'next-' + hashlib.sha256(f'{task.id}\0{url}'.encode()).hexdigest()[:20]
+                # Key pages by archive as well as task+URL: two benchmarks can share task ids
+                # and URLs while freezing different page contents.
+                har = getattr(task, 'har', '') or f'data/bench_v2/har/{task.id}.zip'
+                pid = 'next-' + hashlib.sha256(f'{har}\0{task.id}\0{url}'.encode()).hexdigest()[:20]
                 if pid not in cached:
                     matches = list(cache_dir.glob(f'*/{pid}.json.gz'))
                     try:
                         if matches:
                             page = load_page(matches[0])
                         else:
-                            har = getattr(task, 'har', '') or f'data/bench_v2/har/{task.id}.zip'
                             with BrowserSession(url, har=root / har) as browser:
                                 page = browser.extract()
                                 if not page.elements or page.title.lower() == 'page not archived':
