@@ -422,7 +422,7 @@
 # --- real-world sites: blazedemo.com flight booking, allbirds.com (Shopify), craigslist.org ---
 - id: blazedemo-book-flight
   start_url: https://blazedemo.com/
-  goal: Book a flight from Boston to Rome and report the confirmation.
+  goal: Book a flight from Boston to Rome for Grace Hopper (1 Main St, Boston, MA 02139; card 4111111111111111, name on card Grace Hopper) and report the confirmation.
   tags: [multistep, app, vague]
   max_steps: 17
   allow_actions: true
