@@ -316,6 +316,9 @@ class BrowserSession:
             raise ToolError(f"refused: {probe['reason']}")
         if not getattr(self, "allow_actions", False) and (reason := ph.verdict(probe, click_action)):
             raise ToolError(f"refused: {reason}")
+        # Promote the accepted hit only now: a refused probe (or one that lands on a non-control the caller
+        # discards) must never leave `__tg_hit` pointing at the rejected target, or _click_at would click it.
+        self._guard(lambda: self.page.evaluate("window.__tg_hit = window.__tg_hit_pending"))
         return probe
 
     def _probe(self, element: Element, click_action: bool) -> dict[str, Any]:
@@ -365,7 +368,18 @@ class BrowserSession:
                 const hit = window.__tg_hit;
                 if (!hit || !hit.isConnected) return null;
                 const r = hit.getBoundingClientRect();
-                return [r.left + r.width / 2, r.top + r.height / 2];
+                let x = r.left + r.width / 2, y = r.top + r.height / 2;
+                // Inside a same-origin frame the rect is frame-local: add each ancestor frame's offset (+ border)
+                // until the point is in the top window's viewport coordinates.
+                let win = hit.ownerDocument && hit.ownerDocument.defaultView;
+                while (win && win !== window) {
+                    const fe = win.frameElement;
+                    if (!fe) return null;
+                    const fr = fe.getBoundingClientRect();
+                    x += fr.left + fe.clientLeft; y += fr.top + fe.clientTop;
+                    win = fe.ownerDocument.defaultView;
+                }
+                return [x, y];
             }"""
         )
         if point is not None:
