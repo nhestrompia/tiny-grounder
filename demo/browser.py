@@ -345,7 +345,24 @@ class BrowserSession:
                 raise stale
             return probe  # type: ignore[return-value]
         sx, sy = self._guard(lambda: self.page.evaluate("[scrollX, scrollY]"))
-        return self._probe_point(found["x"] + sx, found["y"] + sy, element.tag, click_action)
+        try:
+            return self._probe_point(found["x"] + sx, found["y"] + sy, element.tag, click_action)
+        except ToolError:
+            # The relocated point can land on a non-control (e.g. a field's <label> when the original probe hit a
+            # control whose hit-label differs, like an input's placeholder vs its label). Keep the original probe.
+            if stale is not None:
+                raise stale
+            return probe  # type: ignore[return-value]
+
+    def _click_at(self, probe: dict[str, Any]) -> None:
+        """Click at the probed point, re-deriving the viewport position at click time: the page can keep scrolling
+        between the probe's scroll jump and the click (scroll anchoring, lazy layout), and the stale viewport point
+        then lands on a different control."""
+        if "sx" not in probe:
+            self.page.mouse.click(probe["x"], probe["y"])
+            return
+        sx, sy = self.page.evaluate("[scrollX, scrollY]")
+        self.page.mouse.click(probe["x"] + probe["sx"] - sx, probe["y"] + probe["sy"] - sy)
 
     def click(self, element_id: int) -> Element:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
@@ -356,7 +373,7 @@ class BrowserSession:
             if not element.enabled:
                 raise ToolError("refused: the element is disabled")
             probe = self._locate(element, click_action=True)
-        self._guard(lambda: self.page.mouse.click(probe["x"], probe["y"]))
+        self._guard(lambda: self._click_at(probe))
         self._settle()
         return element
 
@@ -372,7 +389,7 @@ class BrowserSession:
             probe = self._locate(element, click_action=False)
 
         def act() -> None:
-            self.page.mouse.click(probe["x"], probe["y"])
+            self._click_at(probe)
             self.page.keyboard.press("ControlOrMeta+A")  # typing over the selection replaces any existing text
             self.page.keyboard.type(text)
             if press_enter:

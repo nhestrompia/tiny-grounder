@@ -171,7 +171,7 @@ PROBE_JS = """([cx, cy, tag]) => {
     control.matches("input[type=submit],input[type=image]") ||
     (control.tagName === "BUTTON" && !!control.form && control.type === "submit"));
   const field = closest(hit, "input,textarea");
-  return { ok: true, reason: "", x, y, submit, password: !!field && field.type === "password" };
+  return { ok: true, reason: "", x, y, sx: scrollX, sy: scrollY, submit, password: !!field && field.type === "password" };
 }"""
 
 

@@ -1,6 +1,6 @@
 # Benchmark v4 hard slice — frozen shop/app tasks (Plan v4 step 2)
 
-`demo/tasks_v4.yaml` — 24 frozen tasks on 8 non-docs sites. v2/v3 were all
+`demo/tasks_v4.yaml` — 23 frozen tasks on 7 non-docs sites. v2/v3 were all
 developer docs where keyword matching suffices; this slice targets the cases
 where picking the right element is hard.
 
@@ -13,8 +13,7 @@ where picking the right element is hard.
 | tutorialsninja.com/demo | 5 | OpenCart store: icon-only search/cart/wishlist buttons, cart flow |
 | the-internet.herokuapp.com | 4 | App controls: login, forms, dynamic content, keyboard |
 | blazedemo.com | 2 | Real flight-booking flow: destination `<select>`s, results table, multi-field purchase form (14 steps) |
-| allbirds.com | 1 | Real Shopify store: collection browse to product page, JS-heavy storefront |
-| craigslist.org | 1 | Real classifieds: search results to listing detail |
+| news.ycombinator.com | 1 | Real news aggregator: front page to a comments thread |
 
 - **Long sessions:** 7 tasks run 8–14 steps (the five checkouts,
   remove-from-cart, and the flight booking) so re-sent snapshots pile up — the failure mode the
@@ -26,6 +25,10 @@ where picking the right element is hard.
 - **Tags:** same set as v2/v3 plus `app` (app-style pages).
 - **New step type:** `select: {locator, option: {label|value|index}}` in
   `tools/bench_v2.py::run_steps` for `<select>` controls (saucedemo sort).
+- **Row-pinning goals where POST bodies are matched:** `blazedemo-book-flight`
+  names the flight (Virgin America, 1:43 AM) because the archived purchase POST
+  only replays for the recorded row — any other row navigates to a page the
+  archive lacks.
 - **`allow_actions: true`** on the 11 tasks whose flow needs a login, a form
   submit, or a blocked-word control (checkout/remove). It relaxes the
   click-safety refusals (blocked words, form submits, password fields) for
@@ -45,10 +48,13 @@ where picking the right element is hard.
 - **demoqa.com bookstore**: the SPA's book-detail route renders an empty page
   under HAR replay even when fully archived (client-side routing); dropped.
 - **amazon.com / ebay.com / etsy.com / gymshark.com**: probed and dropped —
-  bot interstitials (amazon `_sec/verify`, ebay 0.15 MB captcha page) or
-  hydration/API-driven pages that replay incompletely. Real storefronts that
-  render server-side (allbirds/Shopify, craigslist) replay fine; search or
-  cart flows that go through JS APIs do not.
+  bot interstitials (amazon `_sec/verify`, ebay 0.15 MB captcha page),
+  hydration/API-driven pages that replay incompletely, or search APIs whose
+  rotating request params defeat HAR matching (craigslist: verified once,
+  then its results fetch started missing — dropped). allbirds.com (Shopify)
+  verified on freeze but now intercepts every click for headless browsers
+  (bot wall) so it can no longer be recorded or played — replaced with
+  news.ycombinator.com, which renders server-side and replays cleanly.
 - **Dialog-dependent flows** are kept minimal — Playwright auto-dismisses
   `alert()` but cart state still needs the server.
 - **the-internet login–logout–login cycle**: the end state is identical to
@@ -63,7 +69,7 @@ uv run python -m tools.bench_v2 verify   --tasks-file demo/tasks_v4.yaml --out d
 uv run python -m tools.bench_v2 manifest --tasks-file demo/tasks_v4.yaml --out data/bench_v4
 ```
 
-Current state: **24/24 verified** (all four scripted checks per task, zero
+Current state: **23/23 verified** (all four scripted checks per task, zero
 live requests; residual misses are analytics pixels only). Freeze hashes in
 `data/bench_v4/manifest.json`. `tests/test_bench_v4_tasks.py` asserts the
 slice properties (≥5 sessions of 8+ steps, ≥5 `icon` and `vague` tags,
