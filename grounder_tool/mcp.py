@@ -47,10 +47,12 @@ class ToolServer:
     """Tool handlers over one browser. Call from a single thread."""
 
     def __init__(self, grounder: UIGrounder, headless: bool = True, observe_grounder: UIGrounder | None = None,
-                 cdp_endpoint: str = "", cdp_page_url_substring: str = "") -> None:
+                 cdp_endpoint: str = "", cdp_page_url_substring: str = "",
+                 observe_min: int | None = None) -> None:
         self.grounder, self.headless = grounder, headless
         self.observe_grounder = observe_grounder or grounder
         self.cdp_endpoint, self.cdp_page_url_substring = cdp_endpoint, cdp_page_url_substring
+        self.observe_min = observe_min
         self.extract_ms = self.rank_ms = 0.0
         self.session = None
         self.history: list[str] = []
@@ -104,6 +106,7 @@ class ToolServer:
         out = self.observe_grounder.observe(
             page, goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)), self.history[-HISTORY_LEN:],
             landmarks=self._need().landmarks, line_suffix=self._coordinate_suffix(), passages=passages,
+            adaptive_min=self.observe_min,
         )
         self.rank_ms = (time.perf_counter() - start) * 1000
         return out
@@ -273,6 +276,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--fp32", action="store_true", help="use model.onnx instead of model.int8.onnx")
     p.add_argument("--threads", type=int, default=1)
     p.add_argument("--headed", action="store_true", help="show the browser window")
+    p.add_argument("--observe-min", type=int, default=None,
+                   help="adaptive observe floor (tokens): a confident ranker shrinks the digest toward this")
     return p.parse_args(argv)
 
 
@@ -285,7 +290,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.observe_ranker else grounder
     )
     server = ToolServer(grounder, headless=not args.headed, observe_grounder=observe_grounder,
-                        cdp_endpoint=args.cdp_endpoint, cdp_page_url_substring=args.cdp_page_url_substring)
+                        cdp_endpoint=args.cdp_endpoint, cdp_page_url_substring=args.cdp_page_url_substring,
+                        observe_min=args.observe_min)
     mcp, pool = build_mcp(server)
     try:
         mcp.run("stdio")

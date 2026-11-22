@@ -58,12 +58,22 @@ def observe(
     line_suffix: LineSuffix | None = None,
     landmarks: list[str] | None = None,
     passages: list[Passage] | None = None,
+    adaptive_min: int | None = None,
 ) -> str:
     """Return header, outline and deduplicated goal-ranked lines within `budget` estimated tokens.
 
     Empty goals use the title. Coordinate suffixes count toward the budget. Tiny budgets shorten the header
     and omit components that cannot fit; element and footer lines are always complete.
+
+    With `adaptive_min`, a ranker that reports a null probability scales the digest between
+    max(MIN_BUDGET, adaptive_min) when it is sure (low null_prob) and `budget` when it is not.
+    Lexical rankers abstain via `.lexical` and always get `budget`.
     """
+    ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
+    if adaptive_min is not None and ranked is not None and not getattr(ranker, "lexical", False):
+        floor = max(MIN_BUDGET, adaptive_min)
+        confidence = 1.0 - min(1.0, max(0.0, ranked.null_prob))
+        budget = budget - round((budget - floor) * confidence)
     cap = max(0, budget) * 4
     total = len(page.elements)
 
@@ -93,8 +103,7 @@ def observe(
         used += cost
         text_used += cost
     kept = 0
-    if page.elements:
-        ranked = ranker.rank(goal or page.title, page.elements, "goal", history)
+    if ranked is not None:
         by_id = {e.id: e for e in page.elements}
         seen = set()
         for identifier in ranked.ids:

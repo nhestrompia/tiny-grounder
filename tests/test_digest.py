@@ -194,6 +194,34 @@ def test_long_header_and_inspect_lines(budget):
     assert "Usage: inspect" in g.inspect(p)
 
 
+def test_adaptive_observe_budget():
+    from grounder.ranking import Ranked
+    from grounder_tool.rankers import make_ranker
+
+    class Stub:
+        name = "model:stub"
+
+        def __init__(self, null_prob: float) -> None:
+            self.null_prob = null_prob
+
+        def rank(self, query, elements, mode="goal", history=None):
+            ids = [e.id for e in elements]
+            return Ranked(ids, [1.0] * len(ids), self.null_prob)
+
+    sure = UIGrounder("exact")
+    sure.ranker = Stub(0.0)  # confident the page has the element -> shrink toward the floor
+    unsure = UIGrounder("exact")
+    unsure.ranker = Stub(1.0)  # abstains -> keep the caller's budget
+    p, goal = page(2000), "Install 5"
+    assert estimate_tokens(sure.observe(p, goal, 600, adaptive_min=200)) <= 200
+    out = unsure.observe(p, goal, 600, adaptive_min=200)
+    assert 400 < estimate_tokens(out) <= 600
+    fixed = UIGrounder("exact")  # lexical rankers never adapt: same output as no floor
+    assert fixed.observe(p, goal, 600, adaptive_min=200) == fixed.observe(p, goal, 600)
+    bm25 = UIGrounder(make_ranker("bm25"))
+    assert bm25.observe(p, goal, 600, adaptive_min=200) == bm25.observe(p, goal, 600)
+
+
 def test_outline_is_bounded_and_reports_omissions():
     out = UIGrounder().observe(page(2000), budget=50, landmarks=[f"Heading {i}" for i in range(30)])
     outline = next(line for line in out.splitlines() if line.startswith("headings:"))
