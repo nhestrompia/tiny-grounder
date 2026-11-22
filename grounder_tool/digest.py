@@ -71,7 +71,7 @@ def observe(
     """
     ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
     if adaptive_min is not None and ranked is not None and not getattr(ranker, "lexical", False):
-        floor = max(MIN_BUDGET, adaptive_min)
+        floor = max(MIN_BUDGET, min(adaptive_min, budget))  # never grow the digest past the caller's budget
         confidence = 1.0 - min(1.0, max(0.0, ranked.null_prob))
         budget = budget - round((budget - floor) * confidence)
     cap = max(0, budget) * 4
