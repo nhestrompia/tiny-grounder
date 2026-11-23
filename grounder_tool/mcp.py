@@ -116,12 +116,16 @@ class ToolServer:
         return passages
 
     def read(self, query: str, budget: int = 400) -> str:
-        # Read-only extraction: committing this Page would silently rebind action ids
-        # the caller already holds (observe/find return the new ids; read does not).
-        page = self._need()._guard(lambda: from_playwright(self._need().page))
+        session = self._need()
+        if session._extracted_url == session.url:
+            elements = session.elements
+        else:
+            # Read-only extraction: committing this Page would silently rebind action ids
+            # the caller already holds (observe/find return the new ids; read does not).
+            elements = session._guard(lambda: from_playwright(session.page)).elements
         passages = self._passages()
         start = time.perf_counter()
-        out = read_passages(query, passages, budget, self.observe_grounder.ranker, elements=page.elements)
+        out = read_passages(query, passages, budget, self.observe_grounder.ranker, elements=elements)
         self.rank_ms = (time.perf_counter() - start) * 1000
         return out
 

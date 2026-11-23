@@ -279,10 +279,63 @@ def test_error_flag_is_sent_back_to_the_model(site: str) -> None:
     assert [r["tool_use_id"] for r in results] == ["toolu_0", "toolu_1"]
 
 
-def test_click_before_listing_elements_extracts_first(site: str) -> None:
+def test_click_before_listing_elements_is_an_error(site: str) -> None:
     planner = ScriptedPlanner(lambda _: response(("click", {"id": 0})), lambda _: response(("done", {"answer": ""})))
     _, events = run(make_task(site), "full", planner)
-    assert not events[1]["is_error"] and events[1]["result"].startswith("clicked")
+    assert events[1]["is_error"] and "no element list yet" in events[1]["result"]
+
+
+def test_find_observe_action_error_returns_digest(site: str, tmp_path) -> None:
+    """A stale/missing element list answers with the error AND the digest, so the retry ids arrive at once."""
+    from demo.browser import BrowserSession
+    from demo.mcp_server import BenchServer, SpecRanker
+    from demo.browser import ToolError
+
+    session = BrowserSession(f"{site}/index.html")
+    srv = BenchServer("find+observe", session, SpecRanker("exact"), "goal", {"url_contains": "/next"},
+                      tmp_path / "log.jsonl", "t")
+    try:
+        with pytest.raises(ToolError) as exc:
+            srv.invoke("click", id=0)
+        result = str(exc.value)
+        assert "no element list yet" in result and "url:" in result and "showing" in result
+    finally:
+        srv.finish("exit")
+        session.close()
+
+
+def test_find_observe_fill_fields_and_submit(site: str, tmp_path) -> None:
+    from demo.browser import BrowserSession
+    from demo.mcp_server import BenchServer, SpecRanker
+
+    session = BrowserSession(f"{site}/index.html")
+    srv = BenchServer("find+observe", session, SpecRanker("exact"), "search the site",
+                      {"url_contains": "search.html?q=install"}, tmp_path / "log.jsonl", "t")
+    try:
+        out = srv.invoke("observe")
+        res = srv.invoke("fill", fields=[{"id": element_id(out, "Search the site"), "text": "install"}])
+        assert res.startswith("filled 1 field(s)") and "showing" in res
+        assert session.page.locator("input[name=q]").input_value() == "install"
+    finally:
+        srv.finish("exit")
+        session.close()
+
+
+def test_find_observe_fill_select(site: str, tmp_path) -> None:
+    from demo.browser import BrowserSession
+    from demo.mcp_server import BenchServer, SpecRanker
+
+    session = BrowserSession(f"{site}/plan.html")
+    srv = BenchServer("find+observe", session, SpecRanker("exact"), "pick the pro plan",
+                      {"url_contains": "plan"}, tmp_path / "log.jsonl", "t")
+    try:
+        out = srv.invoke("observe")
+        res = srv.invoke("fill", fields=[{"id": element_id(out, "Plan tier"), "text": "Pro"}])
+        assert res.startswith("filled 1 field(s)")
+        assert session.page.locator("#tier").input_value() == "pro"
+    finally:
+        srv.finish("exit")
+        session.close()
 
 
 def test_stale_ids_after_navigation_are_refused(site: str) -> None:

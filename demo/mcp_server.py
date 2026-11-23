@@ -15,7 +15,7 @@ coordinate equivalents for `vision`):
                 style. Every action returns the new screenshot (`--no-observe` turns that off).
     top20       snapshot() -> the grounder's 20 best elements for the goal (goal mode, last actions as history)
     find        find(query) -> the grounder's 5 best elements with scores (do mode); no snapshot
-    find+observe find, observe, inspect and read; actions return their status line followed by a fresh 400-token
+    find+observe find, observe, inspect, read and fill; actions return their status line followed by a fresh 400-token
                 digest for the task goal. observe() without a goal uses the task goal, with top20 action history.
     find+top20  both
     a11y-cap    `a11y` with a cap: snapshot(page=1) returns at most A11Y_CAP_CHARS (20,000) characters of the ARIA
@@ -74,7 +74,7 @@ from demo.competitor_specs import COMPETITOR_CONFIGS, COMPETITOR_HINTS, competit
 BENCH_CONFIGS: tuple[str, ...] = ("full", "a11y", "vision", "top20", "find", "find+top20", "a11y-cap", "find+observe", *COMPETITOR_CONFIGS)
 A11Y_CAP_CHARS = 20_000
 A11Y_CONFIGS = ("a11y", "a11y-cap")
-ACTION_TOOLS = ("click", "type", "go_back", "click_xy", "type_text", "scroll")
+ACTION_TOOLS = ("click", "type", "fill", "go_back", "click_xy", "type_text", "scroll")
 DEFAULT_MODEL_DIR = "dist/s-s0"
 DEFAULT_MAX_CALLS = 60
 # Actions return a digest smaller than an explicit observe() call: enough to pick the next control.
@@ -89,6 +89,7 @@ CONFIG_HINTS: dict[str, str] = {
     **COMPETITOR_HINTS,
     "find+observe": "Call observe() for a compact goal-aware digest, find(query) for other controls, "
     "read(query) for facts in page text, and inspect(id=...) or inspect(region=...) for detail. "
+    "fill(fields=[{id, text}], submit_id) fills several form fields at once and optionally submits. "
     "Actions return a fresh digest of the new page.",
     "full": "Call snapshot() to list every element on the current page as `id|role|text|context` lines. "
     "Element ids refer to the most recent snapshot.",
@@ -165,7 +166,7 @@ def tools_for(config: str) -> tuple[str, ...]:
     if config in COMPETITOR_CONFIGS:
         return competitor_tools(config)
     return {
-        "find+observe": ("find", "observe", "inspect", "read", "click", "type", "go_back", "done"),
+        "find+observe": ("find", "observe", "inspect", "read", "click", "type", "fill", "go_back", "done"),
         "full": ("snapshot", "click", "type", "go_back", "done"),
         "a11y": ("snapshot", "click", "type", "go_back", "done"),
         "a11y-cap": ("snapshot", "click", "type", "go_back", "done"),
@@ -329,6 +330,14 @@ class BenchServer:
         except (ToolError, TypeError) as exc:
             self.errors += 1
             text = f"invalid arguments: {exc}" if isinstance(exc, TypeError) else str(exc)
+            # A stale or missing element list leaves the agent with nothing to act on: answer the
+            # refusal with the digest too, so the same call hands it fresh ids to retry with.
+            if (self.config == "find+observe" and name in ACTION_TOOLS
+                    and ("no element list" in text or "fresh element list" in text)):
+                try:
+                    text += "\n" + self._t_observe(budget=ACTION_DIGEST_BUDGET)
+                except ToolError:
+                    pass
             self.chars += len(text)
             self._log({**event, "n": self.calls, "is_error": True, "chars": len(text), "result": text[:RESULT_LOG_CHARS],
                        "ms": round((time.perf_counter() - t0) * 1000),
@@ -399,12 +408,15 @@ class BenchServer:
         return passages
 
     def _t_read(self, query: str, budget: int = 400) -> str:
-        # Read-only extraction: committing this Page would silently rebind action ids
-        # the caller already holds (observe/find return the new ids; read does not).
-        page = self.session._guard(lambda: extract_page_sync(self.session.page))
+        if self.session._extracted_url == self.session.url:
+            elements = self.session.elements
+        else:
+            # Read-only extraction: committing this Page would silently rebind action ids
+            # the caller already holds (observe/find return the new ids; read does not).
+            elements = self.session._guard(lambda: extract_page_sync(self.session.page)).elements
         passages = self._passages()
         start = time.perf_counter()
-        result = read_passages(query, passages, budget, self.digest.ranker, elements=page.elements)
+        result = read_passages(query, passages, budget, self.digest.ranker, elements=elements)
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
 
@@ -435,6 +447,11 @@ class BenchServer:
         if self.box is not None:
             return self._grounder("type", id=id, text=text, press_enter=press_enter)
         return self._after(self._type_ref(str(id), text, press_enter))
+
+    def _t_fill(self, fields: list[dict[str, Any]], submit_id: int | None = None) -> str:
+        if self.box is None:
+            raise ToolError("fill is only available for element ids")
+        return self._grounder("fill", fields=fields, submit_id=submit_id)
 
     # -- a11y --
 
@@ -704,6 +721,16 @@ def build_mcp(config: str, call: Any) -> Any:
         mcp.add_tool(
             type_, name="type", description=f"Click a text field and type into it, optionally pressing Enter. {ident}",
         )
+        if "fill" in tools_for(config):
+            def fill(fields: list[dict[str, Any]], submit_id: int | None = None) -> Any:
+                return out(call("fill", fields=fields, submit_id=submit_id))
+
+            mcp.add_tool(
+                fill, name="fill",
+                description="Fill several form fields in one call: each entry is {id, text}; text fields get the "
+                "text typed in, selects pick the option with that label. Optionally clicks submit_id afterwards. "
+                f"{ident}",
+            )
     mcp.add_tool(lambda: out(call("go_back")), name="go_back", description="Go back to the previous page.")
 
     def done(answer: str) -> Any:

@@ -66,7 +66,12 @@ Use `--observe-ranker blend:dist/xs-s0:8` to choose a separate observation ranke
 The default is the find ranker. In the benchmark, `find+observe@exact` uses exact for
 both tools; `find+observe@exact+blend:dist/xs-s0:8` chooses them independently.
 The benchmark's empty observation goal uses the task goal. Each action returns its
-status line followed by a fresh 400-token digest of the new page.
+status line followed by a fresh 400-token digest of the new page; an action refused
+for a stale or missing element list returns the error followed by the same digest,
+so the ids to retry with arrive in the same call. `find+observe` also exposes
+`fill(fields=[{id, text}], submit_id)`: several form fields in one call (text fields
+are typed into, native selects pick the option by label), with the usual
+click-safety checks and one digest for the whole call.
 
 ### Attach to an existing browser
 

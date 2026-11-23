@@ -32,7 +32,7 @@ def test_arms(arm):
 
 def test_old_arms_unchanged():
     assert tools_for("a11y-cap") == ("snapshot", "click", "type", "go_back", "done")
-    assert tools_for("find+observe") == ("find", "observe", "inspect", "read", "click", "type", "go_back", "done")
+    assert tools_for("find+observe") == ("find", "observe", "inspect", "read", "click", "type", "fill", "go_back", "done")
     assert parse_arm("find+observe@exact").label == "find+observe[exact]"
 
 

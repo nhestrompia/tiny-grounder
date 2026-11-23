@@ -19,11 +19,14 @@ MAX_BUDGET = 2000
 # (a price, total or count sitting next to the control it describes).
 NEAR_Y = 120
 NEAR_TEXT_CHARS = 80
+# observe() looks for such numbers next to its first few elements only; read() matches more.
+NEAR_TOP = 3
 NEAR_ELEMENTS = 10
 # read() adds element-context passages only when lexical matching found fewer than this many.
 READ_FALLBACK_LINES = 3
 
 _DIGIT_RE = re.compile(r"\d")
+_NUMBER_RE = re.compile(r"\d[\d.,:]*")
 
 LineSuffix = Callable[[Element], str]
 
@@ -43,13 +46,17 @@ def _centre_y(element: Element) -> float | None:
 
 
 def _numbers_near(passages: list[Passage], elements: list[Element], near_y: float = NEAR_Y) -> list[Passage]:
-    """Short digit-bearing blocks beside `elements` (prices, totals, counts), in document order."""
+    """Short digit-bearing blocks beside `elements` (prices, totals, counts), in document order.
+
+    Blocks whose numbers the shown elements already carry in their text or context are skipped."""
     centres = [y for e in elements if (y := _centre_y(e)) is not None]
     if not centres:
         return []
+    known = set(_NUMBER_RE.findall(" ".join(f"{e.text} {e.context}" for e in elements)))
     return [
         p for p in passages
         if len(p.text) <= NEAR_TEXT_CHARS and _DIGIT_RE.search(p.text)
+        and not all(n in known for n in _NUMBER_RE.findall(p.text))
         and any(abs(p.y - y) <= near_y for y in centres)
     ]
 
@@ -111,7 +118,7 @@ def observe(
         used += len(outline) + 1
     by_id = {e.id: e for e in page.elements}
     ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
-    top = [by_id[i] for i in (ranked.ids[:NEAR_ELEMENTS] if ranked else [])]
+    top = [by_id[i] for i in (ranked.ids[:NEAR_TOP] if ranked else [])]
     adjacent = _numbers_near(passages or [], top)
     text_used = 0
     seen_text = set()

@@ -343,11 +343,13 @@ def test_read_element_context_fallback():
     elements = [Element(0, 'button', 'Add to cart', context='Sauce Labs Bolt T-Shirt $15.99',
                         abs_box=[10, 500, 100, 30]),
                 Element(1, 'link', 'Home', context='menu', abs_box=[10, 10, 50, 20])]
-    passages = [Passage('$15.99', y=545), Passage('Unrelated content', y=900)]
+    passages = [Passage('3 in stock', y=545), Passage('$15.99', y=545), Passage('Unrelated content', y=900)]
     out = read('bolt t-shirt', passages, elements=elements)
-    assert 'Sauce Labs Bolt T-Shirt $15.99' in out and '> $15.99' in out
-    assert out.splitlines()[-1] == 'showing 2 of 4 passages'
-    assert read('zebras', passages, elements=elements) == 'showing 0 of 2 passages'
+    assert 'Sauce Labs Bolt T-Shirt $15.99' in out and '> 3 in stock' in out
+    # '$15.99' is skipped: its digits are already in the shown element's context.
+    assert '> $15.99' not in out
+    assert out.splitlines()[-1] == 'showing 2 of 5 passages'
+    assert read('zebras', passages, elements=elements) == 'showing 0 of 3 passages'
     # Three lexical matches leave no room for the fallback.
     hits = [Passage(f'bolt t-shirt note {i}', y=i) for i in range(3)]
     assert 'Sauce Labs' not in read('bolt t-shirt', hits, elements=elements)

@@ -305,7 +305,7 @@ class BrowserSession:
         if self._extracted_url != self.url:
             if self._extracted_url:
                 raise ToolError("the page changed since the last extraction; get a fresh element list first")
-            self.extract()  # first action before any observe/find: extract lazily so start-page ids resolve
+            raise ToolError("no element list yet; call observe or find first")
         element = next((e for e in self.elements if e.id == element_id), None)
         if element is None:
             raise ToolError(f"no element with id {element_id} in the most recent element list")
@@ -424,6 +424,36 @@ class BrowserSession:
                 self.page.keyboard.press("Enter")
 
         self._guard(act)
+        self._settle()
+        return element
+
+    def fill_field(self, element_id: int, text: str) -> Element:
+        """Fill one form field: type into text fields, `select_option` on native selects.
+        Same resolution and safety probing as `type_text`. Returns the element."""
+        with self.overhead("safety_ms"):
+            element = self._element(element_id)
+            is_select = element.tag == "select"
+            if not is_select and element.role not in ph.TYPEABLE_ROLES:
+                raise ToolError(f"element {element_id} is a {element.role}, not a form field")
+            if not element.enabled:
+                raise ToolError("refused: the element is disabled")
+            probe = self._locate(element, click_action=False)
+
+        if is_select:
+            def pick() -> None:
+                target = self.page.evaluate_handle("() => window.__tg_hit").as_element()
+                if target is None or target.evaluate("e => e.tagName") != "SELECT":
+                    raise ToolError(f"element {element_id} could not be located as a select")
+                target.select_option(label=text)
+
+            self._guard(pick)
+        else:
+            def act() -> None:
+                self._click_at(probe)
+                self.page.keyboard.press("ControlOrMeta+A")  # typing over the selection replaces any existing text
+                self.page.keyboard.type(text)
+
+            self._guard(act)
         self._settle()
         return element
 
