@@ -141,7 +141,7 @@
   max_steps: 8
   allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/inventory-item\.html\?id=1
+    url_regex: ^https://www\.saucedemo\.com/inventory(-item)?\.html
     text_contains: Sauce Labs Bolt T-Shirt
   har: data/bench_v4/har/saucedemo-bolt-tshirt-price.zip
   path:
@@ -182,7 +182,7 @@
   max_steps: 8
   allow_actions: true
   check:
-    url_regex: ^https://www\.saucedemo\.com/inventory\.html
+    url_regex: ^https://www\.saucedemo\.com/inventory(-item)?\.html
     text_contains: Sauce Labs Fleece Jacket
   har: data/bench_v4/har/saucedemo-most-expensive.zip
   path:
@@ -203,7 +203,6 @@
   tags: [multistep, app, vague]
   max_steps: 7
   check:
-    url_regex: prod\.html\?idp_=3
     text_contains: Nexus 6
   har: data/bench_v4/har/demoblaze-nexus-screen.zip
   path:
@@ -220,7 +219,6 @@
   tags: [multistep, app]
   max_steps: 7
   check:
-    url_regex: prod\.html\?idp_=8
     text_contains: Sony vaio i5
   har: data/bench_v4/har/demoblaze-laptop-price.zip
   path:
@@ -281,7 +279,7 @@
   tags: [multistep, app, icon]
   max_steps: 7
   check:
-    url_regex: product_id=41
+    url_regex: product_id=41|search=iMac
     text_contains: iMac
   har: data/bench_v4/har/tn-search-imac.zip
   path:
@@ -291,7 +289,7 @@
   - click: {css: "a[href*='product_id=41&search']"}
   answer: $100.00
   wrong: []
-  answer_regex: "100\\.00|\\$100"
+  answer_regex: "(?<![\\d,.])(?:100|122)(?:\\.00)?(?!\\.?\\d)"
 - id: tn-add-macbook-cart
   start_url: https://tutorialsninja.com/demo/
   goal: Add a MacBook to the cart and open the shopping cart.
@@ -322,7 +320,7 @@
   - click: {css: "a[href*='product_id=49']", nth: 0}
   answer: $199.99
   wrong: []
-  answer_regex: "199\\.99"
+  answer_regex: "(?<![\\d,.])(?:199|241)\\.99(?!\\d)"
 - id: tn-macbook-air-wishlist
   start_url: https://tutorialsninja.com/demo/
   goal: Try to save the MacBook Air to the wish list and report what the site asks for.

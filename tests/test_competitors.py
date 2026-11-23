@@ -306,3 +306,15 @@ def test_summary_written_when_agent_exits_without_done(tmp_path, arm):
     events = [json.loads(line) for line in log.read_text().splitlines()]
     summaries = [e for e in events if e.get("type") == "summary"]
     assert len(summaries) == 1 and summaries[0]["done_called"] is False
+
+
+def test_proxy_hides_arbitrary_code_tools(tmp_path):
+    async def run():
+        b = SimpleNamespace(config="pw-mcp")
+        names = ["browser_click", "browser_run_code", "browser_run_code_unsafe", "browser_evaluate"]
+        child = SimpleNamespace(list_tools=AsyncMock(return_value=types.ListToolsResult(tools=[
+            types.Tool(name=n, inputSchema={"type": "object"}) for n in names])))
+        p = Proxy(b, None, child, [])
+        listed = {t.name for t in await p.list_tools()}
+        assert listed == p.allowed == {"browser_click", "browser_evaluate"}
+    asyncio.run(run())

@@ -57,6 +57,8 @@ It requires zero live responses and zero proxy-network failures.
 A Python MCP client starts the pinned Playwright MCP stdio child. The outer server
 forwards tools/list definitions and tools/call results unchanged for the two direct
 Playwright arms, subject to the single-tab and element safety checks. It adds the benchmark's `done(answer)`.
+Every Playwright arm omits `browser_run_code` and `browser_run_code_unsafe`, since arbitrary
+code would bypass the element safety checks the arms share.
 Middleware omits `browser_snapshot`, `browser_find` and `browser_take_screenshot` from
 its list and strips any remaining `### Snapshot` sections from results as a fallback.
 The supported snapshot-mode flag handles ordinary action responses.
@@ -145,7 +147,8 @@ starts an extra agent-browser CLI process.
 
 One owner-side DOM read supplements a ref label with facts from exact-label matching
 controls. It checks every matching duplicate conservatively. CSS targets and our stamped
-ids resolve directly. Our ids also retain their cached extracted text/context. Native
+ids resolve directly. Our ids also check their cached extracted text, but not the
+extractor's wider context, so every arm gets the same heading context from the DOM read. Native
 Playwright/agent-browser actions retain their own actionability checks. Logs report
 `checked` when DOM facts are available, or `label checked; DOM facts unavailable`.
 
@@ -160,8 +163,7 @@ coverage differences, not new refusal predicates.
 
 Element checks cannot cover arbitrary JavaScript, global key presses, coordinate-only
 mouse tools, dialog acceptance or actions without an element target. Targeted code can
-act on other nodes. The replay guards still apply, including to
-`browser_run_code_unsafe`. This wrapper is not a JavaScript security sandbox.
+act on other nodes, e.g. through `browser_evaluate`. This wrapper is not a JavaScript security sandbox.
 
 Direct MCP actions can return inaccessible snapshot file links; their prompts tell
 agents to call `browser_snapshot()` for the view. Compact MCP and agent-browser need
