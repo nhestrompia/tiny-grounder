@@ -89,6 +89,7 @@ async def daemon(state: dict) -> None:
             await writer.drain()
             writer.close()
 
+        os.umask(0o077)
         server = await asyncio.start_unix_server(handle, path=state["sock"])
         Path(state["ready"]).write_text("1")
         async with server:
