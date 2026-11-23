@@ -215,6 +215,10 @@ class CompetitorBench(BenchServer):
                 "tool_tokens_est": -(-self.chars // 4) + self.image_tokens}
 
 
+# Arbitrary code would bypass the element safety checks that every arm shares.
+HIDDEN_TOOLS = {"browser_run_code", "browser_run_code_unsafe"}
+
+
 class Proxy:
     def __init__(self, bench, pool, child, local_tools):
         self.bench, self.pool, self.child, self.local_tools = bench, pool, child, local_tools
@@ -226,7 +230,7 @@ class Proxy:
         return await asyncio.get_running_loop().run_in_executor(self.pool, lambda: fn(*args, **kwargs))
 
     async def list_tools(self):
-        remote = (await self.child.list_tools()).tools
+        remote = [t for t in (await self.child.list_tools()).tools if t.name not in HIDDEN_TOOLS]
         # Middleware keeps actions and utilities, but perception comes from tiny-grounder.
         if self.bench.config == "pw-mcp+observe":
             remote = [t for t in remote if t.name not in {"browser_snapshot", "browser_find", "browser_take_screenshot"}]
@@ -262,8 +266,6 @@ class Proxy:
                 raise ToolError("benchmark replay is single-tab; use browser_navigate in the existing tab")
             if name == "browser_tabs" and args.get("isolatedContext", "default") != "default":
                 raise ToolError("benchmark replay uses one context; isolatedContext is unavailable")
-            if name in {"browser_run_code", "browser_run_code_unsafe"} and re.search(r"newPage|newContext|newBrowserCDPSession|connectOverCDP|\.browser\s*\(", args.get("code", "")):
-                raise ToolError("benchmark replay code must use the existing page/context")
             target_slots = []
             def collect_targets(value):
                 if isinstance(value, dict):
@@ -291,14 +293,14 @@ class Proxy:
                             target = obj[key]
                             label_key = {'startTarget': 'startElement', 'endTarget': 'endElement'}.get(key, 'element')
                             label = obj.get(label_key, args.get(label_key, self.ref_labels.get(target, '')))
-                            # Middleware ids retain the original extracted context without extracting again.
+                            # Middleware ids check their cached text; context comes from the same DOM read as other arms.
                             identifier = next((v for v in getattr(b.session, 'middleware_ids', {}).values()
                                                if v in target), None)
                             if identifier:
                                 element = next((e for e in b.session.elements
                                                 if b.session.middleware_ids.get(e.id) == identifier), None)
                                 if element:
-                                    check_label(element.text + ' ' + element.context, click_action,
+                                    check_label(element.text, click_action,
                                                 getattr(b.session, 'allow_actions', False))
                             checks.append(check_target(b.session, target, label, click_action))
                         return '; '.join(checks)

@@ -38,6 +38,10 @@ where picking the right element is hard.
   on the `checkout-step-two` overview where the cart contents are listed, so
   `text_contains` requires the actual purchased item — an empty or wrong
   basket can't pass.
+- **Price questions grade the answer, not the route:** a price read off a
+  listing page counts the same as one read off the product page, so question
+  tasks accept either page. Tutorialsninja prices accept the displayed
+  (tax-inclusive) price as well as the ex-tax one.
 
 ## What is deliberately not in it
 
