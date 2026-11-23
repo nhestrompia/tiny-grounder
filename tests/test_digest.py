@@ -351,3 +351,21 @@ def test_read_element_context_fallback():
     # Three lexical matches leave no room for the fallback.
     hits = [Passage(f'bolt t-shirt note {i}', y=i) for i in range(3)]
     assert 'Sauce Labs' not in read('bolt t-shirt', hits, elements=elements)
+
+
+def test_read_fallback_under_model_ranker():
+    """A model ranker returns every passage; the fallback still fires when none match the query."""
+    from grounder.playwright_helper import Passage
+    from grounder_tool.digest import read
+    from grounder.ranking import Ranked
+
+    class AllPassages:
+        name = "model"
+
+        def rank(self, query, elements, mode, history=None):
+            return Ranked(ids=[e.id for e in elements], scores=[1.0] * len(elements), null_prob=0.0)
+
+    elements = [Element(0, 'button', 'Add to cart', context='Bolt T-Shirt $15.99', abs_box=[10, 500, 100, 30])]
+    passages = [Passage(f'filler {i}', y=i) for i in range(5)]
+    out = read('bolt t-shirt', passages, ranker=AllPassages(), elements=elements)
+    assert 'Bolt T-Shirt $15.99' in out

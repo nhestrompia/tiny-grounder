@@ -279,15 +279,19 @@ def read(
 ) -> str:
     """Return relevant text with an intact count footer within the clamped budget.
 
-    When lexical matching finds fewer than READ_FALLBACK_LINES passages, passages from the context of
+    When fewer than READ_FALLBACK_LINES passages match the query, passages from the context of
     elements matching the query (their section, or numbers beside them) are appended after the matches.
     """
     cap = max(MIN_BUDGET, min(MAX_BUDGET, budget)) * 4
     ranked = [p for p, _ in rank_passages(query, passages, ranker)]
+    # Model rankers return every passage unscored, so count real matches by token overlap
+    # (the same gate context_passages uses for elements).
+    q_tokens = query_tokens(query)
+    hits = [p for p in ranked if content_tokens(f"{p.text} {p.heading}") & q_tokens]
     extra: list[Passage] = []
-    if elements is not None and len(ranked) < READ_FALLBACK_LINES:
-        matched = {p.text for p in ranked}
-        extra = [p for p in context_passages(query, passages, elements) if p.text not in matched]
+    if elements is not None and len(hits) < READ_FALLBACK_LINES:
+        shown = {p.text for p in ranked}
+        extra = [p for p in context_passages(query, passages, elements) if p.text not in shown]
     total = len(passages) + len(extra)
     lines: list[str] = []
     used = 0
