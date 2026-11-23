@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -46,11 +47,15 @@ def send(sock_path: str, request: dict, timeout: float = 300) -> dict:
     return json.loads(buf or b"{}")
 
 
-def render(result) -> str:
+def render(result, img_dir: Path | None = None) -> str:
     parts = []
     for c in result.content:
         if c.type == "text":
             parts.append(c.text)
+        elif c.type == "image" and img_dir is not None:
+            img = img_dir / f"image-{time.time_ns()}.{c.mimeType.split('/')[-1]}"
+            img.write_bytes(base64.b64decode(c.data))
+            parts.append(f"[image {c.mimeType} saved to {img}]")
         elif c.type == "image":
             parts.append(f"[image {c.mimeType}]")
         else:
@@ -79,7 +84,7 @@ async def daemon(state: dict) -> None:
                     resp = {"tools": listing}
                 elif req["op"] == "call":
                     try:
-                        resp = {"text": render(await client.call_tool(req["name"], req.get("args") or {}))}
+                        resp = {"text": render(await client.call_tool(req["name"], req.get("args") or {}), Path(state["workdir"]))}
                     except Exception as exc:  # noqa: BLE001 - reported to the driving agent
                         resp = {"text": f"ERROR: {exc}"}
                 else:
