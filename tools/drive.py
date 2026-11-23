@@ -158,7 +158,7 @@ def start(args) -> int:
                        server_log, args.max_calls, True, har)
     run_dir = STATE.parent / rid
     run_dir.mkdir(parents=True, exist_ok=True)
-    state = {"rid": rid, "argv": argv, "workdir": str(run_dir), "sock": f"/tmp/tg-drive-{hashlib.sha1(rid.encode()).hexdigest()[:12]}.sock",
+    state = {"rid": rid, "argv": argv, "workdir": str(run_dir), "sock": f"/tmp/tg-drive-{hashlib.sha1(str(run_dir.resolve()).encode()).hexdigest()[:12]}.sock",
              "ready": str(run_dir / "ready"), "server_log": str(server_log), "out": str(out), "config": arm.config,
              "arm": arm.label, "ranker": arm.ranker or "exact", "repeat": args.repeat, "agent": args.agent,
              "task": {"id": task.id, "site": task.site or site_of(task.start_url), "tags": list(task.tags)},
