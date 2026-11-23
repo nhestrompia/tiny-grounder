@@ -59,7 +59,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from demo.agent import HISTORY_LEN, BM25Ranker, Ranker, ToolBox
-from demo.browser import CHECK_KEYS, BrowserSession, ToolError, answer_matches
+from demo.browser import CHECK_KEYS, BrowserSession, StaleElementsError, ToolError, answer_matches
 from grounder import playwright_helper as ph
 from grounder.extract.web import extract_page_sync
 from grounder.records import Element, Mode, Page
@@ -333,7 +333,7 @@ class BenchServer:
             # A stale or missing element list leaves the agent with nothing to act on: answer the
             # refusal with the digest too, so the same call hands it fresh ids to retry with.
             if (self.config == "find+observe" and name in ACTION_TOOLS
-                    and ("no element list" in text or "fresh element list" in text)):
+                    and isinstance(exc, StaleElementsError)):
                 try:
                     text += "\n" + self._t_observe(budget=ACTION_DIGEST_BUDGET)
                 except ToolError:
@@ -451,6 +451,11 @@ class BenchServer:
     def _t_fill(self, fields: list[dict[str, Any]], submit_id: int | None = None) -> str:
         if self.box is None:
             raise ToolError("fill is only available for element ids")
+        if not isinstance(fields, list) or not all(
+                isinstance(f, dict) and isinstance(f.get("id"), int) and isinstance(f.get("text"), str) for f in fields):
+            raise ToolError("fill needs fields=[{id, text}, ...]: a list of {id: int, text: str} entries")
+        if not fields:
+            raise ToolError("fill needs at least one field")
         return self._grounder("fill", fields=fields, submit_id=submit_id)
 
     # -- a11y --

@@ -15,7 +15,8 @@ import pytest
 
 from demo import agent
 from demo.agent import BM25Ranker, ClaudePlanner, RunResult, run_task
-from demo.browser import Task, ToolError, check_success, load_tasks, parse_tasks
+from demo.browser import BrowserSession, Task, ToolError, check_success, load_tasks, parse_tasks
+from demo.mcp_server import BenchServer, SpecRanker
 from demo.report import load_runs, results_table, write_results
 from demo.run import run_one
 
@@ -287,10 +288,6 @@ def test_click_before_listing_elements_is_an_error(site: str) -> None:
 
 def test_find_observe_action_error_returns_digest(site: str, tmp_path) -> None:
     """A stale/missing element list answers with the error AND the digest, so the retry ids arrive at once."""
-    from demo.browser import BrowserSession
-    from demo.mcp_server import BenchServer, SpecRanker
-    from demo.browser import ToolError
-
     session = BrowserSession(f"{site}/index.html")
     srv = BenchServer("find+observe", session, SpecRanker("exact"), "goal", {"url_contains": "/next"},
                       tmp_path / "log.jsonl", "t")
@@ -305,9 +302,6 @@ def test_find_observe_action_error_returns_digest(site: str, tmp_path) -> None:
 
 
 def test_find_observe_fill_fields_and_submit(site: str, tmp_path) -> None:
-    from demo.browser import BrowserSession
-    from demo.mcp_server import BenchServer, SpecRanker
-
     session = BrowserSession(f"{site}/index.html")
     srv = BenchServer("find+observe", session, SpecRanker("exact"), "search the site",
                       {"url_contains": "search.html?q=install"}, tmp_path / "log.jsonl", "t")
@@ -322,9 +316,6 @@ def test_find_observe_fill_fields_and_submit(site: str, tmp_path) -> None:
 
 
 def test_find_observe_fill_select(site: str, tmp_path) -> None:
-    from demo.browser import BrowserSession
-    from demo.mcp_server import BenchServer, SpecRanker
-
     session = BrowserSession(f"{site}/plan.html")
     srv = BenchServer("find+observe", session, SpecRanker("exact"), "pick the pro plan",
                       {"url_contains": "plan"}, tmp_path / "log.jsonl", "t")
@@ -333,6 +324,23 @@ def test_find_observe_fill_select(site: str, tmp_path) -> None:
         res = srv.invoke("fill", fields=[{"id": element_id(out, "Plan tier"), "text": "Pro"}])
         assert res.startswith("filled 1 field(s)")
         assert session.page.locator("#tier").input_value() == "pro"
+    finally:
+        srv.finish("exit")
+        session.close()
+
+
+def test_find_observe_fill_bad_args(site: str, tmp_path) -> None:
+    session = BrowserSession(f"{site}/index.html")
+    srv = BenchServer("find+observe", session, SpecRanker("exact"), "search the site",
+                      {"url_contains": "search.html"}, tmp_path / "log.jsonl", "t")
+    try:
+        srv.invoke("observe")
+        with pytest.raises(ToolError, match="fields"):
+            srv.invoke("fill", fields="q")
+        with pytest.raises(ToolError, match="fields"):
+            srv.invoke("fill", fields=[{"id": 1}])
+        with pytest.raises(ToolError, match="at least one"):
+            srv.invoke("fill", fields=[])
     finally:
         srv.finish("exit")
         session.close()
