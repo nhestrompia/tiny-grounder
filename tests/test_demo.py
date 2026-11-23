@@ -279,10 +279,10 @@ def test_error_flag_is_sent_back_to_the_model(site: str) -> None:
     assert [r["tool_use_id"] for r in results] == ["toolu_0", "toolu_1"]
 
 
-def test_click_before_listing_elements_is_an_error(site: str) -> None:
+def test_click_before_listing_elements_extracts_first(site: str) -> None:
     planner = ScriptedPlanner(lambda _: response(("click", {"id": 0})), lambda _: response(("done", {"answer": ""})))
     _, events = run(make_task(site), "full", planner)
-    assert events[1]["is_error"] and "fresh element list" in events[1]["result"]
+    assert not events[1]["is_error"] and events[1]["result"].startswith("clicked")
 
 
 def test_stale_ids_after_navigation_are_refused(site: str) -> None:

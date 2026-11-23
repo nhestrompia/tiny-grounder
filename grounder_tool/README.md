@@ -66,7 +66,7 @@ Use `--observe-ranker blend:dist/xs-s0:8` to choose a separate observation ranke
 The default is the find ranker. In the benchmark, `find+observe@exact` uses exact for
 both tools; `find+observe@exact+blend:dist/xs-s0:8` chooses them independently.
 The benchmark's empty observation goal uses the task goal. Each action returns its
-status line followed by a fresh 600-token digest of the new page.
+status line followed by a fresh 400-token digest of the new page.
 
 ### Attach to an existing browser
 
@@ -99,12 +99,20 @@ and call `observe` after navigation to get the compact page view.
 Use `read(query, budget=400)` to find facts on the current page. Both MCP modes and the
 benchmark `find+observe` arm expose this tool. The budget is clamped to 100-2000 tokens.
 Each result uses `> text  [§ heading]`, followed by `showing K of N passages`.
-Only passages with positive lexical scores appear. Ties keep document order.
+Only passages with positive lexical scores appear. Ties keep document order. When
+fewer than three passages match, `read` also falls back to the context of the
+elements lexical matching picked: their container text, plus short digit-bearing
+blocks near them (prices, totals, counts).
 
 The shared live extractor returns paragraphs, list items, definitions, table rows,
 code blocks, quotations, captions and headings. It skips hidden blocks and navigation,
 headers, footers and sidebars when the page has other content. Blocks contain at most
 300 characters. The extractor returns at most 2,000 blocks.
+
+Leaf blocks outside any larger passage — a `div` or `span` holding a lone short
+number, for example — are also collected, so standalone prices and counts reach
+the digest and `read`. `observe` keeps at most the ten digit-bearing blocks nearest
+to the elements it shows, within 120 CSS pixels on the page.
 
 Passage ranking always uses the existing exact/BM25 scorer, regardless of the element
 ranker. Observe uses at most 30% of its total budget for text. Element lines fill the

@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 from math import ceil
+import re
 from typing import Callable
 
 from grounder.playwright_helper import Passage
 from grounder.baselines.exact import rank_elements as lexical_rank
+from grounder.features import content_tokens, query_tokens
 from grounder.records import Element, Page, equiv_key
 from grounder_tool.lines import Hit
 from grounder_tool.rankers import Ranker
 
 MIN_BUDGET = 100
 MAX_BUDGET = 2000
+# A short digit-bearing block within this many CSS pixels of a shown element belongs to it
+# (a price, total or count sitting next to the control it describes).
+NEAR_Y = 120
+NEAR_TEXT_CHARS = 80
+NEAR_ELEMENTS = 10
+# read() adds element-context passages only when lexical matching found fewer than this many.
+READ_FALLBACK_LINES = 3
+
+_DIGIT_RE = re.compile(r"\d")
 
 LineSuffix = Callable[[Element], str]
 
@@ -25,6 +36,22 @@ def estimate_tokens(text: str) -> int:
 def _clip(text: str, limit: int) -> str:
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: max(0, limit - 1)] + ("…" if limit else "")
+
+
+def _centre_y(element: Element) -> float | None:
+    return element.abs_box[1] + element.abs_box[3] / 2 if any(element.abs_box) else None
+
+
+def _numbers_near(passages: list[Passage], elements: list[Element], near_y: float = NEAR_Y) -> list[Passage]:
+    """Short digit-bearing blocks beside `elements` (prices, totals, counts), in document order."""
+    centres = [y for e in elements if (y := _centre_y(e)) is not None]
+    if not centres:
+        return []
+    return [
+        p for p in passages
+        if len(p.text) <= NEAR_TEXT_CHARS and _DIGIT_RE.search(p.text)
+        and any(abs(p.y - y) <= near_y for y in centres)
+    ]
 
 
 def _line(e: Element, suffix: LineSuffix | None) -> str:
@@ -62,7 +89,8 @@ def observe(
     """Return header, outline and deduplicated goal-ranked lines within `budget` estimated tokens.
 
     Empty goals use the title. Coordinate suffixes count toward the budget. Tiny budgets shorten the header
-    and omit components that cannot fit; element and footer lines are always complete.
+    and omit components that cannot fit; element and footer lines are always complete. Short numbers next to
+    the top-ranked elements (prices, totals, counts) are part of the text section, ahead of ranked passages.
     """
     cap = max(0, budget) * 4
     total = len(page.elements)
@@ -81,8 +109,16 @@ def observe(
     if outline and used + len(outline) + len(footer(0)) + 2 <= cap:
         lines.append(outline)
         used += len(outline) + 1
+    by_id = {e.id: e for e in page.elements}
+    ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
+    top = [by_id[i] for i in (ranked.ids[:NEAR_ELEMENTS] if ranked else [])]
+    adjacent = _numbers_near(passages or [], top)
     text_used = 0
-    for passage, _ in rank_passages(goal or page.title, passages or [], ranker):
+    seen_text = set()
+    for passage in [*adjacent, *(p for p, _ in rank_passages(goal or page.title, passages or [], ranker))]:
+        if passage.text in seen_text:
+            continue
+        seen_text.add(passage.text)
         line = passage_line(passage)
         cost = len(line) + 1
         if text_used + cost > int(cap * 0.30):
@@ -93,9 +129,7 @@ def observe(
         used += cost
         text_used += cost
     kept = 0
-    if page.elements:
-        ranked = ranker.rank(goal or page.title, page.elements, "goal", history)
-        by_id = {e.id: e for e in page.elements}
+    if ranked is not None:
         seen = set()
         for identifier in ranked.ids:
             # Even the shortest id|role|text|context line needs four characters and a newline.
@@ -214,15 +248,53 @@ def passage_line(passage: Passage) -> str:
     return f"> {_clip(passage.text, 300)}{heading}"
 
 
-def read(query: str, passages: list[Passage], budget: int = 400, ranker: Ranker | None = None) -> str:
-    """Return relevant text with an intact count footer within the clamped budget."""
+def context_passages(query: str, passages: list[Passage], elements: list[Element]) -> list[Passage]:
+    """Passages taken from the matched elements' context (the row text extraction already records)
+    plus short numbers sitting beside those elements."""
+    if not elements:
+        return []
+    by_id = {e.id: e for e in elements}
+    ranked = lexical_rank(query, elements)
+    # Matches share a content token with the query (the corpus BM25 scores is `text + context`);
+    # raw scores are not a usable gate: BM25 can return 0 on a match.
+    q_tokens = query_tokens(query)
+    matched = [
+        by_id[i] for i in ranked.ids
+        if content_tokens(f"{by_id[i].text} {by_id[i].context}") & q_tokens
+    ][:NEAR_ELEMENTS]
+    contexts: dict[str, float] = {}
+    for e in matched:
+        if e.context:
+            contexts.setdefault(e.context, e.abs_box[1])
+    near = {id(p) for p in _numbers_near(passages, matched)}
+    return [
+        *(Passage(context, y=y) for context, y in contexts.items()),
+        *(p for p in passages if id(p) in near),
+    ]
+
+
+def read(
+    query: str, passages: list[Passage], budget: int = 400, ranker: Ranker | None = None,
+    elements: list[Element] | None = None,
+) -> str:
+    """Return relevant text with an intact count footer within the clamped budget.
+
+    When lexical matching finds fewer than READ_FALLBACK_LINES passages, passages from the context of
+    elements matching the query (their section, or numbers beside them) are appended after the matches.
+    """
     cap = max(MIN_BUDGET, min(MAX_BUDGET, budget)) * 4
+    ranked = [p for p, _ in rank_passages(query, passages, ranker)]
+    extra: list[Passage] = []
+    if elements is not None and len(ranked) < READ_FALLBACK_LINES:
+        matched = {p.text for p in ranked}
+        extra = [p for p in context_passages(query, passages, elements) if p.text not in matched]
+    total = len(passages) + len(extra)
     lines: list[str] = []
     used = 0
-    for passage, _ in rank_passages(query, passages, ranker):
+    for passage in [*ranked, *extra]:
         line = passage_line(passage)
-        footer = f"showing {len(lines) + 1} of {len(passages)} passages"
+        footer = f"showing {len(lines) + 1} of {total} passages"
         if used + len(line) + 1 + len(footer) <= cap:
             lines.append(line)
             used += len(line) + 1
-    return "\n".join([*lines, f"showing {len(lines)} of {len(passages)} passages"])
+    return "\n".join([*lines, f"showing {len(lines)} of {total} passages"])

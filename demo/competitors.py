@@ -26,7 +26,7 @@ from grounder import playwright_helper as ph
 from grounder.extract.web import DOM_JS, page_from_raw
 from demo.mcp_server import _FACTS_JS
 from demo.competitor_specs import AB_VERSION, BIN_DIR, PW_VERSION, pw_args, page_changing, PW_PAGE_CHANGING, AB_PAGE_CHANGING
-from demo.mcp_server import BenchServer, CONFIG_HINTS, RESULT_LOG_CHARS, SpecRanker, build_mcp
+from demo.mcp_server import ACTION_DIGEST_BUDGET, BenchServer, CONFIG_HINTS, RESULT_LOG_CHARS, SpecRanker, build_mcp
 
 
 def strip_snapshots(result: types.CallToolResult) -> types.CallToolResult:
@@ -337,7 +337,7 @@ class Proxy:
                 if name in self.target_tools and b.box is not None:
                     b.box.history.append(f"{name} {args.get('target', '')}")
                 digest_start = time.perf_counter()
-                digest = await self.owner(b._t_observe)
+                digest = await self.owner(lambda: b._t_observe(budget=ACTION_DIGEST_BUDGET))
                 digest_ms = (time.perf_counter() - digest_start) * 1000
                 result.content.append(types.TextContent(type='text', text=digest))
         except Exception as exc:

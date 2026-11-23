@@ -115,9 +115,10 @@ class ToolServer:
         return passages
 
     def read(self, query: str, budget: int = 400) -> str:
+        page = self._extract()
         passages = self._passages()
         start = time.perf_counter()
-        out = read_passages(query, passages, budget, self.observe_grounder.ranker)
+        out = read_passages(query, passages, budget, self.observe_grounder.ranker, elements=page.elements)
         self.rank_ms = (time.perf_counter() - start) * 1000
         return out
 

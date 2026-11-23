@@ -15,7 +15,7 @@ coordinate equivalents for `vision`):
                 style. Every action returns the new screenshot (`--no-observe` turns that off).
     top20       snapshot() -> the grounder's 20 best elements for the goal (goal mode, last actions as history)
     find        find(query) -> the grounder's 5 best elements with scores (do mode); no snapshot
-    find+observe find, observe, inspect and read; actions return their status line followed by a fresh 600-token
+    find+observe find, observe, inspect and read; actions return their status line followed by a fresh 400-token
                 digest for the task goal. observe() without a goal uses the task goal, with top20 action history.
     find+top20  both
     a11y-cap    `a11y` with a cap: snapshot(page=1) returns at most A11Y_CAP_CHARS (20,000) characters of the ARIA
@@ -76,6 +76,8 @@ A11Y_CONFIGS = ("a11y", "a11y-cap")
 ACTION_TOOLS = ("click", "type", "go_back", "click_xy", "type_text", "scroll")
 DEFAULT_MODEL_DIR = "dist/s-s0"
 DEFAULT_MAX_CALLS = 60
+# Actions return a digest smaller than an explicit observe() call: enough to pick the next control.
+ACTION_DIGEST_BUDGET = 400
 RESULT_LOG_CHARS = 4000
 SCROLL_SETTLE_MS = 300
 IMAGE_PX_PER_TOKEN = 750  # Anthropic's rule of thumb: tokens ~ width * height / 750
@@ -322,7 +324,7 @@ class BenchServer:
             self._state += name in ACTION_TOOLS
             out = getattr(self, f"_t_{name}")(**args)
             if self.config == "find+observe" and name in ACTION_TOOLS:
-                out = out.splitlines()[0] + "\n" + self._t_observe()
+                out = out.splitlines()[0] + "\n" + self._t_observe(budget=ACTION_DIGEST_BUDGET)
         except (ToolError, TypeError) as exc:
             self.errors += 1
             text = f"invalid arguments: {exc}" if isinstance(exc, TypeError) else str(exc)
@@ -396,9 +398,10 @@ class BenchServer:
         return passages
 
     def _t_read(self, query: str, budget: int = 400) -> str:
+        page = self._digest_page()
         passages = self._passages()
         start = time.perf_counter()
-        result = read_passages(query, passages, budget, self.digest.ranker)
+        result = read_passages(query, passages, budget, self.digest.ranker, elements=page.elements)
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
 

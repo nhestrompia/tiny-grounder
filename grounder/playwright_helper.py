@@ -99,13 +99,29 @@ PASSAGES_JS = r"""() => {
   const chrome = 'nav,header,footer,aside,[role=navigation],[role=banner],'
     + '[role=contentinfo],[role=complementary]';
   const selector = 'p,li,dd,dt,tr,pre,code,blockquote,figcaption,h1,h2,h3,h4,h5,h6';
-  const nodes = [...document.querySelectorAll(selector)];
-  const hasContent = nodes.some(el => !el.closest(chrome) && visible(el) && norm(el.innerText));
+  // Short standalone numbers — prices, totals, counts — sit in leaf nodes the block selector misses.
+  const extras = 'div,span,td,th,output,data,mark,small,strong,b,i';
+  const controls = 'a,button,input,textarea,select,option,label,[role=button],[role=link],[role=option],'
+    + '[role=tab],[role=menuitem],[role=checkbox],[role=radio],[role=switch],[role=combobox],'
+    + '[role=searchbox],[role=textbox]';
+  const ownText = el => norm([...el.childNodes].filter(n => n.nodeType === Node.TEXT_NODE)
+    .map(n => n.textContent).join(' '));
+  const nodes = [...document.querySelectorAll(selector + ',' + extras)];
+  const hasContent = nodes.some(el => el.matches(selector) && !el.closest(chrome)
+    && visible(el) && norm(el.innerText));
   const out = [];
   let heading = '';
   for (const el of nodes) {
     if (!visible(el) || (hasContent && el.closest(chrome))) continue;
     // Rows and preformatted blocks own their descendants; nested list items remain separate.
+    if (el.matches(extras)) {
+      // A leaf's own digits only: text inside a block or control is already covered there.
+      if (el.closest(selector) || el.closest(controls)) continue;
+      const own = ownText(el);
+      if (own && own.length <= 80 && /\d/.test(own))
+        out.push({text: own, heading, y: el.getBoundingClientRect().top + scrollY});
+      continue;
+    }
     if (el.parentElement?.closest('tr,pre,blockquote,figcaption')) continue;
     if (el.tagName === 'CODE' && el.parentElement?.closest('p,li,dd,dt')) continue;
     if (el.tagName === 'P' && el.parentElement?.closest('li,dd,dt')) continue;

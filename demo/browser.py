@@ -303,7 +303,9 @@ class BrowserSession:
 
     def _element(self, element_id: int) -> Element:
         if self._extracted_url != self.url:
-            raise ToolError("the page changed since the last extraction; get a fresh element list first")
+            if self._extracted_url:
+                raise ToolError("the page changed since the last extraction; get a fresh element list first")
+            self.extract()  # first action before any observe/find: extract lazily so start-page ids resolve
         element = next((e for e in self.elements if e.id == element_id), None)
         if element is None:
             raise ToolError(f"no element with id {element_id} in the most recent element list")

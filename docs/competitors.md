@@ -131,7 +131,7 @@ to accept strings. Call logs retain both `args` and `forwarded_args`.
 
 After every successful forwarded action, including DOM-only changes, the middleware
 keeps Playwright's stock summary, strips snapshot sections and appends the same goal
-digest format and 600-token budget as `find+observe@exact`. Longer adapter ids count
+digest format and 400-token budget as `find+observe@exact`. Longer adapter ids count
 inside that budget. The combined response counts toward tool tokens. No extra observe
 call is needed. Errors do not append a digest.
 

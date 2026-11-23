@@ -164,3 +164,13 @@ def test_blend_ranker_spec_and_probabilities():
            Element(id=3, role="link", text="Contact us")]
     out = r.rank("open the pricing page", els)
     assert out.ids[0] == 2 and abs(sum(out.scores) - 1.0) < 1e-6 and all(0 <= s <= 1 for s in out.scores)
+
+
+def test_mcp_first_action_extracts(site, server):
+    """Element ids are valid from page open: a click before any find/observe resolves them."""
+    server.open(f"{site}/index.html")
+    first = server.session.extract().elements[0]
+    del server.session.elements[:]
+    server.session._extracted_url = ""
+    assert "clicked 0" in server.click(0)
+    assert server.session.url.endswith(first.href or "docs.html")
