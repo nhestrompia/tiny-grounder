@@ -61,6 +61,7 @@ from typing import Any, Sequence
 from demo.agent import HISTORY_LEN, BM25Ranker, Ranker, ToolBox
 from demo.browser import CHECK_KEYS, BrowserSession, ToolError, answer_matches
 from grounder import playwright_helper as ph
+from grounder.extract.web import extract_page_sync
 from grounder.records import Element, Mode, Page
 from grounder.ranking import Ranked
 from grounder_tool.api import UIGrounder
@@ -398,7 +399,9 @@ class BenchServer:
         return passages
 
     def _t_read(self, query: str, budget: int = 400) -> str:
-        page = self._digest_page()
+        # Read-only extraction: committing this Page would silently rebind action ids
+        # the caller already holds (observe/find return the new ids; read does not).
+        page = self.session._guard(lambda: extract_page_sync(self.session.page))
         passages = self._passages()
         start = time.perf_counter()
         result = read_passages(query, passages, budget, self.digest.ranker, elements=page.elements)
