@@ -289,7 +289,7 @@
   - click: {css: "a[href*='product_id=41&search']"}
   answer: $100.00
   wrong: []
-  answer_regex: "100\\.00|\\$100|122\\.00"
+  answer_regex: "(?<![\\d,.])(?:100|122)(?:\\.00)?(?!\\.?\\d)"
 - id: tn-add-macbook-cart
   start_url: https://tutorialsninja.com/demo/
   goal: Add a MacBook to the cart and open the shopping cart.
@@ -320,7 +320,7 @@
   - click: {css: "a[href*='product_id=49']", nth: 0}
   answer: $199.99
   wrong: []
-  answer_regex: "199\\.99|241\\.99"
+  answer_regex: "(?<![\\d,.])(?:199|241)\\.99(?!\\d)"
 - id: tn-macbook-air-wishlist
   start_url: https://tutorialsninja.com/demo/
   goal: Try to save the MacBook Air to the wish list and report what the site asks for.
