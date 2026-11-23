@@ -15,7 +15,7 @@ COMPETITOR_HINTS = {
 # Prompt names only: the actual Playwright tools/list is fetched unchanged from the binary.
 def competitor_tools(config):
     if config == "agent-browser":
-        return ("snapshot", "click", "fill", "open", "back", "get_text", "done")
+        return ("snapshot", "click", "fill", "select", "press", "open", "back", "get_text", "done")
     names = ("browser_snapshot", "browser_find", "browser_click", "browser_type", "browser_navigate", "browser_navigate_back")
     if config == "pw-mcp+observe":
         return names[2:] + ("observe", "find", "inspect", "read", "done")
@@ -113,7 +113,8 @@ PW_PAGE_CHANGING = {
     'browser_webmcp_list': False,
 }
 
-AB_PAGE_CHANGING = {"snapshot": False, "get_text": False, "click": True, "fill": True, "open": True, "back": True}
+AB_PAGE_CHANGING = {"snapshot": False, "get_text": False, "click": True, "fill": True, "select": True,
+                    "press": True, "open": True, "back": True}
 
 def page_changing(name, args):
     if name == "browser_tabs":

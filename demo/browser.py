@@ -184,12 +184,14 @@ class BrowserSession:
     """
 
     def __init__(self, start_url: str, headless: bool = True, har: str | Path | None = None, replay_miss: str = "stub",
-                 record_har: str | Path | None = None, cdp: bool = False) -> None:
+                 record_har: str | Path | None = None, cdp: bool = False, user_agent: str | None = None) -> None:
         self.replay: Replay | None = Replay() if har else None
         self._playwright = sync_playwright().start()
         try:
             launch: dict[str, Any] = {"headless": headless}
             ctx: dict[str, Any] = {"viewport": VIEWPORT}
+            if user_agent:
+                ctx["user_agent"] = user_agent
             if har:
                 launch["proxy"] = {"server": DEAD_PROXY}
                 ctx["service_workers"] = "block"

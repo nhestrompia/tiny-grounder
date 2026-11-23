@@ -15,15 +15,80 @@ from demo.browser import parse_tasks
 from demo.competitors import competitor_session, MiddlewareSession
 from demo.mcp_server import BenchServer, SpecRanker
 from demo.competitor_specs import COMPETITOR_CONFIGS
-from tools.bench_v2 import load_raw, har_path, locate
+from tools.bench_v2 import load_raw, har_path, locate, scroll_through
 
 TASK_IDS = ("open-mpi-index-3", "asciidoctor-document-attributes-ref", "fastapi-tutorial-devserver", "fastapi-async-explainer", "fastapi-deploy-vague")
+
+ELEMENT_STEP = ("click", "type", "select")
+ELEMENT_ROLES = ("link", "button", "textbox", "searchbox", "combobox", "checkbox", "option", "menuitem", "tab", "radio")
 
 
 def text(result):
     if result.isError:
         raise RuntimeError(str(result.content))
     return "\n".join(c.text for c in result.content if c.type == "text")
+
+
+def step_locator(step):
+    kind = next((k for k in ELEMENT_STEP if k in step), None)
+    return kind, step[kind] if kind else None
+
+
+def element_label(target, kind):
+    """Human-readable name of a step's element, matching what each arm's snapshot shows.
+
+    Comboboxes are named by their selected option; icon-only controls expose their
+    icon glyph or tooltip instead of text."""
+    if kind == "select":
+        return " ".join((target.evaluate("el => (el.options[el.selectedIndex] || {text: ''}).text") or "").split()) or \
+            target.get_attribute("name") or ""
+    text = (target.inner_text().strip() or target.get_attribute("aria-label")
+            or target.get_attribute("placeholder") or target.get_attribute("title")
+            or target.get_attribute("data-original-title") or target.get_attribute("value")
+            or target.get_attribute("name") or target.get_attribute("id") or "")
+    if text:
+        return " ".join(text.split())
+    return target.evaluate(
+        """el => { const img = el.querySelector('img');
+                    if (img && img.alt) return img.alt;
+                    const q = el.querySelector('i, svg, span, img, use') || el;
+                    const c = (getComputedStyle(q, '::before').content || '').replace(/^\"|\"$/g, '');
+                    return c === 'none' ? '' : c; }""") or ""
+
+
+def snapshot_ref(snapshot, name, kind):
+    """The first [ref=] whose a11y node matches the oracle label, or None.
+
+    Comboboxes carry no name in these snapshots, so a select step matches the
+    combobox whose nested options include the label (each select's option set
+    differs). Other steps match a role line carrying the name."""
+    if kind == "select":
+        lines = snapshot.splitlines()
+        for i, line in enumerate(lines):
+            if "combobox" not in line or "[ref=" not in line:
+                continue
+            indent = len(line) - len(line.lstrip())
+            for line2 in lines[i + 1:]:
+                if len(line2) - len(line2.lstrip()) <= indent:
+                    break
+                if "option" in line2 and f'"{name}"' in line2:
+                    return re.search(r'\[ref=([a-z0-9]+)\]', line).group(1)
+        return None
+    want = re.sub(r'^[^\w]+|[^\w]+$', '', name).casefold()
+    candidates = []
+    for line in snapshot.splitlines():
+        if not re.search(r'\[ref=([a-z0-9]+)\]', line):
+            continue
+        for role, quoted in re.findall(r'(\w+)\s+"([^"]*)"', line):
+            # Icon glyphs prefix some snapshot names (e.g. a shopping-cart button);
+            # compare the text part only.
+            got = re.sub(r'^[^\w]+|[^\w]+$', '', quoted).casefold()
+            if role in ELEMENT_ROLES and got == want:
+                candidates.append(line)
+                break
+    if not candidates:
+        return None
+    return re.search(r'\[ref=([a-z0-9]+)\]', candidates[0]).group(1)
 
 
 async def verify(raw, arm, logs):
@@ -44,39 +109,84 @@ async def verify(raw, arm, logs):
             record["first_observation_tokens"] = -(-first_event["chars"] // 4) + first_event.get("image_tokens_est", 0)
             record["path"] = []
             for step in raw["path"]:
+                if "wait" in step:
+                    await proxy.owner(proxy.bench.session.page.wait_for_timeout, int(step["wait"]))
+                    continue
+                if "scroll" in step:
+                    await proxy.owner(scroll_through, proxy.bench.session.page)
+                    continue
+                if "goto" in step:
+                    await call("open" if arm == "agent-browser" else "browser_navigate", url=step["goto"])
+                    continue
+                if "press" in step:
+                    await call("press" if arm == "agent-browser" else "browser_press_key", key=step["press"])
+                    continue
+                kind, spec = step_locator(step)
+                if kind is None:
+                    raise ValueError(f"unsupported step {step}")
                 # The oracle supplies only the next label. The action uses a ref/label actually exposed by the arm.
-                def label():
-                    target = locate(proxy.bench.session.page, step["click"])
-                    return " ".join((target.inner_text().strip() or target.get_attribute("aria-label")).split())
-                name = await proxy.owner(label)
+                name = await proxy.owner(lambda: element_label(locate(proxy.bench.session.page, spec), kind))
+                if kind == "select":
+                    option = dict(spec.get("option", {}))
+                    value = await proxy.owner(lambda: locate(proxy.bench.session.page, spec).evaluate(
+                        """(el, opt) => {
+                          const opts = [...el.options];
+                          const o = opt.label != null ? opts.find(o => o.label.trim() === opt.label)
+                                  : opt.value != null ? opts.find(o => o.value === opt.value) : opts[opt.index];
+                          return o ? o.value : null;}""", option))
+                    if value is None:
+                        raise ValueError(f"no option {option} on select")
                 if arm == "pw-mcp+observe":
                     found = await call("find", query=name)
-                    if name.casefold() not in found.casefold():
-                        raise ValueError(f"label absent from find: {name}")
                     candidates = [line for line in found.splitlines() if line.startswith('tg-') and name.casefold() in line.casefold()]
                     if not candidates:
                         raise ValueError(f'no middleware id for {name}')
-                    identifier = candidates[0].split('|')[0]
-                    # Check the exact oracle node, including duplicate labels, before forwarding its public id.
-                    selector = await proxy.owner(proxy.bench.session.middleware_target, identifier)
-                    same = await proxy.owner(lambda: locate(proxy.bench.session.page, step['click']).evaluate(
-                        '(el, selector) => el === document.querySelector(selector)', selector))
-                    if not same:
+                    # Check each duplicate until the middleware id maps to the oracle node itself.
+                    identifier = None
+                    oracle = locate(proxy.bench.session.page, spec)
+                    for candidate in candidates:
+                        selector = await proxy.owner(proxy.bench.session.middleware_target, candidate.split('|')[0])
+                        same = selector and await proxy.owner(lambda s=selector: oracle.evaluate(
+                            '(el, selector) => el === document.querySelector(selector)', s))
+                        if same:
+                            identifier = candidate.split('|')[0]
+                            break
+                    if identifier is None:
                         raise ValueError(f'middleware id selected a different duplicate: {name}')
-                    await call('browser_click', target=identifier, element=name)
+                    if kind == "click":
+                        await call('browser_click', target=identifier, element=name)
+                    elif kind == "type":
+                        await call('browser_type', target=identifier, element=name, text=step["text"],
+                                   submit=bool(step.get("enter")))
+                    else:
+                        await call('browser_select_option', target=identifier, element=name, values=[value])
                 else:
                     if arm == "pw-mcp-compact":
                         snapshot = await call("browser_find", text=name)
                     else:
                         snapshot = first
-                    candidates = [line for line in snapshot.splitlines() if any(f'{role} "{name}"'.casefold() in line.casefold() for role in ("link", "button")) and re.search(r'\[ref=([a-z0-9]+)\]', line)]
-                    if not candidates and arm != "agent-browser":
+                    ref = snapshot_ref(snapshot, name, kind)
+                    if ref is None and arm != "agent-browser":
                         snapshot = await call("browser_find", text=name)
-                        candidates = [line for line in snapshot.splitlines() if any(f'{role} "{name}"'.casefold() in line.casefold() for role in ("link", "button")) and re.search(r'\[ref=([a-z0-9]+)\]', line)]
-                    if not candidates:
+                        ref = snapshot_ref(snapshot, name, kind)
+                    if ref is None:
                         raise ValueError(f"label absent from snapshot: {name}: {snapshot[:5000]}")
-                    ref = re.search(r'\[ref=([a-z0-9]+)\]', candidates[0]).group(1)
-                    await call("click" if arm == "agent-browser" else "browser_click", **({"ref": "@"+ref} if arm == "agent-browser" else {"target": ref, "element": name}))
+                    if arm == "agent-browser":
+                        if kind == "click":
+                            await call("click", ref="@" + ref)
+                        elif kind == "type":
+                            await call("fill", ref="@" + ref, text=step["text"])
+                            if step.get("enter"):
+                                await call("press", key="Enter")
+                        else:
+                            await call("select", ref="@" + ref, value=value)
+                    elif kind == "click":
+                        await call("browser_click", target=ref, element=name)
+                    elif kind == "type":
+                        await call("browser_type", target=ref, element=name, text=step["text"],
+                                   submit=bool(step.get("enter")))
+                    else:
+                        await call("browser_select_option", target=ref, element=name, values=[value])
                 event = json.loads(log.read_text().splitlines()[-1])
                 # Navigation cost includes the action response and an explicit view when actions lack one.
                 cost = -(-event["chars"] // 4) + event.get("image_tokens_est", 0)
@@ -130,20 +240,54 @@ def verify_native(raw, logs):
         bench = BenchServer("find+observe", session, SpecRanker("exact"), task.goal, task.check, log,
                             task.id, answer_regex=task.answer_regex)
         try:
-            bench.invoke("observe")
-            for step in raw["path"]:
-                target = locate(session.page, step["click"])
-                name = " ".join((target.inner_text().strip() or target.get_attribute("aria-label")).split())
-                bench.invoke("find", query=name)
-                identifier = target.get_attribute("data-tg")
-                element_id = next(n for n, value in session.middleware_ids.items() if value == identifier)
-                bench.invoke("click", id=element_id)
-            bench.invoke("done", answer=raw.get("answer", ""))
-            summary = json.loads(log.read_text().splitlines()[-1])
-            return dict(task=task.id, arm="find+observe", ok=summary["success"], success=summary["success"],
-                        **{k: summary[k] for k in ("safety_ms", "settle_ms", "proxy_ms", "harness_overhead_ms")})
+            return _walk_native(bench, session, task, raw, log)
         finally:
             bench.finish("exit")
+
+
+def _walk_native(bench, session, task, raw, log):
+    try:
+        bench.invoke("observe")
+        for step in raw["path"]:
+            if "wait" in step:
+                session.page.wait_for_timeout(int(step["wait"]))
+                continue
+            if "scroll" in step:
+                scroll_through(session.page)
+                continue
+            if "goto" in step:
+                session.page.goto(step["goto"], wait_until="load")
+                session._settle()
+                continue
+            if "press" in step:
+                session.page.keyboard.press(step["press"])
+                session._settle()
+                continue
+            kind, spec = step_locator(step)
+            if kind is None:
+                raise ValueError(f"unsupported step {step}")
+            target = locate(session.page, spec)
+            if kind == "select":
+                # find+observe has no select tool; drive the element the oracle named.
+                target.select_option(**dict(spec.get("option", {})))
+                session._settle()
+                continue
+            name = element_label(target, kind)
+            bench.invoke("find", query=name)
+            identifier = target.get_attribute("data-tg")
+            element_id = next(n for n, value in session.middleware_ids.items() if value == identifier)
+            if kind == "click":
+                bench.invoke("click", id=element_id)
+            else:
+                bench.invoke("type", id=element_id, text=step["text"],
+                             press_enter=bool(step.get("enter")))
+        bench.invoke("done", answer=raw.get("answer", ""))
+        summary = json.loads(log.read_text().splitlines()[-1])
+        return dict(task=task.id, arm="find+observe", ok=summary["success"], success=summary["success"],
+                    **{k: summary[k] for k in ("safety_ms", "settle_ms", "proxy_ms", "harness_overhead_ms")})
+    except Exception as exc:  # noqa: BLE001 - a refused or unmatched step is a verdict, not a crash
+        return dict(task=task.id, arm="find+observe", ok=False, success=False,
+                    error=(str(exc).splitlines() or [type(exc).__name__])[0][:300])
 
 
 def latency(logs):
