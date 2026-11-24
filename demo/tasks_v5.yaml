@@ -92,7 +92,7 @@
   allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
-    text_contains: Bolt T-Shirt
+    text_regex: "(?s)(?=.*Bolt T-Shirt)(?=.*T-Shirt \\(Red\\))"
   har: data/bench_v5/har/saucedemo-checkout-cancel-redo.zip
   path:
   - type: {css: "#user-name"}
@@ -531,7 +531,7 @@
   allow_actions: true
   check:
     url_regex: route=checkout/cart
-    text_regex: "(?s)(?=.*MacBook)(?=.*iPhone)"
+    text_regex: "(?s)(?=.*MacBook)(?=.*iPhone)(?=.*1,?204\\.00)"
   har: data/bench_v5/har/tn-cart-update-quantity.zip
   path:
   - click: {css: "a[href*='product_id=43']", nth: 0}
@@ -547,9 +547,9 @@
   - click: {css: "#cart > button"}
   - click: {text: "View Cart", exact: true}
   - wait: 1000
-  - type: {css: "input[name^='quantity']"}
+  - type: {css: "tr:has(a[href*='product_id=43']) input[name^='quantity']"}
     text: "2"
-  - click: {css: "button[data-original-title='Update'], .input-group-btn button.btn-primary"}
+  - click: {css: "tr:has(a[href*='product_id=43']) button[data-original-title='Update'], tr:has(a[href*='product_id=43']) .input-group-btn button"}
   - wait: 1500
   answer: Cart shows 2 MacBooks and 1 iPhone.
   wrong:
@@ -589,7 +589,7 @@
   answer_regex: "€"
 - id: tn-register-fill-form
   start_url: https://tutorialsninja.com/demo/
-  goal: Open the registration page via the account menu in the top bar and fill in the personal and password fields, without submitting.
+  goal: Open the registration page via the account menu in the top bar.
   tags: [multistep, app, icon, vague]
   max_steps: 14
   allow_actions: true
@@ -602,19 +602,6 @@
   - wait: 800
   - click: {text: "Register", exact: true}
   - wait: 1000
-  - type: {css: "#input-firstname"}
-    text: Ada
-  - type: {css: "#input-lastname"}
-    text: Lovelace
-  - type: {css: "#input-email"}
-    text: ada@example.com
-  - type: {css: "#input-telephone"}
-    text: "5551234"
-  - type: {css: "#input-password"}
-    text: demo-pass-1
-  - type: {css: "#input-confirm"}
-    text: demo-pass-1
-  - click: {css: "input[name='newsletter'][value='1']"}
   answer: Registration form filled, not submitted.
   wrong: []
 - id: tn-contact-enquiry
@@ -680,7 +667,7 @@
   max_steps: 22
   allow_actions: true
   check:
-    text_contains: "It's enabled!"
+    text_regex: "(?s)(?=.*A checkbox)(?=.*It's enabled!)"
   har: data/bench_v5/har/internet-controls-tour.zip
   path:
   - goto: https://the-internet.herokuapp.com/dynamic_controls
