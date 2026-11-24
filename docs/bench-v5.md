@@ -107,3 +107,52 @@ Freeze hashes in `data/bench_v5/manifest.json`;
 `tests/test_bench_v5_tasks.py` asserts the slice properties (≥20 tasks, ≥20
 sessions of 8–15 actions, ≥6 `icon` and `vague` tags, ≥5 `wrong` routes,
 domains disjoint from v2/v3 docs and from training domains).
+
+## verify_competitors: 30 tasks x 5 arms
+
+131/150 cells ok. Every failing cell is one of two documented limitations:
+
+- **agent-browser snapshot (arm-intrinsic, 8 cells):** the arm's snapshot
+  cannot name the target — `select` options render only the currently chosen
+  value (`Paris` on all four blazedemo bookings), the sort `<select>` exposes
+  a concatenated `generic` name (`Name (A to Z)`), the quantity spinbutton
+  has no accessible name (`quantity[406354]`/value `1`), and the Add button
+  is mid-transition on controls-tour.
+- **Duplicate-label resolution (walker, 11 cells):** when find's top-5 does
+  not contain the oracle element, or its rank order disagrees with DOM order
+  among same-label duplicates, the middleware id maps to a sibling —
+  `Checkout`, `View Cart` / glyph links (`\uf002`, `\uf0ec`, `\uf07a`,
+  `\uf095`), `Add to cart`, and the unnamed button on controls-tour.
+
+| task | pw-mcp | compact | agent-browser | pw-mcp+observe | find+observe |
+|------|--------|---------|---------------|----------------|--------------|
+| blazedemo-book-cheapest | ok | ok | fail | ok | ok |
+| blazedemo-book-last-flight | ok | ok | fail | ok | ok |
+| blazedemo-book-priciest | ok | ok | fail | ok | ok |
+| blazedemo-vacation-then-book | ok | ok | fail | ok | ok |
+| demoblaze-asus-monitor-price | ok | ok | ok | ok | ok |
+| demoblaze-flagship-priciest | ok | ok | ok | ok | ok |
+| demoblaze-monitor-under-250 | ok | ok | ok | ok | ok |
+| demoblaze-next-page-dell | ok | ok | ok | ok | ok |
+| demoblaze-priciest-laptop | ok | ok | ok | ok | ok |
+| demoblaze-priciest-phone | ok | ok | ok | ok | ok |
+| internet-controls-tour | ok | ok | fail | fail | ok |
+| internet-dynamic-loading-both | ok | ok | ok | ok | ok |
+| internet-js-alerts-all | ok | ok | ok | ok | ok |
+| internet-login-fail-then-pass | ok | ok | ok | ok | ok |
+| internet-status-codes-tour | ok | ok | ok | ok | ok |
+| saucedemo-cart-remove-keep-two | ok | ok | ok | ok | ok |
+| saucedemo-cheapest-and-priciest | ok | ok | fail | ok | ok |
+| saucedemo-checkout-cancel-redo | ok | ok | ok | fail | ok |
+| saucedemo-checkout-missing-name | ok | ok | ok | ok | ok |
+| saucedemo-checkout-missing-postal | ok | ok | ok | ok | ok |
+| saucedemo-checkout-priciest | ok | ok | fail | ok | ok |
+| saucedemo-checkout-swap-items | ok | ok | ok | ok | ok |
+| saucedemo-locked-out-user | ok | ok | ok | ok | ok |
+| tn-cart-three-products | ok | ok | ok | fail | fail |
+| tn-cart-update-quantity | ok | ok | fail | fail | fail |
+| tn-compare-three-products | ok | ok | ok | fail | ok |
+| tn-contact-enquiry | ok | ok | ok | fail | ok |
+| tn-currency-euro-lp3065 | ok | ok | ok | fail | ok |
+| tn-long-checkout-macbook-pro | ok | ok | ok | fail | fail |
+| tn-register-fill-form | ok | ok | ok | ok | ok |
