@@ -76,7 +76,10 @@ def action_count(task: dict) -> int:
 
 
 def test_hard_slice_properties() -> None:
-    """Plan v4 step 2, made harder: long 8-15-action sessions, icon-only controls, vague goals."""
+    """Plan v4 step 2, made harder: long 8-15-action sessions, icon-only controls, vague goals.
+
+    The gate is on *scripted* path actions: the minimum actions a correct agent needs
+    are lower (12 of 30 tasks require 8+; see docs/bench-v5.md's Min column)."""
     tags = Counter(tag for t in load_tasks(TASKS_V5) for tag in t.tags)
     assert tags["icon"] >= 6 and tags["vague"] >= 6
     counts = {t["id"]: action_count(t) for t in raw()}

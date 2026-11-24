@@ -20,12 +20,12 @@ separate slice (`data/bench_v5`).
 
 ### Action counts (not path length)
 
-Scripted-action histogram: `{2: 1, 3: 1, 4: 1, 5: 1, 6: 2, 8: 10, 9: 6,
+Scripted-action histogram: `{2: 1, 3: 2, 4: 1, 5: 1, 6: 2, 8: 10, 9: 6,
 11: 1, 12: 4, 13: 1, 15: 2}` — 24 of 30 scripted paths run 8–15 actions.
 **Min** is the fewest actions a correct agent needs for the goal (login =
-type+type+click, reads are free). Minimum histogram: `{2: 1, 3: 2, 4: 7,
-5: 1, 6: 5, 7: 1, 8: 4, 9: 5, 11: 1, 12: 3, 13: 1}` — 13 of 30 tasks
-*require* 8+ actions; the rest are shorter by nature of their goal.
+type+type+click, reads are free). Minimum histogram: `{2: 2, 3: 2, 4: 7,
+5: 1, 6: 5, 7: 1, 8: 3, 9: 5, 11: 1, 12: 3, 13: 1}` — **12 of 30 tasks
+require 8+ actions**; the rest are shorter by nature of their goal.
 
 | Task | Actions | Min |
 |------|---------|-----|
@@ -51,7 +51,7 @@ type+type+click, reads are free). Minimum histogram: `{2: 1, 3: 2, 4: 7,
 | tn-register-fill-form | 2 | 2 |
 | tn-contact-enquiry | 6 | 6 |
 | internet-login-fail-then-pass | 8 | 7 |
-| internet-controls-tour | 8 | 8 |
+| internet-controls-tour | 6 | 6 |
 | internet-status-codes-tour | 9 | 9 |
 | internet-dynamic-loading-both | 4 | 4 |
 | internet-js-alerts-all | 3 | 3 |
@@ -76,12 +76,15 @@ type+type+click, reads are free). Minimum histogram: `{2: 1, 3: 2, 4: 7,
   matching (method, URL) entry, so checks that depend on a same-URL page
   changing mid-path (e.g. a cart losing its last item) are not expressible.
   Replay also ignores POST bodies, so tasks whose only distinguishing state
-  is a POST parameter cannot be checked: on `blazedemo-book-*` a wrong row
-  still replays the same `Amount 555 USD` confirmation (the wrong route is
-  archived, not checkable), and on `internet-controls-tour` the site clears
-  the checkbox message when the input form is toggled, so the check asserts
-  the end state (`A checkbox` + `It's enabled!`) while the remove/add tour
-  is required only by the goal.
+  is a POST parameter cannot be checked. Concretely, on `blazedemo-book-*`
+  **row choice is not verified**: booking the wrong row still replays the
+  same `Amount 555 USD` confirmation (the wrong route is archived so the
+  booking *runs*, the check just can't tell them apart). Their Min counts
+  the full booking form, which every route must still fill.
+  `internet-controls-tour` has the same shape: the site clears the checkbox
+  message when the input form toggles, so no end-state check can verify the
+  remove/add round-trip — the goal was shortened to the enable/disable
+  round-trip the check actually verifies (`A checkbox` + `It's enabled!`).
 - **Arm-intrinsic refusals:** click-safety refuses password fields, form
   submits and blocked words unless the task opts in with `allow_actions`; all
   tasks that need them do.

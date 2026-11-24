@@ -662,7 +662,7 @@
   answer_regex: "logged out"
 - id: internet-controls-tour
   start_url: https://the-internet.herokuapp.com/checkboxes
-  goal: "On the controls page: remove the checkbox, bring it back, enable the field, type a word into it, disable it, enable it again and type another word. Report the final message."
+  goal: "On the controls page: enable the field, type a word into it, disable it, enable it again and type another word. Report the final message."
   tags: [multistep, app, vague]
   max_steps: 22
   allow_actions: true
@@ -672,10 +672,6 @@
   path:
   - goto: https://the-internet.herokuapp.com/dynamic_controls
   - wait: 800
-  - click: {css: "#checkbox-example button"}
-  - wait: 6000
-  - click: {css: "#checkbox-example button"}
-  - wait: 6000
   - click: {css: "#input-example button"}
   - wait: 6000
   - type: {css: "#input-example input"}
