@@ -108,8 +108,9 @@ def parse_tasks(raw: Any) -> list[Task]:
             raise ValueError(f"task {name}: check needs at least one of {', '.join(CHECK_KEYS)} and nothing else")
         try:
             re.compile(check.get("url_regex", ""))
+            re.compile(check.get("text_regex", ""))
         except re.error as exc:
-            raise ValueError(f"task {name}: bad url_regex: {exc}") from exc
+            raise ValueError(f"task {name}: bad check regex: {exc}") from exc
         if not isinstance(item["max_steps"], int) or item["max_steps"] < 1:
             raise ValueError(f"task {name}: max_steps must be a positive integer")
         answer_regex = str(item.get("answer_regex") or "")

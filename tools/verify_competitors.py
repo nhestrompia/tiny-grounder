@@ -265,6 +265,10 @@ async def verify(raw, arm, logs):
                         if ref is None and arm != "agent-browser" and cand:
                             snapshot = await call("browser_find", text=cand)
                             ref = snapshot_ref(snapshot, cand, kind, ordinal)
+                        if ref is None and arm == "pw-mcp-compact":
+                            # The depth-capped view truncates; a full snapshot is the last resort.
+                            snapshot = await call("browser_snapshot")
+                            ref = snapshot_ref(snapshot, cand, kind, ordinal)
                         if ref is not None:
                             name = cand
                             break
