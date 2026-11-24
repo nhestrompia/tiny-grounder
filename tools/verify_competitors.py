@@ -227,9 +227,10 @@ async def verify(raw, arm, logs):
                         raise ValueError(f"no option {option} on select")
                 if arm == "pw-mcp+observe":
                     # Check each duplicate until the middleware id maps to the oracle node itself;
-                    # fall back to the duplicate at the oracle's position among same-label elements.
+                    # only then fall back to the duplicate at the oracle's position.
                     identifier = None
                     oracle = await proxy.owner(lambda: locate(proxy.bench.session.page, spec))
+                    fallback = None
                     for cand in names:
                         if not cand:
                             continue
@@ -247,11 +248,12 @@ async def verify(raw, arm, logs):
                                 break
                         if identifier:
                             break
-                        ordinal = await proxy.owner(lambda c=cand: oracle_ordinal(oracle, c, kind))
-                        if dups and 0 <= ordinal < len(dups):
-                            identifier = dups[ordinal]
-                            name = cand
-                            break
+                        if fallback is None:
+                            ordinal = await proxy.owner(lambda c=cand: oracle_ordinal(oracle, c, kind))
+                            if dups and 0 <= ordinal < len(dups):
+                                fallback = (dups[ordinal], cand)
+                    if identifier is None and fallback is not None:
+                        identifier, name = fallback
                     if identifier is None:
                         raise ValueError(f'middleware id selected a different duplicate: {names}')
                     if kind == "click":
@@ -392,18 +394,21 @@ def _walk_native(bench, session, task, raw, log):
                 continue
             names = element_labels(target, kind)
             element_id = None
+            fallback = None
             for cand in names or [""]:
                 found = bench.invoke("find", query=cand)
                 element_id = next((n for n, value in session.middleware_ids.items()
                                    if value == target.get_attribute("data-tg")), None)
                 if element_id is not None:
                     break
-                dups = [line.split('|')[0].strip() for line in str(found).splitlines()
-                        if line.strip().startswith('tg-') and cand.casefold() in line.casefold()]
-                ordinal = oracle_ordinal(target, cand, kind)
-                if dups and 0 <= ordinal < len(dups):
-                    element_id = dups[ordinal]
-                    break
+                if fallback is None and cand:
+                    dups = [line.split('|')[0].strip() for line in str(found).splitlines()
+                            if line.strip().startswith('tg-') and cand.casefold() in line.casefold()]
+                    ordinal = oracle_ordinal(target, cand, kind)
+                    if dups and 0 <= ordinal < len(dups):
+                        fallback = dups[ordinal]
+            if element_id is None:
+                element_id = fallback
             if element_id is None:
                 raise ValueError(f"no middleware id for {names}")
             if kind == "click":

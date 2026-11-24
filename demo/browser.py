@@ -106,6 +106,8 @@ def parse_tasks(raw: Any) -> list[Task]:
         check = item["check"]
         if not isinstance(check, dict) or not check or set(check) - set(CHECK_KEYS):
             raise ValueError(f"task {name}: check needs at least one of {', '.join(CHECK_KEYS)} and nothing else")
+        if not all(isinstance(v, (str, int, float)) for v in check.values()):
+            raise ValueError(f"task {name}: check values must be scalars")
         check = {k: str(v) for k, v in check.items()}
         try:
             re.compile(check.get("url_regex", ""))
