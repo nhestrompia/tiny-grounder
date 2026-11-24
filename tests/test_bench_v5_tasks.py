@@ -67,14 +67,23 @@ def test_domains_are_held_out() -> None:
             assert d not in demo, f"{t['id']}: {d} is a v1 task domain"
 
 
+ACTION_STEPS = {"click", "type", "select", "press", "goto"}
+
+
+def action_count(task: dict) -> int:
+    """Real actions in a scripted path — wait/scroll entries do not count."""
+    return sum(1 for step in task.get("path") or [] if ACTION_STEPS & set(step))
+
+
 def test_hard_slice_properties() -> None:
-    """Plan v4 step 2, made harder: more long sessions, icon-only controls, vague goals."""
+    """Plan v4 step 2, made harder: long 8-15-action sessions, icon-only controls, vague goals."""
     tags = Counter(tag for t in load_tasks(TASKS_V5) for tag in t.tags)
     assert tags["icon"] >= 6 and tags["vague"] >= 6
-    long_sessions = [t for t in raw() if len(t.get("path") or []) >= 8]
-    assert len(long_sessions) >= 7, f"need >=7 sessions of 8+ steps, got {len(long_sessions)}"
-    for t in raw():
-        assert len(t.get("path") or []) <= 15, f"{t['id']}: path longer than 15 steps"
+    counts = {t["id"]: action_count(t) for t in raw()}
+    long_sessions = [tid for tid, n in counts.items() if n >= 8]
+    assert len(long_sessions) >= 20, f"need >=20 sessions of 8+ actions, got {len(long_sessions)}"
+    for tid, n in counts.items():
+        assert n <= 15, f"{tid}: more than 15 actions"
 
 
 def test_alternative_routes_are_recorded() -> None:

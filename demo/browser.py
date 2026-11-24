@@ -22,7 +22,7 @@ from grounder.extract.web import extract_page_sync
 from grounder.records import Element, Page
 
 TASKS_FILE = Path(__file__).with_name("tasks.yaml")
-CHECK_KEYS = ("url_contains", "url_regex", "text_contains")
+CHECK_KEYS = ("url_contains", "url_regex", "text_contains", "text_not_contains")
 VIEWPORT = {"width": 1280, "height": 800}
 # Recording skips video / audio (huge, never read by the agents) and well-known trackers. Playwright's recording filter
 # KEEPS what matches, hence the negative lookahead.
@@ -147,6 +147,7 @@ def check_success(check: dict[str, str], url: str, text: str) -> bool:
             "url_contains": lambda v: v in url,
             "url_regex": lambda v: re.search(v, url) is not None,
             "text_contains": lambda v: v.casefold() in text.casefold(),
+            "text_not_contains": lambda v: v.casefold() not in text.casefold(),
         }[key](value)
         for key, value in check.items()
     )

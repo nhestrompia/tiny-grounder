@@ -11,7 +11,7 @@ import re
 import math
 from types import SimpleNamespace
 
-from demo.browser import parse_tasks
+from demo.browser import ToolError, parse_tasks
 from demo.competitors import competitor_session, MiddlewareSession
 from demo.mcp_server import BenchServer, SpecRanker
 from demo.competitor_specs import COMPETITOR_CONFIGS
@@ -34,36 +34,67 @@ def step_locator(step):
     return kind, step[kind] if kind else None
 
 
-def element_label(target, kind):
-    """Human-readable name of a step's element, matching what each arm's snapshot shows.
+_CANDIDATES_JS = """el => {
+  const out = [];
+  const push = (t) => { t = (t || '').replace(/\\s+/g, ' ').trim();
+                        if (t && !out.includes(t)) out.push(t); };
+  push(el.getAttribute('aria-label'));
+  if (el.id) { const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+               if (l) push(l.innerText); }
+  const wrap = el.closest('label');
+  if (wrap) push(wrap.innerText);
+  push(el.getAttribute('placeholder'));
+  push(el.innerText);
+  push(el.getAttribute('title'));
+  push(el.getAttribute('data-original-title'));
+  push(el.getAttribute('value'));
+  push(el.getAttribute('name'));
+  push(el.id);
+  const img = el.querySelector('img');
+  if (img && img.alt) push(img.alt);
+  const q = el.querySelector('i, svg, span, img, use') || el;
+  const c = (getComputedStyle(q, '::before').content || '').replace(/^\\"|\\"$/g, '');
+  if (c && c !== 'none') push(c);
+  return out; }"""
 
-    Comboboxes are named by their selected option; icon-only controls expose their
-    icon glyph or tooltip instead of text."""
+
+def element_labels(target, kind):
+    """Ordered candidate names for a step's element, any of which may be the
+    accessible name an arm's snapshot exposes.
+
+    Comboboxes are named by their selected option. For other elements the
+    snapshot name may come from the a11y name (aria-label, associated label,
+    placeholder), from visible text, from a tooltip, or — for icon-only
+    controls — from the icon glyph, so all are tried in turn."""
     if kind == "select":
-        return " ".join((target.evaluate("el => (el.options[el.selectedIndex] || {text: ''}).text") or "").split()) or \
-            target.get_attribute("name") or ""
-    text = (target.inner_text().strip() or target.get_attribute("aria-label")
-            or target.get_attribute("placeholder") or target.get_attribute("title")
-            or target.get_attribute("data-original-title") or target.get_attribute("value")
-            or target.get_attribute("name") or target.get_attribute("id") or "")
-    if text:
-        return " ".join(text.split())
-    return target.evaluate(
-        """el => { const img = el.querySelector('img');
-                    if (img && img.alt) return img.alt;
-                    const q = el.querySelector('i, svg, span, img, use') || el;
-                    const c = (getComputedStyle(q, '::before').content || '').replace(/^\"|\"$/g, '');
-                    return c === 'none' ? '' : c; }""") or ""
+        return [" ".join((target.evaluate("el => (el.options[el.selectedIndex] || {text: ''}).text") or "").split()) or
+                target.get_attribute("name") or ""]
+    return target.evaluate(_CANDIDATES_JS) or []
 
 
-def snapshot_ref(snapshot, name, kind):
-    """The first [ref=] whose a11y node matches the oracle label, or None.
+def _norm(value):
+    """Comparable form of a snapshot/oracle label: edges stripped, icon glyphs kept."""
+    stripped = re.sub(r'^[^\w]+|[^\w]+$', '', value).casefold()
+    return stripped or value.strip().casefold()
+
+
+def element_label(target, kind):
+    """The first (most likely) candidate name from `element_labels`."""
+    labels = element_labels(target, kind)
+    return labels[0] if labels else ""
+
+
+def snapshot_ref(snapshot, name, kind, ordinal=0):
+    """The [ref=] whose a11y node matches the oracle label, or None.
 
     Comboboxes carry no name in these snapshots, so a select step matches the
     combobox whose nested options include the label (each select's option set
-    differs). Other steps match a role line carrying the name."""
+    differs). Other steps match role lines carrying the name; when several
+    elements share it (e.g. per-row 'Choose This Flight' buttons), `ordinal`
+    picks the oracle's position among them — snapshot order is DOM order."""
     if kind == "select":
         lines = snapshot.splitlines()
+        candidates = []
         for i, line in enumerate(lines):
             if "combobox" not in line or "[ref=" not in line:
                 continue
@@ -72,9 +103,13 @@ def snapshot_ref(snapshot, name, kind):
                 if len(line2) - len(line2.lstrip()) <= indent:
                     break
                 if "option" in line2 and f'"{name}"' in line2:
-                    return re.search(r'\[ref=([a-z0-9]+)\]', line).group(1)
-        return None
-    want = re.sub(r'^[^\w]+|[^\w]+$', '', name).casefold()
+                    candidates.append(line)
+                    break
+        if not candidates:
+            return None
+        pick = candidates[ordinal] if 0 <= ordinal < len(candidates) else candidates[0]
+        return re.search(r'\[ref=([a-z0-9]+)\]', pick).group(1)
+    want = _norm(name)
     candidates = []
     for line in snapshot.splitlines():
         if not re.search(r'\[ref=([a-z0-9]+)\]', line):
@@ -82,13 +117,59 @@ def snapshot_ref(snapshot, name, kind):
         for role, quoted in re.findall(r'(\w+)\s+"([^"]*)"', line):
             # Icon glyphs prefix some snapshot names (e.g. a shopping-cart button);
             # compare the text part only.
-            got = re.sub(r'^[^\w]+|[^\w]+$', '', quoted).casefold()
+            got = _norm(quoted)
             if role in ELEMENT_ROLES and got == want:
                 candidates.append(line)
                 break
+        else:
+            # Unnamed fields render their content after the ref: `textbox [ref=..]: "1"`.
+            m = re.search(r'\b(textbox|searchbox|spinbutton)\s*\[ref=([a-z0-9]+)\]\s*:\s*"([^"]*)"', line)
+            if m and _norm(m.group(3)) == want:
+                candidates.append(line)
+    if not candidates:
+        lines = snapshot.splitlines()
+        for i, line in enumerate(lines):
+            # An image-only link/button carries no name but shows its img's alt below it.
+            if not re.match(r'\s*-?\s*(link|button)\s*\[ref=[a-z0-9]+\]\s*(\[cursor=pointer\])?\s*:?\s*$', line):
+                continue
+            indent = len(line) - len(line.lstrip())
+            for line2 in lines[i + 1:]:
+                if len(line2) - len(line2.lstrip()) <= indent:
+                    break
+                # Descendant node names (`img "alt"`) or trailing leaf text
+                # (`strong [ref=..]: HP LP3065`) name the unnamed parent.
+                m = re.search(r'"([^"]*)"', line2) or re.search(r':\s*(.+)$', line2)
+                if m and _norm(m.group(1)) == want:
+                    candidates.append(line)
+                    break
+        if not candidates and not want:
+            # Fields with no accessible name at all render as bare `textbox [disabled] [ref=..]`.
+            candidates = [line for line in lines
+                          if re.search(r'\b(textbox|searchbox|spinbutton)\b[^"\n]*\[ref=[a-z0-9]+\]', line)
+                          and not re.search(r'\w\s+"[^"]*"', line)]
     if not candidates:
         return None
-    return re.search(r'\[ref=([a-z0-9]+)\]', candidates[0]).group(1)
+    pick = candidates[ordinal] if 0 <= ordinal < len(candidates) else candidates[0]
+    return re.search(r'\[ref=([a-z0-9]+)\]', pick).group(1)
+
+
+def oracle_ordinal(target, name, kind):
+    """The oracle element's position among DOM elements sharing its label, or -1.
+
+    Mirrors `element_label` in-page so a step's `nth`-style intent survives the
+    label-only hand-off to snapshot refs (labels, not selectors, are compared)."""
+    if kind == "select":
+        return target.evaluate("""(el, name) => {
+          const has = (s) => [...s.options].some(o => o.text.trim() === name);
+          return [...document.querySelectorAll('select')].filter(has).indexOf(el);}""", name)
+    want = _norm(name)
+    return target.evaluate("""(el, want) => {
+      const candidates = """ + _CANDIDATES_JS + """;
+      const lab = (e) => candidates(e).map(t => t.replace(/^[^\\w]+|[^\\w]+$/g, '').toLowerCase() || t.toLowerCase());
+      const sel = 'a,button,input,textarea,select,summary,label,[role]';
+      if (want === '')
+        return [...document.querySelectorAll('input,textarea')].filter(e => lab(e).length === 0).indexOf(el);
+      return [...document.querySelectorAll(sel)].filter(e => lab(e).includes(want)).indexOf(el);}""", want)
 
 
 async def verify(raw, arm, logs):
@@ -96,7 +177,8 @@ async def verify(raw, arm, logs):
     log = logs / f"{task.id}-{arm}.jsonl"
     log.unlink(missing_ok=True)
     args = SimpleNamespace(config=arm, start_url=task.start_url, har=har_path(task), replay_miss="stub", goal=task.goal,
-                           check=task.check, log=log, task_id=task.id, max_calls=200, answer_regex=task.answer_regex)
+                           check=task.check, log=log, task_id=task.id, max_calls=200, answer_regex=task.answer_regex,
+                           allow_actions=task.allow_actions)
     record = dict(task=task.id, arm=arm, success=False)
     try:
         async with competitor_session(args) as proxy:
@@ -116,16 +198,24 @@ async def verify(raw, arm, logs):
                     await proxy.owner(scroll_through, proxy.bench.session.page)
                     continue
                 if "goto" in step:
-                    await call("open" if arm == "agent-browser" else "browser_navigate", url=step["goto"])
+                    nav = await call("open" if arm == "agent-browser" else "browser_navigate", url=step["goto"])
+                    if "[ref=" in nav:
+                        first = nav
+                    elif arm not in ("agent-browser", "pw-mcp-compact"):
+                        # Offloaded snapshot: fetch a usable view for the next step.
+                        first = await call(observation[0], **observation[1])
                     continue
                 if "press" in step:
-                    await call("press" if arm == "agent-browser" else "browser_press_key", key=step["press"])
+                    nav = await call("press" if arm == "agent-browser" else "browser_press_key", key=step["press"])
+                    if "[ref=" in nav:
+                        first = nav
                     continue
                 kind, spec = step_locator(step)
                 if kind is None:
                     raise ValueError(f"unsupported step {step}")
                 # The oracle supplies only the next label. The action uses a ref/label actually exposed by the arm.
-                name = await proxy.owner(lambda: element_label(locate(proxy.bench.session.page, spec), kind))
+                names = await proxy.owner(lambda: element_labels(locate(proxy.bench.session.page, spec), kind))
+                name = names[0] if names else ""
                 if kind == "select":
                     option = dict(spec.get("option", {}))
                     value = await proxy.owner(lambda: locate(proxy.bench.session.page, spec).evaluate(
@@ -137,22 +227,26 @@ async def verify(raw, arm, logs):
                     if value is None:
                         raise ValueError(f"no option {option} on select")
                 if arm == "pw-mcp+observe":
-                    found = await call("find", query=name)
-                    candidates = [line for line in found.splitlines() if line.startswith('tg-') and name.casefold() in line.casefold()]
-                    if not candidates:
-                        raise ValueError(f'no middleware id for {name}')
                     # Check each duplicate until the middleware id maps to the oracle node itself.
                     identifier = None
-                    oracle = locate(proxy.bench.session.page, spec)
-                    for candidate in candidates:
-                        selector = await proxy.owner(proxy.bench.session.middleware_target, candidate.split('|')[0])
-                        same = selector and await proxy.owner(lambda s=selector: oracle.evaluate(
-                            '(el, selector) => el === document.querySelector(selector)', s))
-                        if same:
-                            identifier = candidate.split('|')[0]
+                    oracle = await proxy.owner(lambda: locate(proxy.bench.session.page, spec))
+                    for cand in names:
+                        if not cand:
+                            continue
+                        found = await call("find", query=cand)
+                        for candidate in (line for line in found.splitlines()
+                                          if line.startswith('tg-') and cand.casefold() in line.casefold()):
+                            selector = await proxy.owner(proxy.bench.session.middleware_target, candidate.split('|')[0])
+                            same = selector and await proxy.owner(lambda s=selector: oracle.evaluate(
+                                '(el, selector) => el === document.querySelector(selector)', s))
+                            if same:
+                                identifier = candidate.split('|')[0]
+                                name = cand
+                                break
+                        if identifier:
                             break
                     if identifier is None:
-                        raise ValueError(f'middleware id selected a different duplicate: {name}')
+                        raise ValueError(f'middleware id selected a different duplicate: {names}')
                     if kind == "click":
                         await call('browser_click', target=identifier, element=name)
                     elif kind == "type":
@@ -161,16 +255,22 @@ async def verify(raw, arm, logs):
                     else:
                         await call('browser_select_option', target=identifier, element=name, values=[value])
                 else:
-                    if arm == "pw-mcp-compact":
-                        snapshot = await call("browser_find", text=name)
-                    else:
-                        snapshot = first
-                    ref = snapshot_ref(snapshot, name, kind)
-                    if ref is None and arm != "agent-browser":
-                        snapshot = await call("browser_find", text=name)
-                        ref = snapshot_ref(snapshot, name, kind)
+                    ref = None
+                    snapshot = first
+                    for cand in names or [""]:
+                        ordinal = await proxy.owner(lambda c=cand: oracle_ordinal(
+                            locate(proxy.bench.session.page, spec), c, kind))
+                        if arm == "pw-mcp-compact" and cand:
+                            snapshot = await call("browser_find", text=cand)
+                        ref = snapshot_ref(snapshot, cand, kind, ordinal)
+                        if ref is None and arm != "agent-browser" and cand:
+                            snapshot = await call("browser_find", text=cand)
+                            ref = snapshot_ref(snapshot, cand, kind, ordinal)
+                        if ref is not None:
+                            name = cand
+                            break
                     if ref is None:
-                        raise ValueError(f"label absent from snapshot: {name}: {snapshot[:5000]}")
+                        raise ValueError(f"label absent from snapshot: {names}: {snapshot[:5000]}")
                     if arm == "agent-browser":
                         if kind == "click":
                             await call("click", ref="@" + ref)
@@ -198,6 +298,11 @@ async def verify(raw, arm, logs):
                     # Use the action snapshot already logged and returned, with no unmeasured call.
                     events = [json.loads(line) for line in log.read_text().splitlines()]
                     first = "\n".join(c["text"] for c in events[-1]["forwarded_result"]["content"] if c["type"] == "text")
+                    if "[ref=" not in first:
+                        # Big pages offload the snapshot to a file link; fetch a usable view.
+                        first = await call(observation[0], **observation[1])
+                        event = json.loads(log.read_text().splitlines()[-1])
+                        cost += -(-event["chars"] // 4) + event.get("image_tokens_est", 0)
                 record["path"].append(dict(label=name, navigation_tokens=cost))
             if task.id == "open-mpi-index-3":
                 # A missing navigation must hit the local stub, including in a tool-created tab.
@@ -237,6 +342,7 @@ def verify_native(raw, logs):
     log = logs / f"{task.id}-find+observe.jsonl"
     log.unlink(missing_ok=True)
     with MiddlewareSession(task.start_url, har=har_path(task), replay_miss="stub") as session:
+        session.allow_actions = task.allow_actions
         bench = BenchServer("find+observe", session, SpecRanker("exact"), task.goal, task.check, log,
                             task.id, answer_regex=task.answer_regex)
         try:
@@ -269,13 +375,20 @@ def _walk_native(bench, session, task, raw, log):
             target = locate(session.page, spec)
             if kind == "select":
                 # find+observe has no select tool; drive the element the oracle named.
+                # TODO: PR #9 adds a `fill` tool that handles selects — route through it once merged.
                 target.select_option(**dict(spec.get("option", {})))
                 session._settle()
                 continue
-            name = element_label(target, kind)
-            bench.invoke("find", query=name)
-            identifier = target.get_attribute("data-tg")
-            element_id = next(n for n, value in session.middleware_ids.items() if value == identifier)
+            names = element_labels(target, kind)
+            element_id = None
+            for cand in names or [""]:
+                bench.invoke("find", query=cand)
+                element_id = next((n for n, value in session.middleware_ids.items()
+                                   if value == target.get_attribute("data-tg")), None)
+                if element_id is not None:
+                    break
+            if element_id is None:
+                raise ValueError(f"no middleware id for {names}")
             if kind == "click":
                 bench.invoke("click", id=element_id)
             else:
@@ -285,7 +398,7 @@ def _walk_native(bench, session, task, raw, log):
         summary = json.loads(log.read_text().splitlines()[-1])
         return dict(task=task.id, arm="find+observe", ok=summary["success"], success=summary["success"],
                     **{k: summary[k] for k in ("safety_ms", "settle_ms", "proxy_ms", "harness_overhead_ms")})
-    except Exception as exc:  # noqa: BLE001 - a refused or unmatched step is a verdict, not a crash
+    except (ToolError, ValueError) as exc:  # a refused or unmatched step is a verdict, not a crash
         return dict(task=task.id, arm="find+observe", ok=False, success=False,
                     error=(str(exc).splitlines() or [type(exc).__name__])[0][:300])
 
