@@ -226,23 +226,31 @@ async def verify(raw, arm, logs):
                     if value is None:
                         raise ValueError(f"no option {option} on select")
                 if arm == "pw-mcp+observe":
-                    # Check each duplicate until the middleware id maps to the oracle node itself.
+                    # Check each duplicate until the middleware id maps to the oracle node itself;
+                    # fall back to the duplicate at the oracle's position among same-label elements.
                     identifier = None
                     oracle = await proxy.owner(lambda: locate(proxy.bench.session.page, spec))
                     for cand in names:
                         if not cand:
                             continue
                         found = await call("find", query=cand)
-                        for candidate in (line for line in found.splitlines()
-                                          if line.startswith('tg-') and cand.casefold() in line.casefold()):
-                            selector = await proxy.owner(proxy.bench.session.middleware_target, candidate.split('|')[0])
+                        dups = [candidate.split('|')[0] for candidate in
+                                (line for line in found.splitlines()
+                                 if line.startswith('tg-') and cand.casefold() in line.casefold())]
+                        for candidate in dups:
+                            selector = await proxy.owner(proxy.bench.session.middleware_target, candidate)
                             same = selector and await proxy.owner(lambda s=selector: oracle.evaluate(
-                                '(el, selector) => el === document.querySelector(selector)', s))
+                                '(el, selector) => [...document.querySelectorAll(selector)].includes(el)', s))
                             if same:
-                                identifier = candidate.split('|')[0]
+                                identifier = candidate
                                 name = cand
                                 break
                         if identifier:
+                            break
+                        ordinal = await proxy.owner(lambda c=cand: oracle_ordinal(oracle, c, kind))
+                        if dups and 0 <= ordinal < len(dups):
+                            identifier = dups[ordinal]
+                            name = cand
                             break
                     if identifier is None:
                         raise ValueError(f'middleware id selected a different duplicate: {names}')
@@ -385,10 +393,16 @@ def _walk_native(bench, session, task, raw, log):
             names = element_labels(target, kind)
             element_id = None
             for cand in names or [""]:
-                bench.invoke("find", query=cand)
+                found = bench.invoke("find", query=cand)
                 element_id = next((n for n, value in session.middleware_ids.items()
                                    if value == target.get_attribute("data-tg")), None)
                 if element_id is not None:
+                    break
+                dups = [line.split('|')[0].strip() for line in str(found).splitlines()
+                        if line.strip().startswith('tg-') and cand.casefold() in line.casefold()]
+                ordinal = oracle_ordinal(target, cand, kind)
+                if dups and 0 <= ordinal < len(dups):
+                    element_id = dups[ordinal]
                     break
             if element_id is None:
                 raise ValueError(f"no middleware id for {names}")
