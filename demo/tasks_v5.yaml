@@ -21,7 +21,7 @@
   allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
-    text_contains: Sauce Labs Onesie
+    text_regex: "(?s)(?=.*Sauce Labs Backpack)(?=.*Sauce Labs Onesie)"
     text_not_contains: Sauce Labs Bike Light
   har: data/bench_v5/har/saucedemo-checkout-swap-items.zip
   path:
@@ -141,7 +141,7 @@
   - click: {css: "#back-to-products"}
   answer: "$7.99 and $49.99"
   wrong: []
-  answer_regex: "(?<![\\d,.])(?:7\\.99|49\\.99)(?!\\.?\\d)"
+  answer_regex: "(?s)(?=.*(?<![\\d,.])7\\.99(?!\\.?\\d))(?=.*(?<![\\d,.])49\\.99(?!\\.?\\d))"
 - id: saucedemo-checkout-missing-name
   start_url: https://www.saucedemo.com/
   goal: Put the backpack and the bike light in the cart, go to checkout, try to continue without typing anything, and report what the page complains about.
@@ -201,7 +201,7 @@
   allow_actions: true
   check:
     url_regex: ^https://www\.saucedemo\.com/checkout-step-two\.html
-    text_contains: Sauce Labs Backpack
+    text_regex: "(?s)(?=.*Sauce Labs Backpack)(?=.*Sauce Labs Onesie)"
     text_not_contains: Bolt T-Shirt
   har: data/bench_v5/har/saucedemo-cart-remove-keep-two.zip
   path:
@@ -423,7 +423,7 @@
   - wait: 1500
   answer: MacBook Pro, $1100
   wrong: []
-  answer_regex: "(?<![\\d,.])(?:1,100|1100)(?:\\.00)?(?!\\.?\\d)"
+  answer_regex: "(?s)(?=.*MacBook ?Pro)(?=.*(?<![\\d,.])1,?100(?:\\.00)?(?!\\.?\\d))"
 
 # --- tutorialsninja.com/demo: OpenCart shop; icon search/cart/compare ---
 - id: tn-cart-three-products
@@ -434,7 +434,7 @@
   allow_actions: true
   check:
     url_regex: route=checkout/cart
-    text_contains: HP LP3065
+    text_regex: "(?s)(?=.*MacBook)(?=.*iPhone)(?=.*HP LP3065)"
   har: data/bench_v5/har/tn-cart-three-products.zip
   path:
   - click: {css: "a[href*='product_id=43']", nth: 0}
@@ -500,7 +500,7 @@
   max_steps: 21
   check:
     url_regex: route=product/compare
-    text_contains: iPhone
+    text_regex: "(?s)(?=.*MacBook)(?=.*iPhone)(?=.*Apple Cinema)"
   har: data/bench_v5/har/tn-compare-three-products.zip
   path:
   - click: {css: "a[href*='product_id=40']", nth: 0}
@@ -531,7 +531,7 @@
   allow_actions: true
   check:
     url_regex: route=checkout/cart
-    text_contains: iPhone
+    text_regex: "(?s)(?=.*MacBook)(?=.*iPhone)"
   har: data/bench_v5/har/tn-cart-update-quantity.zip
   path:
   - click: {css: "a[href*='product_id=43']", nth: 0}
@@ -741,7 +741,7 @@
     - wait: 1200
     - click: {text: "404", exact: true}
     - wait: 800
-  answer_regex: "404"
+  answer_regex: "(?s)(?=.*(?<!\\d)200(?!\\d))(?=.*(?<!\\d)301(?!\\d))(?=.*(?<!\\d)404(?!\\d))(?=.*(?<!\\d)500(?!\\d))"
 - id: internet-dynamic-loading-both
   start_url: https://the-internet.herokuapp.com/dynamic_loading
   goal: Run both dynamic loading examples and report the text each reveals.

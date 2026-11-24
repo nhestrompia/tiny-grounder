@@ -11,7 +11,7 @@ import re
 import math
 from types import SimpleNamespace
 
-from demo.browser import ToolError, parse_tasks
+from demo.browser import ToolError, PlaywrightError, parse_tasks
 from demo.competitors import competitor_session, MiddlewareSession
 from demo.mcp_server import BenchServer, SpecRanker
 from demo.competitor_specs import COMPETITOR_CONFIGS
@@ -199,11 +199,10 @@ async def verify(raw, arm, logs):
                     continue
                 if "goto" in step:
                     nav = await call("open" if arm == "agent-browser" else "browser_navigate", url=step["goto"])
-                    if "[ref=" in nav:
-                        first = nav
-                    elif arm not in ("agent-browser", "pw-mcp-compact"):
-                        # Offloaded snapshot: fetch a usable view for the next step.
-                        first = await call(observation[0], **observation[1])
+                    if "[ref=" not in nav:
+                        # Offloaded or no snapshot: fetch a usable view for the next step.
+                        nav = await call(observation[0], **observation[1])
+                    first = nav
                     continue
                 if "press" in step:
                     nav = await call("press" if arm == "agent-browser" else "browser_press_key", key=step["press"])
@@ -398,7 +397,7 @@ def _walk_native(bench, session, task, raw, log):
         summary = json.loads(log.read_text().splitlines()[-1])
         return dict(task=task.id, arm="find+observe", ok=summary["success"], success=summary["success"],
                     **{k: summary[k] for k in ("safety_ms", "settle_ms", "proxy_ms", "harness_overhead_ms")})
-    except (ToolError, ValueError) as exc:  # a refused or unmatched step is a verdict, not a crash
+    except (ToolError, ValueError, PlaywrightError) as exc:  # a refused or unmatched step is a verdict, not a crash
         return dict(task=task.id, arm="find+observe", ok=False, success=False,
                     error=(str(exc).splitlines() or [type(exc).__name__])[0][:300])
 
