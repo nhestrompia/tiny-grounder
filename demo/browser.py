@@ -75,6 +75,10 @@ class ToolError(Exception):
     """An action the planner asked for failed or was refused; the message goes back as an error tool_result."""
 
 
+class StaleElementsError(ToolError):
+    """No element list exists yet, or the last one belongs to another page; the caller needs a fresh element list."""
+
+
 @dataclass
 class Task:
     id: str
@@ -303,7 +307,9 @@ class BrowserSession:
 
     def _element(self, element_id: int) -> Element:
         if self._extracted_url != self.url:
-            raise ToolError("the page changed since the last extraction; get a fresh element list first")
+            if self._extracted_url:
+                raise StaleElementsError("the page changed since the last extraction; get a fresh element list first")
+            raise StaleElementsError("no element list yet; get an element list first")
         element = next((e for e in self.elements if e.id == element_id), None)
         if element is None:
             raise ToolError(f"no element with id {element_id} in the most recent element list")
@@ -316,6 +322,9 @@ class BrowserSession:
             raise ToolError(f"refused: {probe['reason']}")
         if not getattr(self, "allow_actions", False) and (reason := ph.verdict(probe, click_action)):
             raise ToolError(f"refused: {reason}")
+        # Promote the accepted hit only now: a refused probe (or one that lands on a non-control the caller
+        # discards) must never leave `__tg_hit` pointing at the rejected target, or _click_at would click it.
+        self._guard(lambda: self.page.evaluate("window.__tg_hit = window.__tg_hit_pending"))
         return probe
 
     def _probe(self, element: Element, click_action: bool) -> dict[str, Any]:
@@ -345,7 +354,47 @@ class BrowserSession:
                 raise stale
             return probe  # type: ignore[return-value]
         sx, sy = self._guard(lambda: self.page.evaluate("[scrollX, scrollY]"))
-        return self._probe_point(found["x"] + sx, found["y"] + sy, element.tag, click_action)
+        try:
+            return self._probe_point(found["x"] + sx, found["y"] + sy, element.tag, click_action)
+        except ToolError:
+            # The relocated point can land on a non-control (e.g. a field's <label> when the original probe hit a
+            # control whose hit-label differs, like an input's placeholder vs its label). Keep the original probe.
+            if stale is not None:
+                raise stale
+            return probe  # type: ignore[return-value]
+
+    def _click_at(self, probe: dict[str, Any]) -> None:
+        """Click at the probed point, re-deriving the viewport position at click time: the page can keep scrolling
+        between the probe's scroll jump and the click (scroll anchoring, lazy layout, inner scroll containers),
+        and the stale viewport point then lands on a different control. The probe stashes the validated hit on
+        `window.__tg_hit`, so prefer its live rect — that survives any scroll, window or container. Fall back to
+        document-coordinate compensation when the stash is gone (navigation) and to raw coords for older probes."""
+        point = self.page.evaluate(
+            """() => {
+                const hit = window.__tg_hit;
+                if (!hit || !hit.isConnected) return null;
+                const r = hit.getBoundingClientRect();
+                let x = r.left + r.width / 2, y = r.top + r.height / 2;
+                // Inside a same-origin frame the rect is frame-local: add each ancestor frame's offset (+ border)
+                // until the point is in the top window's viewport coordinates.
+                let win = hit.ownerDocument && hit.ownerDocument.defaultView;
+                while (win && win !== window) {
+                    const fe = win.frameElement;
+                    if (!fe) return null;
+                    const fr = fe.getBoundingClientRect();
+                    x += fr.left + fe.clientLeft; y += fr.top + fe.clientTop;
+                    win = fe.ownerDocument.defaultView;
+                }
+                return [x, y];
+            }"""
+        )
+        if point is not None:
+            self.page.mouse.click(point[0], point[1])
+        elif "sx" in probe:
+            sx, sy = self.page.evaluate("[scrollX, scrollY]")
+            self.page.mouse.click(probe["x"] + probe["sx"] - sx, probe["y"] + probe["sy"] - sy)
+        else:
+            self.page.mouse.click(probe["x"], probe["y"])
 
     def click(self, element_id: int) -> Element:
         """Click element `element_id`, refusing risky ones (blocked words, form submits). Returns the element."""
@@ -356,7 +405,7 @@ class BrowserSession:
             if not element.enabled:
                 raise ToolError("refused: the element is disabled")
             probe = self._locate(element, click_action=True)
-        self._guard(lambda: self.page.mouse.click(probe["x"], probe["y"]))
+        self._guard(lambda: self._click_at(probe))
         self._settle()
         return element
 
@@ -364,21 +413,45 @@ class BrowserSession:
         """Focus a text field by clicking it, replace its content with `text`, optionally press Enter. Returns the
         element."""
         with self.overhead("safety_ms"):
-            element = self._element(element_id)
-            if element.role not in ph.TYPEABLE_ROLES:
-                raise ToolError(f"element {element_id} is a {element.role}, not a text field")
-            if not element.enabled:
-                raise ToolError("refused: the element is disabled")
-            probe = self._locate(element, click_action=False)
+            element, probe = self._field(element_id)
+        self._type_into(probe, text, press_enter)
+        self._settle()
+        return element
 
+    def _field(self, element_id: int, kind: str = "text field", select_ok: bool = False) -> tuple[Element, dict[str, Any]]:
+        """Resolve `element_id` to a typeable field behind the click-safety probe; returns (element, probe point)."""
+        element = self._element(element_id)
+        if not (select_ok and element.tag == "select") and element.role not in ph.TYPEABLE_ROLES:
+            raise ToolError(f"element {element_id} is a {element.role}, not a {kind}")
+        if not element.enabled:
+            raise ToolError("refused: the element is disabled")
+        return element, self._locate(element, click_action=False)
+
+    def _type_into(self, probe: dict[str, Any], text: str, press_enter: bool = False) -> None:
         def act() -> None:
-            self.page.mouse.click(probe["x"], probe["y"])
+            self._click_at(probe)
             self.page.keyboard.press("ControlOrMeta+A")  # typing over the selection replaces any existing text
             self.page.keyboard.type(text)
             if press_enter:
                 self.page.keyboard.press("Enter")
 
         self._guard(act)
+
+    def fill_field(self, element_id: int, text: str) -> Element:
+        """Fill one form field: type into text fields, `select_option` on native selects.
+        Same resolution and safety probing as `type_text`. Returns the element."""
+        with self.overhead("safety_ms"):
+            element, probe = self._field(element_id, kind="form field", select_ok=True)
+        if element.tag == "select":
+            def pick() -> None:
+                target = self.page.evaluate_handle("() => window.__tg_hit").as_element()
+                if target is None or target.evaluate("e => e.tagName") != "SELECT":
+                    raise ToolError(f"element {element_id} could not be located as a select")
+                target.select_option(label=text)
+
+            self._guard(pick)
+        else:
+            self._type_into(probe, text)
         self._settle()
         return element
 

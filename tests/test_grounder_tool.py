@@ -164,3 +164,14 @@ def test_blend_ranker_spec_and_probabilities():
            Element(id=3, role="link", text="Contact us")]
     out = r.rank("open the pricing page", els)
     assert out.ids[0] == 2 and abs(sum(out.scores) - 1.0) < 1e-6 and all(0 <= s <= 1 for s in out.scores)
+
+
+def test_mcp_first_action_needs_an_element_list(site, server):
+    """A click before any find/observe errors instead of acting on a guessed id."""
+    server.open(f"{site}/index.html")
+    server.session.extract()
+    del server.session.elements[:]
+    server.session._extracted_url = ""
+    from grounder_tool.browser import ToolError
+    with pytest.raises(ToolError, match="no element list yet"):
+        server.click(0)

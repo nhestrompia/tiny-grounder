@@ -102,7 +102,9 @@ class BrowserSession:
 
     def _element(self, element_id: int) -> Element:
         if self._extracted_url != self.url:
-            raise ToolError("the page changed since the last find/snapshot; call find or snapshot again")
+            if self._extracted_url:
+                raise ToolError("the page changed since the last find/snapshot; call find or snapshot again")
+            raise ToolError("no element list yet; call find or snapshot first")
         element = next((e for e in self.elements if e.id == element_id), None)
         if element is None:
             raise ToolError(f"no element with id {element_id} in the most recent find/snapshot")
