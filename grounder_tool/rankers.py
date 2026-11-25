@@ -105,12 +105,15 @@ class RouterRanker:
         self.model, self.tau = model, tau
         self.name = f"router:{model.model_dir.name}:{tau:g}"
         self.last_route = ""
+        self.lexical = False  # per-call: True while the last rank() took the lexical route
 
     def rank(self, query, elements, mode: Mode = "do", history=None) -> Ranked:
         if lexical_coverage(query, elements) >= self.tau:
             self.last_route = "lexical"
+            self.lexical = True  # the hardcoded null_prob=0 is not model confidence; observe must not shrink
             return exact_bm25(query, elements)
         self.last_route = "model"
+        self.lexical = False
         return self.model.rank(query, elements, mode, history)
 
 
