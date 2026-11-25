@@ -472,17 +472,3 @@
   - click: {css: "input[type='submit']"}
   answer: Aer Lingus, $200.98
   wrong: []
-- id: hn-first-comments
-  start_url: https://news.ycombinator.com/
-  goal: Open the comments thread of the first story on the front page.
-  tags: [app, vague]
-  max_steps: 3
-  check:
-    url_regex: item\?id=
-    text_contains: Hacker News
-  har: data/bench_v4/har/hn-first-comments.zip
-  path:
-  - click: {css: ".subtext a[href^='item?id=']", nth: 0}
-  - wait: 1000
-  answer: Comments page for the first front-page story
-  wrong: []
