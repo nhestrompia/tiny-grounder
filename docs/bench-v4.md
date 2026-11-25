@@ -1,6 +1,6 @@
 # Benchmark v4 hard slice — frozen shop/app tasks (Plan v4 step 2)
 
-`demo/tasks_v4.yaml` — 23 frozen tasks on 7 non-docs sites. v2/v3 were all
+`demo/tasks_v4.yaml` — 22 frozen tasks on 5 non-docs sites. v2/v3 were all
 developer docs where keyword matching suffices; this slice targets the cases
 where picking the right element is hard.
 
@@ -13,14 +13,13 @@ where picking the right element is hard.
 | tutorialsninja.com/demo | 5 | OpenCart store: icon-only search/cart/wishlist buttons, cart flow |
 | the-internet.herokuapp.com | 4 | App controls: login, forms, dynamic content, keyboard |
 | blazedemo.com | 2 | Real flight-booking flow: destination `<select>`s, results table, multi-field purchase form (14 steps) |
-| news.ycombinator.com | 1 | Real news aggregator: front page to a comments thread |
 
 - **Long sessions:** 7 tasks run 8–14 steps (the five checkouts,
   remove-from-cart, and the flight booking) so re-sent snapshots pile up — the failure mode the
   114k-token Playwright MCP figure comes from.
 - **Icon-only controls:** 10 tasks tagged `icon` (cart icon, burger menu,
   search magnifier, wishlist heart).
-- **Vague goals:** 14 tasks tagged `vague` ("buy the cheapest item",
+- **Vague goals:** 13 tasks tagged `vague` ("buy the cheapest item",
   "take one back out", "report the rent").
 - **Tags:** same set as v2/v3 plus `app` (app-style pages).
 - **New step type:** `select: {locator, option: {label|value|index}}` in
@@ -57,8 +56,11 @@ where picking the right element is hard.
   rotating request params defeat HAR matching (craigslist: verified once,
   then its results fetch started missing — dropped). allbirds.com (Shopify)
   verified on freeze but now intercepts every click for headless browsers
-  (bot wall) so it can no longer be recorded or played — replaced with
-  news.ycombinator.com, which renders server-side and replays cleanly.
+  (bot wall) so it can no longer be recorded or played. Its replacement,
+  news.ycombinator.com (`hn-first-comments`), was later dropped too:
+  ycombinator.com is in the model's training crawl
+  (`data/leakage/heldout_domains.txt`), so it is not a held-out site. Runs
+  reported before the drop score out of 23.
 - **Dialog-dependent flows** are kept minimal — Playwright auto-dismisses
   `alert()` but cart state still needs the server.
 - **the-internet login–logout–login cycle**: the end state is identical to
