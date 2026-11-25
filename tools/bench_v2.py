@@ -58,6 +58,8 @@ HAR_DIR = ROOT / "data" / "bench_v2" / "har"
 VERIFY_FILE = ROOT / "data" / "bench_v2" / "verify.json"
 STEP_SETTLE_MS = 900
 SCROLL_STEPS = 12
+# Some demo sites fingerprint the headless UA ("One moment, please..." walls); record as desktop Chrome.
+RECORD_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 
 def locate(page: Any, spec: dict[str, Any]) -> Any:
@@ -235,6 +237,12 @@ def sanitize_har(path: Path) -> int:
                 har = json.loads(data)
                 entries = har["log"]["entries"]
                 keep = [e for e in entries if (e.get("response") or {}).get("status", 0) > 0]
+                # 304 revalidation entries carry no body; replay has no shared cache, so serving one
+                # returns an empty response (e.g. jQuery never loads on repeat product-page visits).
+                have_full = {(e["request"]["method"], e["request"]["url"]) for e in keep
+                             if e["response"]["status"] != 304}
+                keep = [e for e in keep if e["response"]["status"] != 304
+                        or (e["request"]["method"], e["request"]["url"]) not in have_full]
                 dropped = len(entries) - len(keep)
                 har["log"]["entries"] = keep
                 data = json.dumps(har).encode("utf-8")
@@ -270,7 +278,8 @@ def har_path(task: Task) -> Path:
 
 
 def record_task(task: Task, raw: dict[str, Any], branches: int, neighbours: int = 0,
-                from_logs: Path | None = None, max_extra: int = 60, delay: float = .25) -> Path:
+                from_logs: Path | None = None, max_extra: int = 60, delay: float = .25,
+                headed: bool = False) -> Path:
     out = har_path(task)
     out.parent.mkdir(parents=True, exist_ok=True)
     # Keep the previous freeze intact if live navigation fails.
@@ -289,7 +298,8 @@ def record_task(task: Task, raw: dict[str, Any], branches: int, neighbours: int 
                     candidates.append(url)
 
     try:
-        with BrowserSession(task.start_url, record_har=pending) as s:
+        with BrowserSession(task.start_url, record_har=pending, user_agent=RECORD_UA,
+                        headless=not headed) as s:
             page = s.page
             scroll_through(page)
             extra = neighbour_links(page, branches) if widened else same_site_links(page, branches)
@@ -372,6 +382,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--from-logs", type=Path, help="record: prioritize same-site pilot archive misses")
     p.add_argument("--max-extra", type=int, default=60, help="record: maximum extra pages per task in widened mode")
     p.add_argument("--delay", type=float, default=.25, help="record: delay between extra pages, seconds")
+    p.add_argument("--headed", action="store_true", help="record: run a headed browser (needs a display; some sites fingerprint headless)")
     args = p.parse_args(argv)
     if args.neighbours < 0 or args.max_extra < 0 or args.delay < 0:
         p.error("neighbours, max-extra and delay must be nonnegative")
@@ -395,7 +406,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{t.id}: dropped {n} failed entries")
         elif args.command == "record":
             try:
-                out = record_task(t, raws[t.id], args.branches, args.neighbours, args.from_logs, args.max_extra, args.delay)
+                out = record_task(t, raws[t.id], args.branches, args.neighbours, args.from_logs,
+                                  args.max_extra, args.delay, args.headed)
                 print(f"recorded {t.id}: {out.stat().st_size / 1e6:.1f} MB", flush=True)
             except Exception as exc:  # noqa: BLE001
                 bad += 1

@@ -126,6 +126,24 @@ def test_check_success_requires_every_condition() -> None:
     assert not check_success(check, "https://x/docs/v3", "nothing")
 
 
+def test_check_success_text_not_contains_and_text_regex() -> None:
+    check = {"text_not_contains": "sold out", "text_regex": r"(?s)(?=.*Hello)(?=.*\d{3})"}
+    assert check_success(check, "https://x/", "Hello\nthere 123")
+    assert not check_success(check, "https://x/", "Hello\nthere 123 SOLD OUT")
+    assert not check_success(check, "https://x/", "Hello there")
+
+
+def test_parse_tasks_check_values_must_be_scalars() -> None:
+    raw = {"id": "a", "start_url": "https://x.test/", "goal": "g", "check": {"text_contains": "x"}, "max_steps": 3,
+           "path": []}
+    assert parse_tasks([raw])[0].check == {"text_contains": "x"}
+    assert parse_tasks([{**raw, "check": {"text_regex": 200}}])[0].check == {"text_regex": "200"}
+    with pytest.raises(ValueError, match="scalars"):
+        parse_tasks([{**raw, "check": {"text_regex": ["0-9"]}}])
+    with pytest.raises(ValueError, match="scalars"):
+        parse_tasks([{**raw, "check": {"text_contains": {"a": 1}}}])
+
+
 # ---- the loop, one test per configuration ---------------------------------------------------------------
 
 

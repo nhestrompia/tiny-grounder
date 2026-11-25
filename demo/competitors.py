@@ -160,13 +160,18 @@ class AgentBrowser:
     async def call_tool(self, name, args):
         if name == "snapshot":
             command = ["snapshot", "-i", "-c"]
-        elif name in ("click", "fill", "get_text"):
+        elif name in ("click", "fill", "get_text", "select"):
             ref = args["ref"]
             if not re.fullmatch(r"@e\d+", ref):
                 raise ToolError("use an @ref from snapshot")
-            command = ["get", "text", ref] if name == "get_text" else [name, ref]
-            if name == "fill":
-                command.append(args["text"])
+            if name == "select":
+                command = ["select", ref, args["value"]]
+            else:
+                command = ["get", "text", ref] if name == "get_text" else [name, ref]
+                if name == "fill":
+                    command.append(args["text"])
+        elif name == "press":
+            command = ["press", args["key"]]
         elif name == "open":
             command = ["open", args["url"]]
         elif name == "back":
@@ -183,6 +188,8 @@ class AgentBrowser:
             tool("snapshot", "Interactive compact snapshot: agent-browser snapshot -i -c."),
             tool("click", "Click an @ref.", {"ref": string}),
             tool("fill", "Clear and fill an @ref.", {"ref": string, "text": string}),
+            tool("select", "Select an option in an @ref dropdown.", {"ref": string, "value": string}),
+            tool("press", "Press a key.", {"key": string}),
             tool("open", "Navigate to a URL.", {"url": string}),
             tool("back", "Go back."), tool("get_text", "Get text of an @ref.", {"ref": string}),
         ])
@@ -284,8 +291,9 @@ class Proxy:
                 if b.config == 'pw-mcp+observe':
                     for obj, key in target_slots:
                         obj[key] = await self.owner(b.session.middleware_target, obj[key])
-                if action and (target_slots or name in {'click', 'fill'}):
-                    click_action = name not in {'fill', 'browser_type', 'browser_hover', 'browser_fill_form'}
+                if action and (target_slots or name in {'click', 'fill', 'select'}):
+                    click_action = name not in {'fill', 'select', 'browser_type', 'browser_hover', 'browser_fill_form',
+                                                'browser_select_option'}
                     slots = target_slots or [(args, 'ref')]
                     def safety_check():
                         checks = []

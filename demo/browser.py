@@ -22,7 +22,7 @@ from grounder.extract.web import extract_page_sync
 from grounder.records import Element, Page
 
 TASKS_FILE = Path(__file__).with_name("tasks.yaml")
-CHECK_KEYS = ("url_contains", "url_regex", "text_contains")
+CHECK_KEYS = ("url_contains", "url_regex", "text_contains", "text_not_contains", "text_regex")
 VIEWPORT = {"width": 1280, "height": 800}
 # Recording skips video / audio (huge, never read by the agents) and well-known trackers. Playwright's recording filter
 # KEEPS what matches, hence the negative lookahead.
@@ -110,10 +110,16 @@ def parse_tasks(raw: Any) -> list[Task]:
         check = item["check"]
         if not isinstance(check, dict) or not check or set(check) - set(CHECK_KEYS):
             raise ValueError(f"task {name}: check needs at least one of {', '.join(CHECK_KEYS)} and nothing else")
+        if any(isinstance(v, (dict, list, set, tuple)) for v in check.values()):
+            raise ValueError(f"task {name}: check values must be scalars")
+        if any(v is None or str(v) == "" for v in check.values()):
+            raise ValueError(f"task {name}: check values must be non-empty")
+        check = {k: str(v) for k, v in check.items()}
         try:
             re.compile(check.get("url_regex", ""))
+            re.compile(check.get("text_regex", ""))
         except re.error as exc:
-            raise ValueError(f"task {name}: bad url_regex: {exc}") from exc
+            raise ValueError(f"task {name}: bad check regex: {exc}") from exc
         if not isinstance(item["max_steps"], int) or item["max_steps"] < 1:
             raise ValueError(f"task {name}: max_steps must be a positive integer")
         answer_regex = str(item.get("answer_regex") or "")
@@ -151,6 +157,8 @@ def check_success(check: dict[str, str], url: str, text: str) -> bool:
             "url_contains": lambda v: v in url,
             "url_regex": lambda v: re.search(v, url) is not None,
             "text_contains": lambda v: v.casefold() in text.casefold(),
+            "text_not_contains": lambda v: v.casefold() not in text.casefold(),
+            "text_regex": lambda v: re.search(v, text, re.IGNORECASE | re.DOTALL) is not None,
         }[key](value)
         for key, value in check.items()
     )
@@ -188,12 +196,14 @@ class BrowserSession:
     """
 
     def __init__(self, start_url: str, headless: bool = True, har: str | Path | None = None, replay_miss: str = "stub",
-                 record_har: str | Path | None = None, cdp: bool = False) -> None:
+                 record_har: str | Path | None = None, cdp: bool = False, user_agent: str | None = None) -> None:
         self.replay: Replay | None = Replay() if har else None
         self._playwright = sync_playwright().start()
         try:
             launch: dict[str, Any] = {"headless": headless}
             ctx: dict[str, Any] = {"viewport": VIEWPORT}
+            if user_agent:
+                ctx["user_agent"] = user_agent
             if har:
                 launch["proxy"] = {"server": DEAD_PROXY}
                 ctx["service_workers"] = "block"
@@ -462,7 +472,7 @@ class BrowserSession:
 
     def succeeded(self, check: dict[str, str]) -> bool:
         try:
-            text = self.text() if "text_contains" in check else ""
+            text = self.text() if any(k.startswith("text_") for k in check) else ""
         except ToolError:
             return False
         return check_success(check, self.url, text)
