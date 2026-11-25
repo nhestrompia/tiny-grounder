@@ -174,3 +174,29 @@ def test_tool_live_read_and_refresh(tmp_path, endpoint):
         assert '$prefix' not in server.read('manual pages installed')
     finally:
         server.close()
+
+
+def test_leaf_numbers(tmp_path):
+    """Short standalone numbers (prices, totals, counts) in leaf nodes become passages."""
+    html = tmp_path / 'numbers.html'
+    html.write_text('''<main><h1>Item</h1>
+    <div class="price">$15.99</div>
+    <p>Free shipping</p>
+    <div><a href="/buy">Buy now $15.99</a></div>
+    <div><span>only <b>3</b> left</span></div>
+    <span>no digits here</span>
+    <div style="display:none">$0.00</div>
+    <p> Paragraph has a digit: 42</p></main>
+    <footer><div>$9.99</div></footer>''')
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        tab = browser.new_page()
+        tab.goto(html.as_uri())
+        texts = [p.text for p in extract_passages(tab)]
+        assert texts.count('$15.99') == 1
+        assert '3' in texts
+        assert 'Buy now $15.99' not in texts  # control text, covered by element extraction
+        assert 'no digits here' not in texts
+        assert '$0.00' not in texts and '$9.99' not in texts
+        assert ' Paragraph has a digit: 42' in texts or 'Paragraph has a digit: 42' in texts
+        browser.close()

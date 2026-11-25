@@ -321,3 +321,53 @@ def test_live_landmarks(tmp_path):
             assert len(session.heading_positions) == 40
         finally:
             session.close()
+
+
+def test_numbers_near_shown_elements():
+    """A short number beside a shown element always reaches the digest, whatever the goal."""
+    from grounder.playwright_helper import Passage
+    p = Page('p', 'https://example.test', 'example', 'Shop', [1280, 800], [1280, 5000],
+             [Element(0, 'button', 'Add to cart', context='Bolt T-Shirt', abs_box=[10, 500, 100, 30]),
+              Element(1, 'link', 'Home', abs_box=[10, 10, 50, 20])])
+    passages = [Passage('$15.99', y=545), Passage('a far away total: 42 items', y=5000),
+                Passage('free returns', y=540), Passage('x' * 100 + ' 7', y=545)]
+    out = UIGrounder().observe(p, 'shop', 600, passages=passages)
+    assert '> $15.99' in out
+    assert 'far away total' not in out and 'free returns' not in out and 'x' * 20 not in out
+
+
+def test_read_element_context_fallback():
+    """read() falls back to passages from the matched elements' context and neighbouring numbers."""
+    from grounder.playwright_helper import Passage
+    from grounder_tool.digest import read
+    elements = [Element(0, 'button', 'Add to cart', context='Sauce Labs Bolt T-Shirt $15.99',
+                        abs_box=[10, 500, 100, 30]),
+                Element(1, 'link', 'Home', context='menu', abs_box=[10, 10, 50, 20])]
+    passages = [Passage('3 in stock', y=545), Passage('$15.99', y=545), Passage('Unrelated content', y=900)]
+    out = read('bolt t-shirt', passages, elements=elements)
+    assert 'Sauce Labs Bolt T-Shirt $15.99' in out and '> 3 in stock' in out
+    # '$15.99' is skipped: its digits are already in the shown element's context.
+    assert '> $15.99' not in out
+    assert out.splitlines()[-1] == 'showing 2 of 5 passages'
+    assert read('zebras', passages, elements=elements) == 'showing 0 of 3 passages'
+    # Three lexical matches leave no room for the fallback.
+    hits = [Passage(f'bolt t-shirt note {i}', y=i) for i in range(3)]
+    assert 'Sauce Labs' not in read('bolt t-shirt', hits, elements=elements)
+
+
+def test_read_fallback_under_model_ranker():
+    """A model ranker returns every passage; the fallback still fires when none match the query."""
+    from grounder.playwright_helper import Passage
+    from grounder_tool.digest import read
+    from grounder.ranking import Ranked
+
+    class AllPassages:
+        name = "model"
+
+        def rank(self, query, elements, mode, history=None):
+            return Ranked(ids=[e.id for e in elements], scores=[1.0] * len(elements), null_prob=0.0)
+
+    elements = [Element(0, 'button', 'Add to cart', context='Bolt T-Shirt $15.99', abs_box=[10, 500, 100, 30])]
+    passages = [Passage(f'filler {i}', y=i) for i in range(5)]
+    out = read('bolt t-shirt', passages, ranker=AllPassages(), elements=elements)
+    assert 'Bolt T-Shirt $15.99' in out

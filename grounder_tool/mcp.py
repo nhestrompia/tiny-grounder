@@ -24,6 +24,7 @@ from grounder_tool.digest import read as read_passages
 from grounder.records import Element, Page, action_repr
 from grounder_tool.api import UIGrounder, format_lines
 from grounder_tool.browser import BrowserSession, ToolError
+from grounder_tool.extract import from_playwright
 from grounder_tool.rankers import make_ranker
 from grounder_tool.digest import MAX_BUDGET, MIN_BUDGET, LineSuffix
 
@@ -115,9 +116,16 @@ class ToolServer:
         return passages
 
     def read(self, query: str, budget: int = 400) -> str:
+        session = self._need()
+        if session._extracted_url == session.url:
+            elements = session.elements
+        else:
+            # Read-only extraction: committing this Page would silently rebind action ids
+            # the caller already holds (observe/find return the new ids; read does not).
+            elements = session._guard(lambda: from_playwright(session.page)).elements
         passages = self._passages()
         start = time.perf_counter()
-        out = read_passages(query, passages, budget, self.observe_grounder.ranker)
+        out = read_passages(query, passages, budget, self.observe_grounder.ranker, elements=elements)
         self.rank_ms = (time.perf_counter() - start) * 1000
         return out
 

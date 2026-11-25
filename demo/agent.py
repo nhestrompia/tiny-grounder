@@ -224,6 +224,19 @@ class ToolBox:
         enter = " and pressed Enter" if press_enter else ""
         return f"typed into {element.role} {element.text!r}{enter}\n{self.session.status()}"
 
+    def _fill(self, fields: list[dict[str, Any]], submit_id: int | None = None) -> str:
+        filled = []
+        for field in fields:
+            element = self.session.fill_field(field["id"], field["text"])
+            self.history.append(action_repr(element, field["text"]))
+            filled.append(element.text or f"{element.role} {field['id']}")
+        out = f"filled {len(filled)} field(s): " + ", ".join(repr(n) for n in filled)
+        if submit_id is not None:
+            element = self.session.click(submit_id)
+            self.history.append(action_repr(element))
+            out += f"; clicked {element.role} {element.text!r}"
+        return f"{out}\n{self.session.status()}"
+
     def _go_back(self) -> str:
         self.session.go_back()
         return f"went back\n{self.session.status()}"
