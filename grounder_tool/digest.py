@@ -92,13 +92,23 @@ def observe(
     line_suffix: LineSuffix | None = None,
     landmarks: list[str] | None = None,
     passages: list[Passage] | None = None,
+    adaptive_min: int | None = None,
 ) -> str:
     """Return header, outline and deduplicated goal-ranked lines within `budget` estimated tokens.
 
     Empty goals use the title. Coordinate suffixes count toward the budget. Tiny budgets shorten the header
     and omit components that cannot fit; element and footer lines are always complete. Short numbers next to
     the top-ranked elements (prices, totals, counts) are part of the text section, ahead of ranked passages.
+
+    With `adaptive_min`, a ranker that reports a null probability scales the digest between
+    max(MIN_BUDGET, adaptive_min) when it is sure (low null_prob) and `budget` when it is not.
+    Lexical rankers abstain via `.lexical` and always get `budget`.
     """
+    ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
+    if adaptive_min is not None and ranked is not None and not getattr(ranker, "lexical", False):
+        floor = max(MIN_BUDGET, min(adaptive_min, budget))  # never grow the digest past the caller's budget
+        confidence = 1.0 - min(1.0, max(0.0, ranked.null_prob))
+        budget = budget - round((budget - floor) * confidence)
     cap = max(0, budget) * 4
     total = len(page.elements)
 
@@ -117,7 +127,6 @@ def observe(
         lines.append(outline)
         used += len(outline) + 1
     by_id = {e.id: e for e in page.elements}
-    ranked = ranker.rank(goal or page.title, page.elements, "goal", history) if page.elements else None
     top = [by_id[i] for i in (ranked.ids[:NEAR_TOP] if ranked else [])]
     adjacent = _numbers_near(passages or [], top)
     text_used = 0

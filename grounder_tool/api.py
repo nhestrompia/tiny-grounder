@@ -46,9 +46,10 @@ class UIGrounder:
         self, source: Page, goal: str = "", budget: int = 600,
         history: list[str] | None = None, landmarks: list[str] | None = None,
         line_suffix: LineSuffix | None = None, passages: list[Passage] | None = None,
+        adaptive_min: int | None = None,
     ) -> str:
         """Return a goal-ranked digest within the estimated token budget."""
-        return observe(source, goal, self.ranker, budget, history, line_suffix, landmarks, passages)
+        return observe(source, goal, self.ranker, budget, history, line_suffix, landmarks, passages, adaptive_min)
 
     def inspect(
         self, source: Page, id: int | None = None, region: str = "", budget: int = 400,

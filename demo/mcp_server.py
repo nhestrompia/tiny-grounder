@@ -184,7 +184,13 @@ class GoalRanker:
 
     def __init__(self, ranker: Ranker) -> None:
         self.ranker = ranker
-        self.lexical = getattr(ranker, "lexical", False)  # propagate for rank_passages' no-overlap gate
+
+    @property
+    def lexical(self) -> bool:
+        """Propagate the inner ranker's marker for rank_passages' no-overlap gate and observe sizing.
+
+        Read per call, not at construction: RouterRanker flips it between ranks."""
+        return getattr(self.ranker, "lexical", False)
 
     def rank(
         self, query: str, elements: Sequence[Element], mode: Mode = "goal", history: list[str] | None = None
@@ -223,12 +229,14 @@ class BenchServer:
         self, config: str, session: BrowserSession, ranker: Ranker | None, goal: str, check: dict[str, str],
         log_path: str | Path, task_id: str = "", observe: bool = True, max_calls: int = DEFAULT_MAX_CALLS,
         answer_regex: str = "", a11y_cap: int = A11Y_CAP_CHARS, observe_ranker: DigestRanker | None = None,
+        observe_min: int | None = None,
     ) -> None:
         tools_for(config)  # validates the name
         self.config, self.session, self.goal, self.check, self.task_id = config, session, goal, check, task_id
         self.observe, self.max_calls = observe, max_calls
         self.allow_actions = getattr(session, "allow_actions", False)  # task opted in: relax click-safety
         self.answer_regex, self.a11y_cap = answer_regex, a11y_cap
+        self.observe_min = observe_min  # adaptive observe floor; None keeps the caller's budget fixed
         self._aria_cache: tuple[int, str] | None = None  # (state version, full snapshot text) for a11y-cap paging
         self._state = 0  # bumped by every action, so a cached snapshot is only reused while the page is unchanged
         self.log_path = Path(log_path)
@@ -397,6 +405,7 @@ class BenchServer:
         result = self.digest.observe(
             page, goal or self.goal, max(MIN_BUDGET, min(MAX_BUDGET, budget)),
             self.box.history[-HISTORY_LEN:], landmarks=self.session.landmarks, passages=passages,
+            adaptive_min=getattr(self, "observe_min", None),
         )
         self.rank_ms += (time.perf_counter() - start) * 1000
         return result
@@ -766,6 +775,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--no-observe", action="store_true", help="a11y / vision: actions do not return a new observation")
     p.add_argument("--allow-actions", action="store_true",
                    help="task opted in: skip click-safety refusals (blocked words, submits, password fields)")
+    p.add_argument("--observe-min", type=int, default=None,
+                   help="adaptive observe floor (tokens): a confident observe ranker shrinks the digest toward this")
     args = p.parse_args(argv)
     args.check = json.loads(args.check)
     if bad := set(args.check) - set(CHECK_KEYS):
@@ -789,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
         return BenchServer(
             args.config, session, ranker, args.goal, args.check, args.log, args.task_id,
             observe=not args.no_observe, max_calls=args.max_calls,
-            answer_regex=args.answer_regex, observe_ranker=observation,
+            answer_regex=args.answer_regex, observe_ranker=observation, observe_min=args.observe_min,
         )
 
     bench = pool.submit(build).result()
