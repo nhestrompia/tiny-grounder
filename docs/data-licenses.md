@@ -12,8 +12,9 @@ measured on them is published, the data never reaches the weights and is never r
 | Our macOS dumps (`data/pages_ax`) + teacher outputs | ours | macOS training | — |
 | DeskForge-1M (`docling-project/DeskForge-1M`, a sample: `tools/deskforge.py`) | MIT | Linux desktop training (train, dev); `test_app` (held-out applications) for evaluation | Gurbuz et al. 2026, "DeskForge: Dense Supervision from Desktop Environments for Computer-Use Agents", arXiv:2610.02320 |
 | GUIrilla-Task test (`macpaw-research/GUIrilla-Task`) | CC-BY-NC-4.0 | **evaluation only** (macOS benchmark) | Garkot et al. 2025, arXiv:2510.16051 |
+| Look Before You Click (`ash256/look-before-you-click`, environmental Ubuntu trajectories) | MIT | **evaluation only** (D-public next-step set; never training) | Chew, Wang and Akunuri 2026, "Look Before You Click: Sparse Critical-Action Review for Computer-Use Agent Control" |
 | GUIrilla-Task train | CC-BY-NC-4.0 | **not used** for the release; only a separately labelled CC-BY-NC experiment, if ever | as above |
 
 DeskForge screenshots show third-party application interfaces, themes and icons that remain their owners' property; only the accessibility-tree text of a sample is converted, never a screenshot.
 Mind2Web asks that the unzipped test files are not redistributed; the release ships none of them.
-No dataset is redistributed in this repository; `data/` is gitignored and each converter downloads from the source.
+No training dataset is redistributed in this repository; `data/` is gitignored and each converter downloads from the source. The frozen D-public evaluation conversion is the one exception: accessibility-tree text only, force-added so the pre-registered evaluation input is immutable; raw downloads, screenshots and videos are never committed.

@@ -1,0 +1,25 @@
+{
+ "apps": [
+  "libreoffice_writer",
+  "thunderbird"
+ ],
+ "dataset": "ash256/look-before-you-click",
+ "dropped": {
+  "coordinate_unrecoverable": 4,
+  "duplicate": 22,
+  "first_action_not_element": 68,
+  "no_pyautogui_action": 26,
+  "target_not_in_tree": 33,
+  "train_app_step": 96
+ },
+ "examples": 310,
+ "malformed_tree_rows": 0,
+ "pages": 214,
+ "revision": "0663309bd34404d6202f9e1433f191f17d99072f",
+ "source_steps": 463,
+ "tags": {
+  "goal-only": 134,
+  "literal": 144
+ },
+ "trajectories": 59
+}
