@@ -1,0 +1,22 @@
+{
+  "counts": {
+    "examples": 0,
+    "pages": 0
+  },
+  "message": "axdump needs the Accessibility permission. Open System Settings > Privacy & Security > Accessibility, enable the terminal app you run this from, then run axdump again.",
+  "outputs": [
+    {
+      "bytes": 402,
+      "path": "data/nextstep/d_macos-build.json",
+      "sha256": "fd8af82e4a2d5675d08a9efbbb6db507d7f9c193e6f8c5a034ca9241690a99dd"
+    }
+  ],
+  "set": "d_macos",
+  "status": "not_recorded_permission_missing",
+  "tasks_file": {
+    "bytes": 18633,
+    "path": "demo/tasks_desktop.yaml",
+    "sha256": "6afc06f09beecc4c8836a554d6d11fad092f7562eb669820543b3364960df774",
+    "tasks": 31
+  }
+}

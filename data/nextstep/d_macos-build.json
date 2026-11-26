@@ -1,0 +1,9 @@
+{
+  "action_method": "System Events process-scoped coordinate clicks and allowlisted keyboard input",
+  "counts": {},
+  "drops": [],
+  "message": "axdump needs the Accessibility permission. Open System Settings > Privacy & Security > Accessibility, enable the terminal app you run this from, then run axdump again.",
+  "per_task": {},
+  "status": "not_recorded_permission_missing",
+  "tag_counts": {}
+}
