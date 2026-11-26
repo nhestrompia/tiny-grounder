@@ -149,6 +149,57 @@
       "site_count": 9
     }
   },
+  "show_next_counts": {
+    "bench-v2": {
+      "successful_runs": 2621,
+      "action_steps": 4521,
+      "recoverable_steps": 2809,
+      "duplicates": 2563,
+      "dropped_steps": 1712,
+      "element_unrecoverable": 192,
+      "unlabelled_or_failed_action": 1517,
+      "page_unrecoverable": 3,
+      "usable_unique": 246
+    },
+    "bench-v2-smoke": {
+      "successful_runs": 8,
+      "action_steps": 21,
+      "recoverable_steps": 19,
+      "duplicates": 10,
+      "dropped_steps": 2,
+      "element_unrecoverable": 2,
+      "usable_unique": 9
+    },
+    "bench-v3": {
+      "successful_runs": 1184,
+      "action_steps": 2693,
+      "recoverable_steps": 2469,
+      "dropped_steps": 224,
+      "page_unrecoverable": 53,
+      "element_unrecoverable": 119,
+      "unlabelled_or_failed_action": 52,
+      "duplicates": 1929,
+      "usable_unique": 540
+    },
+    "bench-v3-pilot": {
+      "successful_runs": 41,
+      "action_steps": 81,
+      "recoverable_steps": 80,
+      "duplicates": 63,
+      "dropped_steps": 1,
+      "element_unrecoverable": 1,
+      "usable_unique": 17
+    },
+    "bench-v3-pilot2": {
+      "successful_runs": 49,
+      "action_steps": 118,
+      "recoverable_steps": 116,
+      "dropped_steps": 2,
+      "unlabelled_or_failed_action": 2,
+      "duplicates": 79,
+      "usable_unique": 37
+    }
+  },
   "source_root": "/Users/nhestrompia/Projects/tiny-grounder",
   "source_run_counts": {
     "runs:bench-v2": 3047,
@@ -241,6 +292,10 @@
     "bad_url": 18,
     "done:page_unrecoverable": 1471,
     "enough:page_unrecoverable": 1471,
+    "enough_v2:both_text_and_vision_failed": 321,
+    "enough_v2:no_paired_vision": 5174,
+    "enough_v2:not_text_arm": 3072,
+    "enough_v2:page_unrecoverable": 1471,
     "log_without_run_row": 1,
     "no_committed_call": 47,
     "page_extraction_failure": 10,
@@ -262,7 +317,14 @@
     "show_next:cross_directory_duplicate": 48,
     "url_not_in_archive": 322,
     "worked:no_previous_action": 4722,
-    "worked:page_unrecoverable": 1471
+    "worked:page_unrecoverable": 1471,
+    "worked_v2:next_action_target_already_existed": 267,
+    "worked_v2:next_action_target_unparseable": 52,
+    "worked_v2:no_previous_action": 4722,
+    "worked_v2:no_progress_evidence": 1361,
+    "worked_v2:page_unrecoverable": 1471,
+    "worked_v2:pre_action_page_unrecoverable": 229,
+    "worked_v2:reobservation_without_progress_evidence": 1938
   },
   "screenshot_audit": {
     "run_dirs": {
@@ -488,56 +550,244 @@
     "bazel.build": "test"
   },
   "test_manifest_files": 130,
-  "show_next_counts": {
-    "bench-v2": {
-      "successful_runs": 2621,
-      "action_steps": 4521,
-      "recoverable_steps": 2809,
-      "duplicates": 2563,
-      "dropped_steps": 1712,
-      "element_unrecoverable": 192,
-      "unlabelled_or_failed_action": 1517,
-      "page_unrecoverable": 3,
-      "usable_unique": 246
+  "test_manifest_v2_files": 100,
+  "decisions_v2": {
+    "enough_v2": {
+      "rows": {
+        "train": 4386,
+        "dev": 957,
+        "test": 885
+      },
+      "sites": {
+        "train": 12,
+        "dev": 3,
+        "test": 4
+      },
+      "base_rates": {
+        "train": 0.13634290925672596,
+        "dev": 0.18808777429467086,
+        "test": 0.03389830508474576
+      },
+      "per_arm_base_rates": {
+        "train": {
+          "a11y-cap": {
+            "n": 1403,
+            "positive": 123,
+            "base_rate": 0.08766928011404133
+          },
+          "find+observe[exact+blend]": {
+            "n": 249,
+            "positive": 41,
+            "base_rate": 0.1646586345381526
+          },
+          "find+observe[exact]": {
+            "n": 243,
+            "positive": 36,
+            "base_rate": 0.14814814814814814
+          },
+          "find[blend]": {
+            "n": 1252,
+            "positive": 227,
+            "base_rate": 0.18130990415335463
+          },
+          "find[exact]": {
+            "n": 1239,
+            "positive": 171,
+            "base_rate": 0.13801452784503632
+          }
+        },
+        "dev": {
+          "a11y-cap": {
+            "n": 278,
+            "positive": 20,
+            "base_rate": 0.07194244604316546
+          },
+          "find+observe[exact+blend]": {
+            "n": 69,
+            "positive": 17,
+            "base_rate": 0.2463768115942029
+          },
+          "find+observe[exact]": {
+            "n": 69,
+            "positive": 7,
+            "base_rate": 0.10144927536231885
+          },
+          "find[blend]": {
+            "n": 261,
+            "positive": 68,
+            "base_rate": 0.26053639846743293
+          },
+          "find[exact]": {
+            "n": 280,
+            "positive": 68,
+            "base_rate": 0.24285714285714285
+          }
+        },
+        "test": {
+          "a11y-cap": {
+            "n": 300,
+            "positive": 6,
+            "base_rate": 0.02
+          },
+          "find+observe[exact+blend]": {
+            "n": 43,
+            "positive": 2,
+            "base_rate": 0.046511627906976744
+          },
+          "find+observe[exact]": {
+            "n": 46,
+            "positive": 8,
+            "base_rate": 0.17391304347826086
+          },
+          "find[blend]": {
+            "n": 246,
+            "positive": 14,
+            "base_rate": 0.056910569105691054
+          },
+          "find[exact]": {
+            "n": 250,
+            "positive": 0,
+            "base_rate": 0.0
+          }
+        }
+      },
+      "label_reasons": {
+        "text_arm_succeeded": 5420,
+        "text_failed_and_vision_succeeded": 808
+      }
     },
-    "bench-v2-smoke": {
-      "successful_runs": 8,
-      "action_steps": 21,
-      "recoverable_steps": 19,
-      "duplicates": 10,
-      "dropped_steps": 2,
-      "element_unrecoverable": 2,
-      "usable_unique": 9
-    },
-    "bench-v3": {
-      "successful_runs": 1184,
-      "action_steps": 2693,
-      "recoverable_steps": 2469,
-      "dropped_steps": 224,
-      "page_unrecoverable": 53,
-      "element_unrecoverable": 119,
-      "unlabelled_or_failed_action": 52,
-      "duplicates": 1929,
-      "usable_unique": 540
-    },
-    "bench-v3-pilot": {
-      "successful_runs": 41,
-      "action_steps": 81,
-      "recoverable_steps": 80,
-      "duplicates": 63,
-      "dropped_steps": 1,
-      "element_unrecoverable": 1,
-      "usable_unique": 17
-    },
-    "bench-v3-pilot2": {
-      "successful_runs": 49,
-      "action_steps": 118,
-      "recoverable_steps": 116,
-      "dropped_steps": 2,
-      "unlabelled_or_failed_action": 2,
-      "duplicates": 79,
-      "usable_unique": 37
+    "worked_v2": {
+      "rows": {
+        "train": 4264,
+        "dev": 1069,
+        "test": 893
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {
+        "train": 0.900328330206379,
+        "dev": 0.9345182413470533,
+        "test": 0.9328107502799552
+      },
+      "per_arm_base_rates": {
+        "train": {
+          "a11y-cap": {
+            "n": 1236,
+            "positive": 1141,
+            "base_rate": 0.9231391585760518
+          },
+          "find+observe[exact+blend]": {
+            "n": 661,
+            "positive": 614,
+            "base_rate": 0.9288956127080181
+          },
+          "find+observe[exact]": {
+            "n": 674,
+            "positive": 629,
+            "base_rate": 0.9332344213649851
+          },
+          "find[blend]": {
+            "n": 595,
+            "positive": 535,
+            "base_rate": 0.8991596638655462
+          },
+          "find[exact]": {
+            "n": 601,
+            "positive": 542,
+            "base_rate": 0.9018302828618968
+          },
+          "vision": {
+            "n": 497,
+            "positive": 378,
+            "base_rate": 0.7605633802816901
+          }
+        },
+        "dev": {
+          "a11y-cap": {
+            "n": 323,
+            "positive": 311,
+            "base_rate": 0.9628482972136223
+          },
+          "find+observe[exact+blend]": {
+            "n": 178,
+            "positive": 172,
+            "base_rate": 0.9662921348314607
+          },
+          "find+observe[exact]": {
+            "n": 176,
+            "positive": 166,
+            "base_rate": 0.9431818181818182
+          },
+          "find[blend]": {
+            "n": 152,
+            "positive": 136,
+            "base_rate": 0.8947368421052632
+          },
+          "find[exact]": {
+            "n": 158,
+            "positive": 139,
+            "base_rate": 0.879746835443038
+          },
+          "vision": {
+            "n": 82,
+            "positive": 75,
+            "base_rate": 0.9146341463414634
+          }
+        },
+        "test": {
+          "a11y-cap": {
+            "n": 267,
+            "positive": 249,
+            "base_rate": 0.9325842696629213
+          },
+          "find+observe[exact+blend]": {
+            "n": 127,
+            "positive": 113,
+            "base_rate": 0.889763779527559
+          },
+          "find+observe[exact]": {
+            "n": 135,
+            "positive": 122,
+            "base_rate": 0.9037037037037037
+          },
+          "find[blend]": {
+            "n": 130,
+            "positive": 124,
+            "base_rate": 0.9538461538461539
+          },
+          "find[exact]": {
+            "n": 136,
+            "positive": 131,
+            "base_rate": 0.9632352941176471
+          },
+          "vision": {
+            "n": 98,
+            "positive": 94,
+            "base_rate": 0.9591836734693877
+          }
+        }
+      },
+      "label_reasons": {
+        "done_after_action_and_run_successful": 3360,
+        "next_action_target_not_in_pre_action_page": 2311,
+        "retry_same_target_within_2_actions": 80,
+        "tool_error": 475
+      }
     }
   },
-  "artifact_bytes": 50656369
+  "enough_v2_pairs": {
+    "qualifying_pairs": 240,
+    "pairs_with_any_vision_success": 222,
+    "pairs_with_all_vision_failed": 18,
+    "text_runs_in_qualifying_pairs": 2589,
+    "negative_text_runs": 2215,
+    "positive_text_runs": 233,
+    "dropped_text_runs_both_failed": 141,
+    "text_run_positive_base_rate": 0.0951797385620915,
+    "vision_success_policy": "any successful vision run for the (task, agent) pair"
+  },
+  "artifact_bytes": 61097533
 }

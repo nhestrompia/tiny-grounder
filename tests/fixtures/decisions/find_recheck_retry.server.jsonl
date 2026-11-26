@@ -1,0 +1,7 @@
+{"type": "call", "n": 1, "name": "snapshot", "args": {"page": 1}, "is_error": false, "result": "url: https://example.org/\ntitle: Home\n1|link|Docs|nav"}
+{"type": "call", "n": 2, "name": "click", "args": {"id": "e1"}, "is_error": false, "result": "clicked a 'Docs'\nurl: https://example.org/\ntitle: Home"}
+{"type": "call", "n": 3, "name": "find", "args": {"query": "help"}, "is_error": false, "result": "url: https://example.org/\ntitle: Home\n2|link|Help|main"}
+{"type": "call", "n": 4, "name": "click", "args": {"id": "e2"}, "is_error": false, "result": "clicked a 'Help'\nurl: https://example.org/\ntitle: Home"}
+{"type": "call", "n": 5, "name": "click", "args": {"id": "e1"}, "is_error": false, "result": "clicked a 'Docs'\nurl: https://example.org/docs\ntitle: Docs"}
+{"type": "call", "n": 6, "name": "done", "args": {"answer": "done"}, "is_error": false, "result": "ok"}
+{"type": "summary", "goal": "fixture goal", "success": true}

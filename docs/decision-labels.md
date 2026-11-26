@@ -44,7 +44,20 @@ Use all runs. At every page state with a later committed action or `done` call:
 3. Otherwise label negative when the run succeeded.
 4. Otherwise label positive when the run failed.
 
-This is the weakest label. Failure after staying in a text view does not prove that a screenshot would have helped. The vision arm makes screenshot use nearly mandatory because its action results include screenshots, while text arms do not offer the same vision tool. Treat arm as a first-class feature and never pool the arms without checking that confound.
+This is the weakest v1 label. Failure after staying in a text view does not prove that a screenshot would have helped. The vision arm makes screenshot use nearly mandatory because its action results include screenshots, while text arms do not offer the same vision tool. Treat arm as a first-class feature and never pool the arms without checking that confound.
+
+### ENOUGH v2: `enough.paired_arm_v2`
+
+Files live under `data/decisions/enough_v2/`; rows keep `decision: "enough"` and carry this v2 rule name. This is a task-level counterfactual label applied to steps. It does not use the agent's step-level screenshot habit as evidence.
+
+Group runs by `(task_id, agent)`. A pair qualifies when that pair has at least one text-only run (`a11y-cap` or an arm whose name starts with `find`) and at least one vision-arm run. Pairing is task-level across bench v2, bench v2 smoke, and the v3 milestone; this is the only way `find+observe` tasks can have a vision counterfactual. For every individual text-arm run in a qualifying pair:
+
+1. If the text-arm run succeeded, every state of that run is negative (`text_arm_succeeded`): text was enough.
+2. If the text-arm run failed and at least one vision run for the pair succeeded, every state of that failed text run is positive (`text_failed_and_vision_succeeded`).
+3. If the text-arm run failed and no vision run succeeded, drop the state as `both_text_and_vision_failed`.
+4. Vision-arm states, text states without a paired vision run, and states whose page cannot be replayed are dropped.
+
+The vision-success policy is deliberately “any successful vision run” because the question is whether the task is visually solvable, not whether a particular repeat happened to succeed. The rule remains noisy: a failed text run can reflect agent mistakes rather than missing visual information, and a successful text run can be lucky. Applying one task-level inference to every step also ignores the fact that only some steps may need visual detail.
 
 ### WORKED: `worked.error_recheck_retry_v1`
 
@@ -55,7 +68,21 @@ Use all runs. For a state after a committed browser action and before the next c
 3. Label negative when the next commitment retries the same action on the same target. Element ids must match exactly; coordinates may differ by at most two CSS pixels.
 4. Otherwise label positive.
 
-Run success does not enter the label. The label measures the agent's behavior, not the true environment state. A re-check can be careful rather than corrective, and proceeding can hide a failed action. In a11y and `find+observe` arms, the action result already contains a fresh text view, so explicit re-observation is stronger evidence than it first appears. In the vision arm, a screenshot is part of the normal loop, so this rule is arm-biased.
+Run success does not enter the v1 label. The label measures the agent's behavior, not the true environment state. A re-check can be careful rather than corrective, and proceeding can hide a failed action. In a11y and `find+observe` arms, the action result already contains a fresh text view, so explicit re-observation is stronger evidence than it first appears. In the vision arm, a screenshot is part of the normal loop, so this rule is arm-biased.
+
+### WORKED v2: `worked.progress_v2`
+
+Files live under `data/decisions/worked_v2/`; rows keep `decision: "worked"` and carry this v2 rule name. The rule labels evidence of environment progress rather than the agent's re-observation habit.
+
+For a state after a committed browser action:
+
+1. Label negative when that action returned a tool error.
+2. Label negative when the same action targets the same element again within the next two committed actions. Semantic click/type targets are compared by normalized role and visible text; raw element ids are a same-page fallback. Coordinate retries must be within two CSS pixels.
+3. Label positive when the next committed action is `done` and the run succeeds.
+4. Label positive when the next committed click/type targets an element with no plausible role/text match in the replayed pre-action page. This is evidence that the UI changed enough to expose a new target.
+5. Otherwise drop the state. Immediate `find`, `snapshot`, `observe`, `inspect`, `read`, or `screenshot` calls never create a negative label by themselves. Re-observed states without independent progress evidence are counted under `reobservation_without_progress_evidence`.
+
+This rule is intentionally conservative and drops many ambiguous states. It still has noise. A new target can appear for unrelated reasons; a persistent navigation link can look like the same element across pages; replaying a URL loses same-URL DOM mutations, focus, scroll, open menus, and form contents. A successful `done` can also be correct because the task was already complete before the action being evaluated.
 
 ### DONE: `done.successful_done_next_v1`
 
@@ -74,11 +101,12 @@ Run success corrects some premature or wrong `done` calls. It also creates noise
 - Replaying a URL resets scroll position, focus, open menus, form contents, and other same-URL DOM state. This is most damaging after actions that do not navigate.
 - Pages outside the frozen archive replay as `page not archived` and are dropped.
 - SHOW/NEXT rows are deduplicated across repeated runs of the same page state. ENOUGH/WORKED/DONE rows are not deduplicated because each row is a separate agent decision. Repeated tasks and agents therefore shape the base rates.
+- WORKED v2 cannot infer semantic progress for most coordinate and scroll actions, so vision-arm states are more likely to be dropped as ambiguous. Per-arm base rates are therefore conditioned on different action mixes as well as different behavior.
 - Text logs are truncated to 4,000 characters per call. The action status line and URL survive, but long snapshots do not.
 
 ## Splits and exclusions
 
-Splits are by site. A deterministic greedy assignment uses row counts to approximate a 70/15/15 train/dev/test division while keeping every site in exactly one split. `data/decisions/test-manifest.json` freezes the test rows and referenced pages by SHA-256.
+Splits are by site. A deterministic greedy assignment uses the v1 row counts to approximate a 70/15/15 train/dev/test division while keeping every site in exactly one split. The v2 files reuse that assignment so the v1 split and manifest cannot drift. `data/decisions/test-manifest.json` freezes the v1 test rows and referenced pages by SHA-256. `data/decisions/test-manifest-v2.json` separately freezes the v2 ENOUGH/WORKED test rows and referenced pages.
 
 These frozen benchmark sites are excluded from every split: saucedemo.com, demoblaze.com, tutorialsninja.com, the-internet.herokuapp.com, and blazedemo.com. macOS desktop tasks are excluded for the same reason as live cli tasks: they do not have replayable bench v2/v3 milestone web archives.
 
@@ -93,4 +121,4 @@ uv run --extra demo --with tldextract python tools/decision_labels.py extract \
   --workers 6
 ```
 
-The extractor reads the other checkout only. It writes pages, rows, `summary.json`, `screenshot-audit.json`, and the test manifest in this checkout.
+The extractor reads the other checkout only. It writes pages, rows, `summary.json`, `screenshot-audit.json`, and the test manifests in this checkout. When a v1 manifest already exists, extraction preserves it rather than rewriting the frozen file.

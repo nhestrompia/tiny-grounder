@@ -4,6 +4,7 @@
     "show": {
       "n": 106,
       "pages": 69,
+      "semantic_decision": "show",
       "target_ranking": {
         "exact": {
           "n": 106,
@@ -20,6 +21,7 @@
     "next": {
       "n": 106,
       "pages": 69,
+      "semantic_decision": "next",
       "target_ranking": {
         "exact": {
           "n": 106,
@@ -49,7 +51,40 @@
     "enough": {
       "n": 2212,
       "pages": 132,
+      "semantic_decision": "enough",
       "base_rate": 0.38019891500904157,
+      "per_arm_base_rates": {
+        "a11y-cap": {
+          "n": 574,
+          "positive": 112,
+          "base_rate": 0.1951219512195122
+        },
+        "find+observe[exact+blend]": {
+          "n": 325,
+          "positive": 91,
+          "base_rate": 0.28
+        },
+        "find+observe[exact]": {
+          "n": 323,
+          "positive": 91,
+          "base_rate": 0.28173374613003094
+        },
+        "find[blend]": {
+          "n": 305,
+          "positive": 90,
+          "base_rate": 0.29508196721311475
+        },
+        "find[exact]": {
+          "n": 317,
+          "positive": 89,
+          "base_rate": 0.2807570977917981
+        },
+        "vision": {
+          "n": 368,
+          "positive": 368,
+          "base_rate": 1.0
+        }
+      },
       "binary": {
         "majority": {
           "n": 2212,
@@ -57,11 +92,49 @@
           "accuracy": 0.6198010849909584,
           "precision": null,
           "recall": 0.0,
+          "negative_precision": 0.6198010849909584,
+          "negative_recall": 1.0,
           "tp": 0,
           "fp": 0,
           "fn": 841,
           "tn": 1371,
           "auroc": null
+        },
+        "url_changed_after_action": {
+          "n": 2212,
+          "base_rate": 0.38019891500904157,
+          "accuracy": 0.45976491862567814,
+          "precision": 0.37302725968436157,
+          "recall": 0.6183115338882283,
+          "negative_precision": 0.6075794621026895,
+          "negative_recall": 0.362509117432531,
+          "tp": 520,
+          "fp": 874,
+          "fn": 321,
+          "tn": 497,
+          "auroc": 0.4904103256603797,
+          "threshold": 0.5,
+          "comparison": ">=",
+          "score_min": 0.0,
+          "score_max": 1.0
+        },
+        "empty_text_ratio": {
+          "n": 2212,
+          "base_rate": 0.38019891500904157,
+          "accuracy": 0.5117540687160941,
+          "precision": 0.27992633517495397,
+          "recall": 0.1807372175980975,
+          "negative_precision": 0.5871779508687837,
+          "negative_recall": 0.7148067104303428,
+          "tp": 152,
+          "fp": 391,
+          "fn": 689,
+          "tn": 980,
+          "auroc": 0.4508283095304381,
+          "threshold": 0.0,
+          "comparison": ">",
+          "score_min": 0.0,
+          "score_max": 0.13793103448275862
         },
         "visual_terms_and_empty_text_ratio": {
           "n": 2212,
@@ -69,12 +142,15 @@
           "accuracy": 0.6198010849909584,
           "precision": null,
           "recall": 0.0,
+          "negative_precision": 0.6198010849909584,
+          "negative_recall": 1.0,
           "tp": 0,
           "fp": 0,
           "fn": 841,
           "tn": 1371,
           "auroc": 0.4508283095304381,
           "threshold": 0.5,
+          "comparison": ">=",
           "score_min": 0.0,
           "score_max": 0.041379310344827586
         },
@@ -84,6 +160,8 @@
           "accuracy": 0.7861663652802894,
           "precision": 1.0,
           "recall": 0.43757431629013077,
+          "negative_precision": 0.7434924078091106,
+          "negative_recall": 1.0,
           "tp": 368,
           "fp": 0,
           "fn": 473,
@@ -92,10 +170,146 @@
         }
       }
     },
+    "enough_v2": {
+      "n": 957,
+      "pages": 59,
+      "semantic_decision": "enough",
+      "base_rate": 0.18808777429467086,
+      "per_arm_base_rates": {
+        "a11y-cap": {
+          "n": 278,
+          "positive": 20,
+          "base_rate": 0.07194244604316546
+        },
+        "find+observe[exact+blend]": {
+          "n": 69,
+          "positive": 17,
+          "base_rate": 0.2463768115942029
+        },
+        "find+observe[exact]": {
+          "n": 69,
+          "positive": 7,
+          "base_rate": 0.10144927536231885
+        },
+        "find[blend]": {
+          "n": 261,
+          "positive": 68,
+          "base_rate": 0.26053639846743293
+        },
+        "find[exact]": {
+          "n": 280,
+          "positive": 68,
+          "base_rate": 0.24285714285714285
+        }
+      },
+      "binary": {
+        "majority": {
+          "n": 957,
+          "base_rate": 0.18808777429467086,
+          "accuracy": 0.8119122257053292,
+          "precision": null,
+          "recall": 0.0,
+          "negative_precision": 0.8119122257053292,
+          "negative_recall": 1.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 180,
+          "tn": 777,
+          "auroc": null
+        },
+        "url_changed_after_action": {
+          "n": 957,
+          "base_rate": 0.18808777429467086,
+          "accuracy": 0.44932079414838033,
+          "precision": 0.20741989881956155,
+          "recall": 0.6833333333333333,
+          "negative_precision": 0.8434065934065934,
+          "negative_recall": 0.39510939510939513,
+          "tp": 123,
+          "fp": 470,
+          "fn": 57,
+          "tn": 307,
+          "auroc": 0.5392213642213642,
+          "threshold": 0.5,
+          "comparison": ">=",
+          "score_min": 0.0,
+          "score_max": 1.0
+        },
+        "empty_text_ratio": {
+          "n": 957,
+          "base_rate": 0.18808777429467086,
+          "accuracy": 0.5569487983281086,
+          "precision": 0.03787878787878788,
+          "recall": 0.05555555555555555,
+          "negative_precision": 0.7546897546897547,
+          "negative_recall": 0.6731016731016731,
+          "tp": 10,
+          "fp": 254,
+          "fn": 170,
+          "tn": 523,
+          "auroc": 0.3712319462319462,
+          "threshold": 0.0,
+          "comparison": ">",
+          "score_min": 0.0,
+          "score_max": 0.13793103448275862
+        },
+        "visual_terms_and_empty_text_ratio": {
+          "n": 957,
+          "base_rate": 0.18808777429467086,
+          "accuracy": 0.8119122257053292,
+          "precision": null,
+          "recall": 0.0,
+          "negative_precision": 0.8119122257053292,
+          "negative_recall": 1.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 180,
+          "tn": 777,
+          "auroc": 0.3712319462319462,
+          "threshold": 0.5,
+          "comparison": ">=",
+          "score_min": 0.0,
+          "score_max": 0.041379310344827586
+        }
+      }
+    },
     "worked": {
       "n": 1553,
       "pages": 110,
+      "semantic_decision": "worked",
       "base_rate": 0.5112685125563425,
+      "per_arm_base_rates": {
+        "a11y-cap": {
+          "n": 382,
+          "positive": 281,
+          "base_rate": 0.7356020942408377
+        },
+        "find+observe[exact+blend]": {
+          "n": 229,
+          "positive": 145,
+          "base_rate": 0.6331877729257642
+        },
+        "find+observe[exact]": {
+          "n": 227,
+          "positive": 131,
+          "base_rate": 0.5770925110132159
+        },
+        "find[blend]": {
+          "n": 211,
+          "positive": 45,
+          "base_rate": 0.2132701421800948
+        },
+        "find[exact]": {
+          "n": 223,
+          "positive": 36,
+          "base_rate": 0.16143497757847533
+        },
+        "vision": {
+          "n": 281,
+          "positive": 156,
+          "base_rate": 0.5551601423487544
+        }
+      },
       "binary": {
         "majority": {
           "n": 1553,
@@ -103,6 +317,8 @@
           "accuracy": 0.5112685125563425,
           "precision": 0.5112685125563425,
           "recall": 1.0,
+          "negative_precision": null,
+          "negative_recall": 0.0,
           "tp": 794,
           "fp": 759,
           "fn": 0,
@@ -115,21 +331,165 @@
           "accuracy": 0.5492594977462975,
           "precision": 0.533715925394548,
           "recall": 0.9370277078085643,
+          "negative_precision": 0.6855345911949685,
+          "negative_recall": 0.14361001317523056,
           "tp": 744,
           "fp": 650,
           "fn": 50,
           "tn": 109,
           "auroc": 0.5403188604918974,
           "threshold": 0.5,
+          "comparison": ">=",
           "score_min": 0.0,
           "score_max": 1.0
+        },
+        "empty_text_ratio": {
+          "n": 1553,
+          "base_rate": 0.5112685125563425,
+          "accuracy": 0.5228589826142949,
+          "precision": 0.5635491606714629,
+          "recall": 0.2959697732997481,
+          "negative_precision": 0.5079225352112676,
+          "negative_recall": 0.7602108036890646,
+          "tp": 235,
+          "fp": 182,
+          "fn": 559,
+          "tn": 577,
+          "auroc": 0.5329613073014672,
+          "threshold": 0.0,
+          "comparison": ">",
+          "score_min": 0.0,
+          "score_max": 0.13793103448275862
+        }
+      }
+    },
+    "worked_v2": {
+      "n": 1069,
+      "pages": 80,
+      "semantic_decision": "worked",
+      "base_rate": 0.9345182413470533,
+      "per_arm_base_rates": {
+        "a11y-cap": {
+          "n": 323,
+          "positive": 311,
+          "base_rate": 0.9628482972136223
+        },
+        "find+observe[exact+blend]": {
+          "n": 178,
+          "positive": 172,
+          "base_rate": 0.9662921348314607
+        },
+        "find+observe[exact]": {
+          "n": 176,
+          "positive": 166,
+          "base_rate": 0.9431818181818182
+        },
+        "find[blend]": {
+          "n": 152,
+          "positive": 136,
+          "base_rate": 0.8947368421052632
+        },
+        "find[exact]": {
+          "n": 158,
+          "positive": 139,
+          "base_rate": 0.879746835443038
+        },
+        "vision": {
+          "n": 82,
+          "positive": 75,
+          "base_rate": 0.9146341463414634
+        }
+      },
+      "binary": {
+        "majority": {
+          "n": 1069,
+          "base_rate": 0.9345182413470533,
+          "accuracy": 0.9345182413470533,
+          "precision": 0.9345182413470533,
+          "recall": 1.0,
+          "negative_precision": null,
+          "negative_recall": 0.0,
+          "tp": 999,
+          "fp": 70,
+          "fn": 0,
+          "tn": 0,
+          "auroc": null
+        },
+        "url_changed_after_action": {
+          "n": 1069,
+          "base_rate": 0.9345182413470533,
+          "accuracy": 0.9681945743685687,
+          "precision": 0.9878665318503539,
+          "recall": 0.977977977977978,
+          "negative_precision": 0.725,
+          "negative_recall": 0.8285714285714286,
+          "tp": 977,
+          "fp": 12,
+          "fn": 22,
+          "tn": 58,
+          "auroc": 0.9032747032747033,
+          "threshold": 0.5,
+          "comparison": ">=",
+          "score_min": 0.0,
+          "score_max": 1.0
+        },
+        "empty_text_ratio": {
+          "n": 1069,
+          "base_rate": 0.9345182413470533,
+          "accuracy": 0.3423760523854069,
+          "precision": 0.9743589743589743,
+          "recall": 0.30430430430430433,
+          "negative_precision": 0.08190224570673713,
+          "negative_recall": 0.8857142857142857,
+          "tp": 304,
+          "fp": 8,
+          "fn": 695,
+          "tn": 62,
+          "auroc": 0.5832975832975833,
+          "threshold": 0.0,
+          "comparison": ">",
+          "score_min": 0.0,
+          "score_max": 0.13793103448275862
         }
       }
     },
     "done": {
       "n": 2212,
       "pages": 132,
+      "semantic_decision": "done",
       "base_rate": 0.23236889692585896,
+      "per_arm_base_rates": {
+        "a11y-cap": {
+          "n": 574,
+          "positive": 153,
+          "base_rate": 0.2665505226480836
+        },
+        "find+observe[exact+blend]": {
+          "n": 325,
+          "positive": 68,
+          "base_rate": 0.20923076923076922
+        },
+        "find+observe[exact]": {
+          "n": 323,
+          "positive": 68,
+          "base_rate": 0.21052631578947367
+        },
+        "find[blend]": {
+          "n": 305,
+          "positive": 75,
+          "base_rate": 0.2459016393442623
+        },
+        "find[exact]": {
+          "n": 317,
+          "positive": 75,
+          "base_rate": 0.23659305993690852
+        },
+        "vision": {
+          "n": 368,
+          "positive": 75,
+          "base_rate": 0.20380434782608695
+        }
+      },
       "binary": {
         "majority": {
           "n": 2212,
@@ -137,6 +497,8 @@
           "accuracy": 0.7676311030741411,
           "precision": null,
           "recall": 0.0,
+          "negative_precision": 0.7676311030741411,
+          "negative_recall": 1.0,
           "tp": 0,
           "fp": 0,
           "fn": 514,
@@ -149,12 +511,15 @@
           "accuracy": 0.7789330922242315,
           "precision": 0.6811594202898551,
           "recall": 0.0914396887159533,
+          "negative_precision": 0.7820811945870275,
+          "negative_recall": 0.9870435806831567,
           "tp": 47,
           "fp": 22,
           "fn": 467,
           "tn": 1676,
           "auroc": 0.5526013666799576,
           "threshold": 0.5,
+          "comparison": ">=",
           "score_min": 0.0,
           "score_max": 0.6666666666666666
         }
