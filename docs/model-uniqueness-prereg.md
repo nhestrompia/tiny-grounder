@@ -50,6 +50,19 @@ checkpoints and three-seed averaging of `tools/next_step_recall.py`.
 - Paired bootstrap, 2,000 draws, seed 0. **The primary cluster is the task**, because W has only 5 sites. Site- or
   app-clustered intervals are also reported.
 
+## Amendment 1 (2026-11-26, after W was frozen, before any ranker was run on any set)
+
+W pages are small: median 15 elements, maximum 79. A structural check that runs no ranker found that the whole page
+fits the B = 300 digest for 276 of 368 W items (192 at B = 150), so every ranker would hit them by construction. B = 300
+recall therefore can't separate the arms. The changes, for W and D alike:
+
+- **Primary metric becomes recall@3:** the target, or an equivalent id, is among the first 3 distinct elements the
+  ranker orders. Equivalents are deduplicated exactly as `observe` does. This is the compact-digest regime that the
+  adaptive digest (PR #4) targets.
+- Recall at B = 300, 600 and 1200 move to secondary metrics. B = 300 is also reported on the "discriminating" items,
+  whose whole page does not fit, as found by the same structural check.
+- The gate below uses recall@3 in place of B = 300 recall, in both conditions.
+
 ## Gate, per set (W and D separately)
 
 The model **passes** on a set if both hold:
