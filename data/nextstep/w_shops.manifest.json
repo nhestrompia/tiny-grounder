@@ -1,0 +1,523 @@
+{
+  "files": {
+    "pages/w_shops/blazedemo.com/wshops-0b332c5e84de6412b432.json.gz": {
+      "bytes": 655,
+      "sha256": "b8447520a02998756ca7176695e92c80bca508946ce0c4819611e4446470f293"
+    },
+    "pages/w_shops/blazedemo.com/wshops-212a0cef459cbe9c765d.json.gz": {
+      "bytes": 702,
+      "sha256": "ea25764010cc81b25731532d44d7f3a9a2ecfe787699bac641eeaf0efa39f679"
+    },
+    "pages/w_shops/blazedemo.com/wshops-341d3467742dc773b2b1.json.gz": {
+      "bytes": 950,
+      "sha256": "7f13410fb5564c12ca8f979d6c903553fd5f8571de0e29fbac63c06a0eeaf85f"
+    },
+    "pages/w_shops/blazedemo.com/wshops-572b95490909565fb4f9.json.gz": {
+      "bytes": 706,
+      "sha256": "46a982af1d8d4fc40e00609bef4353fd6a3a11031c1a3fe73da90e36daca5d59"
+    },
+    "pages/w_shops/blazedemo.com/wshops-7a4322b511e4e6405453.json.gz": {
+      "bytes": 651,
+      "sha256": "22584a2919fbcb42d90e6742de013660cde92b83005db54a97de23215a99195b"
+    },
+    "pages/w_shops/blazedemo.com/wshops-900ef59831463dcedeb2.json.gz": {
+      "bytes": 946,
+      "sha256": "b99b212a9a18363116d4fe820e52e5cdeb294577a2d93fdab42b1f94c47e0fc1"
+    },
+    "pages/w_shops/blazedemo.com/wshops-a300bd3f2e07b8b8e4d4.json.gz": {
+      "bytes": 384,
+      "sha256": "24e248b48b76f11d69624cc7b62c43b5921b8c97f34c18d8879acd713de3b7f1"
+    },
+    "pages/w_shops/blazedemo.com/wshops-a72782dbcba4e777f935.json.gz": {
+      "bytes": 703,
+      "sha256": "a78bf7aaac58a4c69f0214595caae884d904aa6b42ea2ccf624263ebd631e234"
+    },
+    "pages/w_shops/blazedemo.com/wshops-bc0a713d40a3aa6d1a22.json.gz": {
+      "bytes": 702,
+      "sha256": "f4de04d5ea18560830db80ee9a728d75be4f2528d69f5a859c7e3f79ede8677e"
+    },
+    "pages/w_shops/blazedemo.com/wshops-ca1306d33c3d71dd3113.json.gz": {
+      "bytes": 703,
+      "sha256": "366f5eb31409f082d7b2f8f8e29681c9950b6f6510e1d8cc215095387a05d9c2"
+    },
+    "pages/w_shops/blazedemo.com/wshops-d6939f4b5a6a7ab2c899.json.gz": {
+      "bytes": 704,
+      "sha256": "03e26e2f86a590bd17a0b0b0de10a8d5780b1bd9aa773cb834a048f37f29cbe6"
+    },
+    "pages/w_shops/blazedemo.com/wshops-d7faa01291c76d693ca4.json.gz": {
+      "bytes": 652,
+      "sha256": "32b0d3d4419ebc20dd70d945b2a26f725ac68f04690266dbea03b4aa81d9b859"
+    },
+    "pages/w_shops/blazedemo.com/wshops-de996b050a4988ad56c1.json.gz": {
+      "bytes": 703,
+      "sha256": "6504650f3b4bcc7a63e85bd4e732f47c49a795a6b0519dce2a90adada61b3266"
+    },
+    "pages/w_shops/blazedemo.com/wshops-e7906ae61efd76ee4dd3.json.gz": {
+      "bytes": 652,
+      "sha256": "b3317eff95c1e7bd1286f06d828ca986fb82082223dac3f19790484982d6f1da"
+    },
+    "pages/w_shops/blazedemo.com/wshops-f11e8e2f452fe7540450.json.gz": {
+      "bytes": 703,
+      "sha256": "04bff082b5535d09c13e251df05c10a60b18c933f26b5ec3cee26bfe4217cc90"
+    },
+    "pages/w_shops/blazedemo.com/wshops-f61604eaca9b611be359.json.gz": {
+      "bytes": 704,
+      "sha256": "3e65be038ba0e984adb10d78b0e72ca4c4470cc99da00382cf2223485c508526"
+    },
+    "pages/w_shops/demoblaze.com/wshops-01a31351273b8246f8d5.json.gz": {
+      "bytes": 698,
+      "sha256": "3b209eebb6b10cee712022277552bc594e3bea8260907ed5ff6629f0e013e8b0"
+    },
+    "pages/w_shops/demoblaze.com/wshops-044b7e9e067137e443b2.json.gz": {
+      "bytes": 1042,
+      "sha256": "bef2c7401893289a894be083b41b5218d6e36142324f06c3fa708e42d016be7a"
+    },
+    "pages/w_shops/demoblaze.com/wshops-04b06806890dbc3bd374.json.gz": {
+      "bytes": 700,
+      "sha256": "f74c66e59ace5905077a9ceb3daaa4fda37816a305b82fbebee31fcc83a6a934"
+    },
+    "pages/w_shops/demoblaze.com/wshops-15d9a844178f44ab74f6.json.gz": {
+      "bytes": 634,
+      "sha256": "79a3b2f6c4b826f636ae0f840430e7040b393759e8b7c1669457ab561f678a66"
+    },
+    "pages/w_shops/demoblaze.com/wshops-19858a6f8db08759ffe6.json.gz": {
+      "bytes": 1823,
+      "sha256": "8824097d3d4486921fd09d54b42058f978ce0c7b9fb824da1c2bb7119693686c"
+    },
+    "pages/w_shops/demoblaze.com/wshops-26dd0bc2d79f9f44e4ef.json.gz": {
+      "bytes": 1672,
+      "sha256": "9c5427573278a0c89a51b60f12cd4a5af1c24ce9f42dccc7aee495988386f277"
+    },
+    "pages/w_shops/demoblaze.com/wshops-27911e5176d7208d12a4.json.gz": {
+      "bytes": 703,
+      "sha256": "09978ecfc7075dabca766a0e8fa3024f372017330bbfb83093f9a7e44995b69c"
+    },
+    "pages/w_shops/demoblaze.com/wshops-3093c7f0c93d409f22ea.json.gz": {
+      "bytes": 1665,
+      "sha256": "dcde86ac21e483bcbb71b1f0db2ed31affb5a1fbe43c5098cce98109842f82dc"
+    },
+    "pages/w_shops/demoblaze.com/wshops-31526c276163fcfc191f.json.gz": {
+      "bytes": 1484,
+      "sha256": "da7e9027ed8e6cd821bda813aeed54c113cda6b9ba39b7976ffb6026f544562b"
+    },
+    "pages/w_shops/demoblaze.com/wshops-4c5dac745c18fe7b7181.json.gz": {
+      "bytes": 636,
+      "sha256": "d98e6baab41cde15cce86182d96bbb625bdc9218b511da0e9fa0f12377fa0b91"
+    },
+    "pages/w_shops/demoblaze.com/wshops-69907edff0511d55f01f.json.gz": {
+      "bytes": 856,
+      "sha256": "9e523c8c38926c8a40f620778d02d99b001356c086bb935bc313e1ae0e7dfcaa"
+    },
+    "pages/w_shops/demoblaze.com/wshops-6df0d707d8fcd8f91050.json.gz": {
+      "bytes": 704,
+      "sha256": "5caa2954d27d3458afc1ae7f13e6e664ce2e78d4559351ff3e79135aa9f5b175"
+    },
+    "pages/w_shops/demoblaze.com/wshops-6ff06be8b306bdc1d033.json.gz": {
+      "bytes": 711,
+      "sha256": "fe561a8de94d0e995be7624cdfdd70cdcd435f580b3df9c4b7b40129ab66c0e1"
+    },
+    "pages/w_shops/demoblaze.com/wshops-787a8bbb325c092746b7.json.gz": {
+      "bytes": 1419,
+      "sha256": "43e1e54f0361937e030263747bf47a88c78b5467252bc0f30175e353ec25f76d"
+    },
+    "pages/w_shops/demoblaze.com/wshops-a664517a07bf8e5fccdd.json.gz": {
+      "bytes": 1481,
+      "sha256": "7abb4ae27f49ecd487923f31a351da1afd7cf2acdfeadd61552351ca5d1d0d6d"
+    },
+    "pages/w_shops/demoblaze.com/wshops-ae80e8e18589085799e8.json.gz": {
+      "bytes": 635,
+      "sha256": "fe8c126636f0be48d98c52bdc1c071ae90349212b3753da2e58723a9221ddc30"
+    },
+    "pages/w_shops/demoblaze.com/wshops-dba5422df35131bb65fb.json.gz": {
+      "bytes": 1415,
+      "sha256": "2d921413036995ecd5d769454e6e54924ba85dca2f02ddfd6b7a0cbb41df5b5f"
+    },
+    "pages/w_shops/demoblaze.com/wshops-ff78611e6f61f27e6125.json.gz": {
+      "bytes": 683,
+      "sha256": "b9effc5d064852c8a7ed77c34c2242f76f8503c46e47d0336037a773982dd74f"
+    },
+    "pages/w_shops/saucedemo.com/wshops-00b985b6735cae39aa50.json.gz": {
+      "bytes": 1537,
+      "sha256": "873958353af75cb9dfee81b8bed76fd71b6c6d6d001451167e8d5b26ba694a26"
+    },
+    "pages/w_shops/saucedemo.com/wshops-036ca4ec2ed91dce1f48.json.gz": {
+      "bytes": 688,
+      "sha256": "98974ed2fac235f18fd5bead1475bee0c377179c42a9b310a4a1d6415841816b"
+    },
+    "pages/w_shops/saucedemo.com/wshops-05fe9db1bd19a4bb2fc9.json.gz": {
+      "bytes": 1551,
+      "sha256": "27c7ee1ce72236759b2ef10b3be90cd04f95a152386294e8900d8b49a1b70d3b"
+    },
+    "pages/w_shops/saucedemo.com/wshops-133ea00f3306a107a2a0.json.gz": {
+      "bytes": 1551,
+      "sha256": "17c374962a54d85d79c5eea03bbe263427f5afc4c439ff594e3cb7cc3d6f71fd"
+    },
+    "pages/w_shops/saucedemo.com/wshops-19854193d30548b948b6.json.gz": {
+      "bytes": 1558,
+      "sha256": "409f327251710ae15f5a750f5883bd430adb652be57fe7500a7f04ce01c7c70f"
+    },
+    "pages/w_shops/saucedemo.com/wshops-19e09432eea8c29b545c.json.gz": {
+      "bytes": 893,
+      "sha256": "51bd4d76f42018913f48e4124fb993690e0383a1bc4125a0965d83f54c32e731"
+    },
+    "pages/w_shops/saucedemo.com/wshops-1eb2800765d4f06d7a22.json.gz": {
+      "bytes": 1000,
+      "sha256": "7c20ce313ec9f07e7608909b7f25dadcc373c914b0c60ee72c5b9fae5eaacf53"
+    },
+    "pages/w_shops/saucedemo.com/wshops-2b695aca8da565232198.json.gz": {
+      "bytes": 876,
+      "sha256": "95738cc050aabdbe011bfb842f62dc874accca73c80f9ceecad20ed888bbbb3b"
+    },
+    "pages/w_shops/saucedemo.com/wshops-2f0e32addb86a3071fd1.json.gz": {
+      "bytes": 693,
+      "sha256": "a69cc55a51d7542dded688f585e453b3c29737fd17b90a743d84b46e319a30aa"
+    },
+    "pages/w_shops/saucedemo.com/wshops-382767de317c4071ce76.json.gz": {
+      "bytes": 759,
+      "sha256": "62e6cbe060bd1c1d9ae389ae946b925ea4a4d69d3512a0a4037cb7ccf6ebc2b8"
+    },
+    "pages/w_shops/saucedemo.com/wshops-43390a6c7a9b7bd2b020.json.gz": {
+      "bytes": 1551,
+      "sha256": "90ecf61613e0d23ab338b3df3401ef8cb8b767b285e88fa571739d6d97a6931b"
+    },
+    "pages/w_shops/saucedemo.com/wshops-4a53375203e42b51225a.json.gz": {
+      "bytes": 881,
+      "sha256": "1a05a71bd84975546f057c13ddf121174ed2e422daf13d64cacb85d501bff7ff"
+    },
+    "pages/w_shops/saucedemo.com/wshops-4b401eb447d13a5c5984.json.gz": {
+      "bytes": 1551,
+      "sha256": "65d604aa47f454dce3be56baae60729b8635d089179990b9c07a8e8a43239152"
+    },
+    "pages/w_shops/saucedemo.com/wshops-6e522e556991c899ca69.json.gz": {
+      "bytes": 1538,
+      "sha256": "ed54938ed733a19e5ace92e923f84c67b1010d346dab333ad87b51b09514df9a"
+    },
+    "pages/w_shops/saucedemo.com/wshops-7a884a4ebaa672f9442e.json.gz": {
+      "bytes": 1556,
+      "sha256": "60cdb4283dd1750d96316fc3abaf93cb3e939cbfe066271ff22aacd55ad713d4"
+    },
+    "pages/w_shops/saucedemo.com/wshops-7d1c50ddb692a103818e.json.gz": {
+      "bytes": 885,
+      "sha256": "410fa5ab4045b9e1273f4131f153c72a7645886fcdd1906e9917280669ebc4a4"
+    },
+    "pages/w_shops/saucedemo.com/wshops-89175df5d5f288a015e7.json.gz": {
+      "bytes": 1554,
+      "sha256": "7ea0f5b3754612b019af032dbf9257cb1d35b313c2512b92f387e9d9e7595099"
+    },
+    "pages/w_shops/saucedemo.com/wshops-95fa2c9636158ab23aa6.json.gz": {
+      "bytes": 461,
+      "sha256": "9db97f9f479731630452193a0793e352c5ccb8321bf112713a241515bd410dfa"
+    },
+    "pages/w_shops/saucedemo.com/wshops-99a92d18f26fc702dd80.json.gz": {
+      "bytes": 1552,
+      "sha256": "b7e4ea91b1556d4104b20e83df21a87afc8c15cc7e382b2999b0b8b951e1fcc9"
+    },
+    "pages/w_shops/saucedemo.com/wshops-9b495694b27e11521980.json.gz": {
+      "bytes": 477,
+      "sha256": "e0d4820b030db48686ecb3dacde418cb121ea57723a93720a1a02f1706a20ec3"
+    },
+    "pages/w_shops/saucedemo.com/wshops-9f6d3c262f2e71f973b5.json.gz": {
+      "bytes": 685,
+      "sha256": "3853b9c574001993ec7152c63f562d7d3f0129e25903dddad4f10334e1e0e146"
+    },
+    "pages/w_shops/saucedemo.com/wshops-a7179364515133f342cb.json.gz": {
+      "bytes": 759,
+      "sha256": "71d0cf33c2eb3794b2df121efc49e0c09703429b09e66a287f2bf3bb2e8afd65"
+    },
+    "pages/w_shops/saucedemo.com/wshops-af314982b45ad250fdd8.json.gz": {
+      "bytes": 755,
+      "sha256": "6b14174f67691fc981ae344cc054a29060783d7a992857ce1cd67bc956707c0d"
+    },
+    "pages/w_shops/saucedemo.com/wshops-bfec1cfd7e98e806ed33.json.gz": {
+      "bytes": 1560,
+      "sha256": "3a7ffa8dab80ac301806654ed71dc4a2cfb2b501ac324495eff8289efa771133"
+    },
+    "pages/w_shops/saucedemo.com/wshops-c0a9e5e5a54732db7f4b.json.gz": {
+      "bytes": 1560,
+      "sha256": "961dba37f422293e28609a92fd3e43b5408ab8faa695f5475eb845a46afc404c"
+    },
+    "pages/w_shops/saucedemo.com/wshops-c89812e7d5b23e9b4500.json.gz": {
+      "bytes": 768,
+      "sha256": "769e744dd0685515baf6821f920bf844c99735b1a093eb83fd3a45536a3dfd6d"
+    },
+    "pages/w_shops/saucedemo.com/wshops-d19d782b5db45ad5638c.json.gz": {
+      "bytes": 693,
+      "sha256": "6de64a243dc7ce60b37d9faccad761938addc4f23e47a9c925998b175c959311"
+    },
+    "pages/w_shops/saucedemo.com/wshops-de18b5096c88d896738b.json.gz": {
+      "bytes": 749,
+      "sha256": "457688ea1936025001b1de3d073397aaac66bdc8e9728a583dfa437514793675"
+    },
+    "pages/w_shops/saucedemo.com/wshops-e434cf3d6e1d0300d662.json.gz": {
+      "bytes": 1543,
+      "sha256": "f9ad616879c035be2e33e5b27c3f25a9ac5cb7cc72091c39cedce680421e6962"
+    },
+    "pages/w_shops/saucedemo.com/wshops-e7c7896e37bb5a14e935.json.gz": {
+      "bytes": 1550,
+      "sha256": "c3807941607a26118ad5b5755a2707365544901cc91270b8564d299aa5ae1d54"
+    },
+    "pages/w_shops/saucedemo.com/wshops-ea105d4256bd5495499b.json.gz": {
+      "bytes": 690,
+      "sha256": "4c3e3e56abea699dce651f10ff859af645f4cc474057f1ae99bd0c5ea8be7287"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-0fcf56b8eb7c2ee83736.json.gz": {
+      "bytes": 600,
+      "sha256": "4b8680aad51e44aed88aad8546e21c3c6d8340550aea783c00dc895cba64c236"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-24f06b3fd2f61525bd26.json.gz": {
+      "bytes": 581,
+      "sha256": "599df2aa17dd6309d12d8ffc487b08939d5f8045036c1f5b262b2aab9c32c004"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-419baf00258878d2f74a.json.gz": {
+      "bytes": 541,
+      "sha256": "edd6c34b27c81460c5cbf29e55d81bff181e64b9efc269e8a063aac420ed21cc"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-42a1eb886bee456ba0b2.json.gz": {
+      "bytes": 797,
+      "sha256": "aaa8f3ed73edaa5f879330fcd9151f979debf867fde34c1f87b710d7bc9a55fc"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-48331329eb81e884177f.json.gz": {
+      "bytes": 580,
+      "sha256": "c676c13f3f60d0f4c40f37932de725c3d3f8363c8103c00b5e57e39aef512678"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-49f05736e6a091b01b32.json.gz": {
+      "bytes": 689,
+      "sha256": "f6e4bffa8b8ccfe6fdeac5df69062ca50d1b13ee63c9d3a358b8fa1c0556626e"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-7517d72f7146609c2d93.json.gz": {
+      "bytes": 581,
+      "sha256": "9297f0ad54c02e7d8db1e7412469ad48d9fcd8ac80ccf80f41f9cc5adde59a3d"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-754353c13a8a7db04362.json.gz": {
+      "bytes": 582,
+      "sha256": "dee010800e42f9e90fe4d058d28217283813278fd11a25d8e6a468d46c697c8c"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-7efbefdd3a6d1b0974e0.json.gz": {
+      "bytes": 596,
+      "sha256": "b41ca313e3b75e1f4860c3881eb6c99e03002fe6566c213ae477d7f6041200e2"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-8501db1e156b55b12c18.json.gz": {
+      "bytes": 734,
+      "sha256": "2a1660062adcbda97181915de060db0a26c7f7166f5f53a415fca045f14579fe"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-a6872ecd521c05dcbdc0.json.gz": {
+      "bytes": 689,
+      "sha256": "d3d004683f8c996e769ecd1e04b01645fe10bb6f045c3f88be405381000f02ba"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-a941ead6c71863e7a927.json.gz": {
+      "bytes": 580,
+      "sha256": "c48c6eabcf42079004ee47aec2879b081384e4d1950994648090313d7097cd52"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-af4694f43ad26e9d068c.json.gz": {
+      "bytes": 686,
+      "sha256": "9f28b3577a32ce4807f5b5a8e5e2c923c5866ccbd1829bc74fded2f1ed19d30b"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-bc4ccc655d91a89916f2.json.gz": {
+      "bytes": 613,
+      "sha256": "f9b0e15dbb036334b3b4880e14cd5b1aab45e2ebfc8d79e2b15560fdf1d93db0"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-c320a8071d7821f5e2c5.json.gz": {
+      "bytes": 632,
+      "sha256": "ce0bd090cdf9f3eb94860cd7277a2c1d5e5f2a0e4b8e167265cc6c0035e3a126"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-d56eed6b7049d7d34ec5.json.gz": {
+      "bytes": 613,
+      "sha256": "cf1483e62a984c97f5705beaaccb60182e63773291e315c13354c074354fd9e6"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-dc3b9bd3307904ac3c55.json.gz": {
+      "bytes": 572,
+      "sha256": "663f78c6fc7d84f93b34554d23ea3881c0acb0bd9ac56a427e08fd03149bc657"
+    },
+    "pages/w_shops/the-internet.herokuapp.com/wshops-e26a5d7cc539def37369.json.gz": {
+      "bytes": 670,
+      "sha256": "306a2a5e19eb8503eb4b383960851362ea214e60d711facdd075a378d90abed2"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-0a2b78a8b953d3b0a055.json.gz": {
+      "bytes": 2760,
+      "sha256": "779ad462a2317c8e8e02c7021e8752410b5a5af119b8713c55935be7ffbe9fbc"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-0aca79dc6be88caed5e0.json.gz": {
+      "bytes": 2661,
+      "sha256": "2df6654ad3a2f3de3259b24fb58546be069f3cdb5db087e4ec821f4e68622b9d"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-0e81eab1340ddb53e439.json.gz": {
+      "bytes": 2799,
+      "sha256": "88801c36184f3ba81b21aed2bdcdd22b3f6349f67e6fee9950bc5af79991e100"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-1926cf0d0958704597ed.json.gz": {
+      "bytes": 2764,
+      "sha256": "40a6142972063e63997bb9562fa7951cee296d1505f1d794efbb4116f592f8b4"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-1a54eb6629671e627ee2.json.gz": {
+      "bytes": 2526,
+      "sha256": "733e9f1f45002fd14ea3a962b1e2fdab0afd093397ebeb589b1c8a2ef271ba2b"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-1cc0c1220f7a5532bce7.json.gz": {
+      "bytes": 1932,
+      "sha256": "d34e4224408cdb8a01512e82edddd370536c62eeef6a1f793e9f75761703e2d0"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-1e447f1c882af8e01502.json.gz": {
+      "bytes": 2620,
+      "sha256": "dfe6c16a6a569f3b94c243733bcb265b612d8dc244380df5c975c4d00ef93d66"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-25d2238ed5ebc44215a2.json.gz": {
+      "bytes": 2575,
+      "sha256": "1017ee59d550212d8d2a74e7f971ca5f18e72409add86b222fbcf0350aed7f32"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-267b922c9a20129514ea.json.gz": {
+      "bytes": 2387,
+      "sha256": "58a7fa2aefe9a35440a551acfb42699f1b663ebeb5e9eeb08279a5e5df4e339f"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-29157138f2b584cfb330.json.gz": {
+      "bytes": 2537,
+      "sha256": "ea1b7def016ea58d8c1d2953da860354865e2a747284f65d4f50079ca9d2c2c9"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-3062216ce60ade335475.json.gz": {
+      "bytes": 2425,
+      "sha256": "19dc25a26e35639326bb848edc914a5b15d0d1aca11838c398164e11d706f47c"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-30ac1e263d4bf0f9e788.json.gz": {
+      "bytes": 2640,
+      "sha256": "1c46e62091a22c50b95de741904c477c2f9889cb89f8a7473f54939d14534321"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-3a86f55a6cca3f67f8b6.json.gz": {
+      "bytes": 2529,
+      "sha256": "0b9bbb396259d26a5f3e54bf8acf6ac2ea5822a43483597b498711eafe56664f"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-482363c9a38de0ff639f.json.gz": {
+      "bytes": 2625,
+      "sha256": "2af332c9d391bcf38d9ed0cd419887a357cff727895021a83fa7dfbecff3a201"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-4c5a8901f51acc04f7eb.json.gz": {
+      "bytes": 2853,
+      "sha256": "a3b7df6fbda4a9b66ee69acf1d0d6b3cf8d90163f8b56288cf621b32d49adc04"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-4d58c571be51367b6fd2.json.gz": {
+      "bytes": 2481,
+      "sha256": "7dc514b1dc0c77e3d141115209055c7bd24c22b7e2c314a61c58715842a52b12"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-50c9a0e5d49d738ab4cf.json.gz": {
+      "bytes": 2620,
+      "sha256": "ee1a14fa4d0f1e2fded2e2cc3a7f45f9cb57080300eb904d283fc0b6d5087677"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-54de6711331fe8d94c3d.json.gz": {
+      "bytes": 3375,
+      "sha256": "0282a059b46fb2d5a74067f8da820a8ba3edb2e3039162ac0fb0e638738c8d5e"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-5c233c1092da22a4e070.json.gz": {
+      "bytes": 2385,
+      "sha256": "c55d0eb51c4b7e9fd06e6002aa70ddf7d624c55d09633c10dc54b0306e212f09"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-6483bbd36d6a71e22bb0.json.gz": {
+      "bytes": 1973,
+      "sha256": "30e7f537bac8085bd1ea8374fa2e34c22c98c4e6e61d1c9f1d710d03b212fe93"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-67a3f13417cda76a9b5c.json.gz": {
+      "bytes": 2616,
+      "sha256": "c6d2ca2f530cdc8144c41769f13f532d05ea9ca306f01a4543955fb95c70b5f1"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-6b3912d02fd1f62cf150.json.gz": {
+      "bytes": 2486,
+      "sha256": "7433a0394513766e2a08090acc5a97cc92a8a1ce97cbebfdd7eddbd96117aee4"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-6f99a66581de045b329e.json.gz": {
+      "bytes": 2717,
+      "sha256": "a2414985bcec795eb8eee67390774d294a44faae51a0a15e6fbbb50bdfb0361b"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-705554730de49e616422.json.gz": {
+      "bytes": 2626,
+      "sha256": "755f270559239849548fa3fc92826b04e36dc577f8c6aeeb080136f6ac0288d9"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-8f6bbd2b15ce9d067570.json.gz": {
+      "bytes": 2605,
+      "sha256": "b192571ba57eb99cce3c9d6146a35b5c019f8a5d779753e0bc073db264417002"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-917ea9be40e7c1d40816.json.gz": {
+      "bytes": 2357,
+      "sha256": "171e16293ee426960a9a8241f9dc94a75c463c8c08dffbb423780f943867ccc5"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-95f0a9ac63319ece33b6.json.gz": {
+      "bytes": 2523,
+      "sha256": "5a73a168eb34498043ebd564358f6ba8cbd08ee13def481a27b7bb32594abbdc"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-9aea90aaf596d7cb37e5.json.gz": {
+      "bytes": 3495,
+      "sha256": "178ecd76ed60531cc555bb6c9f5b1f92a66a09400800d2847f8b9553c46c032c"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-a80c811da2d6105acfa7.json.gz": {
+      "bytes": 2523,
+      "sha256": "5b54220acfecd8bb0ff4c7ad05d43d82f7371da59b6e060e8c55937bcbc5ff14"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-ab337fb36d3712cab5dc.json.gz": {
+      "bytes": 2615,
+      "sha256": "fe8e8ec2cc5f5b7c6801f23ad33db0496ea9b64bcca2fc4e8dc609a17cbc30c8"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-ad7019c1141cc5ccb857.json.gz": {
+      "bytes": 2357,
+      "sha256": "15ce371339a35979d57f0b4e0212ca55bec3b7491e8d8789728a0d6613e29948"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-b5ed2132ce9bf4632403.json.gz": {
+      "bytes": 2523,
+      "sha256": "0a4935328b1fb99c7a60b7d8f3688d0f0759c9f6a4a7eb36d07c28de30474775"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-b7a52a031b87ccf733a5.json.gz": {
+      "bytes": 2774,
+      "sha256": "107d2c4d8070b90658bef7e285351dcb485b73f31f2c76236a5a284884a679e0"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-bfb6af54e95224c7c9d0.json.gz": {
+      "bytes": 2611,
+      "sha256": "8eea3a524f6d9bf7c887a384d32e6223081fb695f1da93799239cde0a48cd898"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-cd9bff92aac0ce1de899.json.gz": {
+      "bytes": 2821,
+      "sha256": "f716a80d7e8ac6717e6c719994998acb4888473f5c4de6e749d1b4271b4695f9"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-d0e8be33971abc6a7648.json.gz": {
+      "bytes": 2622,
+      "sha256": "b24858e6d4dcb177d52c4b9d56e5a271d327e01c00405bdc6095284f1c968ceb"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-db7bdd2c2997a7b36b48.json.gz": {
+      "bytes": 1967,
+      "sha256": "2c2d30d6dc34c884d37d550256c1bb161c8f6d225183e8a75a42b185199a25e4"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-de34dcaac8548e7abae5.json.gz": {
+      "bytes": 2625,
+      "sha256": "e681c5f15a7ef1fca4357745a0d67239d1c4d500e534c45d3648cb57e724d668"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-e39e98a2598b8dcc8754.json.gz": {
+      "bytes": 2621,
+      "sha256": "b9a84db5454c7fcdc3bba8ccfa511e529a5dc0595a10ffcd39325fcd44bb0752"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-ec37520366a23657206f.json.gz": {
+      "bytes": 3229,
+      "sha256": "bf2fc51efdabd846ffc3dab4496856195892fe895f8873889529e9a48806e1ee"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-eef0bf0d4ab75d5d7d4a.json.gz": {
+      "bytes": 2625,
+      "sha256": "7aaa33b5757e0412faa86866006b2937b843e68f864c1405813f1976bc5732ef"
+    },
+    "pages/w_shops/tutorialsninja.com/wshops-ef22badcde5d3846d9bd.json.gz": {
+      "bytes": 2493,
+      "sha256": "b11c78f9a81e4f264bc332e97524d70f081d8965fad7421590d308ef10b8a7b5"
+    },
+    "w_shops-build.json": {
+      "bytes": 503006,
+      "sha256": "73aca8b960c9e46846a636948c1c5d4b7011700c9ec0573d7f92114977346038"
+    },
+    "w_shops.jsonl": {
+      "bytes": 167715,
+      "sha256": "a78617160b43bc29171860878162e45ebd24eba6d90cbf35a2408a807263ff4a"
+    }
+  },
+  "format": 1,
+  "summary": {
+    "candidate_actions": 368,
+    "dropped_steps": 0,
+    "dropped_tasks": 0,
+    "examples": 368,
+    "kept_tasks": 52,
+    "pages": 125,
+    "sites": 5,
+    "tasks": 52
+  }
+}

@@ -131,6 +131,8 @@ class Example:
 
     source: the data source it came from ("web", "deskforge", ...), set when examples are mixed; empty for
             single-source files. Evaluation reports the dev score per source.
+    tags: automatic analysis tags (for example the pre-registered literal/goal-only/icon item tags). They are
+          metadata only: rankers and digest construction do not read them.
     """
 
     page_id: str
@@ -141,6 +143,7 @@ class Example:
     target_id: int | None = None
     equiv_ids: list[int] = field(default_factory=list)
     source: str = ""
+    tags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
