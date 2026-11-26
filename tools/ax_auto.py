@@ -16,16 +16,30 @@ axdump) and, for `test`, Screen Recording. See docs/macos-collection.md.
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import random
+import re
+import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
+from grounder.data.dedupe import DEDUPE_JACCARD, jaccard
+from grounder.data.pages import page_id_for, text_signature, write_page
 from grounder.extract import ax
-from tools.ax_collect import DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SPLITS, TOO_FEW, Collector, slugify
+from grounder.records import Element, Page, action_repr, equiv_ids
+from tools.ax_collect import DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SPLITS, TOO_FEW, Collector, capture_screenshot, slugify
+from tools.mac_policy import AppsPolicy, load_policy
+from tools.mac_safety import (
+    Scrubber, denied_click_term, fixed_type_text, private_view_reason, signin_or_payment_reason, typing_allowed,
+)
 
 TEST_APPS = ("Numbers", "Pages", "Keynote", "Font Book", "Disk Utility")
 TRAIN_APPS = (
@@ -37,7 +51,7 @@ TRAIN_APPS = (
 NEVER_QUIT = frozenset({"Finder", "Terminal"})
 
 # The only keys ever sent. No cmd+q, cmd+delete, return/enter or clicks.
-ALLOWED_KEYS = frozenset({"cmd+,", "cmd+n", "cmd+w", "cmd+d", "cmd+o", "cmd+p", "cmd+f", "escape"})
+ALLOWED_KEYS = frozenset({"cmd+,", "cmd+n", "cmd+w", "cmd+d", "cmd+o", "cmd+p", "cmd+f", "cmd+t", "escape"})
 DONT_SAVE = "cmd+d"  # the "Don't Save" button of a save-changes sheet
 ESCAPE_KEY_CODE = 53
 
@@ -146,13 +160,25 @@ class Mac:
         return self._check(["osascript", *(arg for line in lines for arg in ("-e", line))])
 
     def is_installed(self, app: str) -> bool:
-        return self._run(["open", "-Ra", app]).returncode == 0
+        if self._run(["open", "-Ra", app]).returncode == 0:
+            return True
+        bundle = f"{app}.app"
+        return any((Path(base) / bundle).exists() for base in (
+            "/Applications", "/System/Applications", "/System/Applications/Utilities", str(Path.home() / "Applications"),
+        ))
 
     def is_running(self, app: str) -> bool:
         return self._osascript(f"application {applescript_string(app)} is running") == "true"
 
-    def launch(self, app: str) -> None:
-        self._check(["open", "-a", app])
+    def launch(self, app: str, args: Iterable[str] = ()) -> None:
+        command = ["open", "-a", app]
+        extra = list(args)
+        if extra:
+            command += ["--args", *extra]
+        self._check(command)
+
+    def open_path(self, app: str, path: Path) -> None:
+        self._check(["open", "-a", app, str(path)])
 
     def open_url(self, url: str) -> None:
         self._check(["open", url])
@@ -174,8 +200,41 @@ class Mac:
     def press(self, key: str) -> None:
         self._osascript(key_script(key))
 
+    def click_at(self, app: str, x: float, y: float) -> None:
+        self._osascript(
+            'tell application "System Events"',
+            f'tell process {applescript_string(app)}',
+            f'click at {{{round(x)}, {round(y)}}}',
+            'end tell',
+            'end tell',
+        )
+
+    def type_text(self, text: str) -> None:
+        self._osascript(f'tell application "System Events" to keystroke {applescript_string(text)}')
+
+    def process_id(self, app: str) -> int | None:
+        proc = self._run(["pgrep", "-x", app])
+        if proc.returncode != 0:
+            return None
+        try:
+            return int(proc.stdout.splitlines()[0])
+        except (IndexError, ValueError):
+            return None
+
     def quit(self, app: str) -> None:
-        self._osascript(f"quit app {applescript_string(app)}")
+        """Politely quit an app this collector launched, with SIGTERM as a last-resort cleanup for that same app."""
+        try:
+            self._osascript(f"quit app {applescript_string(app)}")
+        except RuntimeError:
+            pass
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if self.process_id(app) is None:
+                return
+            time.sleep(0.1)
+        pid = self.process_id(app)
+        if pid is not None:
+            os.kill(pid, signal.SIGTERM)
 
 
 class AutoCollector:
@@ -305,16 +364,579 @@ def format_plan(apps: list[str]) -> str:
     return "\n".join(lines)
 
 
+
+# --- bounded random-but-safe trajectory walks -----------------------------------------------------
+
+WALK_CLICK, WALK_TYPE = "click", "type"
+WALK_SCHEMA_VERSION = 1
+
+
+class UnsafeStateError(RuntimeError):
+    """The current window is a sign-in/payment or never-save view; the app must be abandoned."""
+
+    def __init__(self, reason: str, kind: str) -> None:
+        super().__init__(reason)
+        self.reason, self.kind = reason, kind
+
+
+@dataclass(frozen=True)
+class StateResult:
+    page_id: str
+    page: Page
+    is_new: bool
+    duplicate_of: str = ""
+
+
+class WalkStateStore:
+    """Per-app novelty index. Near-duplicates (Jaccard >= 0.9) resolve to the representative saved page."""
+
+    def __init__(self, pages_dir: Path, threshold: float = DEDUPE_JACCARD) -> None:
+        self.pages_dir, self.threshold = pages_dir, threshold
+        self.entries: list[tuple[frozenset, str, Page]] = []
+        self.by_id: dict[str, Page] = {}
+
+    def add(self, raw: dict[str, Any], app: str) -> StateResult:
+        site = slugify(app)
+        page = ax.page_from_dump(raw, f"{site}-pending", site)
+        page.page_id = page_id_for(site, page)
+        if page.page_id in self.by_id:
+            return StateResult(page.page_id, self.by_id[page.page_id], False, page.page_id)
+        signature = text_signature(page)
+        for other_signature, other_id, _other_page in self.entries:
+            if jaccard(signature, other_signature) >= self.threshold:
+                return StateResult(other_id, self.by_id[other_id], False, other_id)
+        write_page(page, self.pages_dir)
+        self.entries.append((signature, page.page_id, page))
+        self.by_id[page.page_id] = page
+        return StateResult(page.page_id, page, True)
+
+    @property
+    def distinct_states(self) -> int:
+        return len(self.entries)
+
+
+def state_png_path(page_path: Path) -> Path:
+    return page_path.with_name(page_path.name.removesuffix(".json.gz") + ".png")
+
+
+def save_icon_crops(png_path: Path, raw: dict[str, Any], page: Page, crops_dir: Path) -> int:
+    """Crop icon-only elements (no visible text, but nonvisual accessibility text) to 64 px PNGs."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return 0
+    if not png_path.exists():
+        return 0
+    rows = {row.get("id"): row for row in raw.get("elements") or [] if isinstance(row, dict)}
+    origin = raw.get("origin") or [0.0, 0.0]
+    viewport = raw.get("viewport") or [1, 1]
+    count = 0
+    with Image.open(png_path) as image:
+        sx, sy = image.width / max(1, viewport[0]), image.height / max(1, viewport[1])
+        for element in page.elements:
+            row = rows.get(element.id) or {}
+            if str(row.get("visible_text") or "").strip() or not str(row.get("nonvisual_text") or "").strip():
+                continue
+            x, y, w, h = element.abs_box
+            cx, cy = (x - origin[0]) * sx + w * sx / 2, (y - origin[1]) * sy + h * sy / 2
+            side = max(8.0, max(w * sx, h * sy))
+            left, top = round(cx - side / 2), round(cy - side / 2)
+            right, bottom = round(cx + side / 2), round(cy + side / 2)
+            # Clamp inside the capture; very small edge-clipped crops are better than no record.
+            left, top = max(0, left), max(0, top)
+            right, bottom = min(image.width, max(left + 1, right)), min(image.height, max(top + 1, bottom))
+            crop = image.crop((left, top, right, bottom))
+            crop.thumbnail((64, 64))
+            out = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+            out.paste(crop, ((64 - crop.width) // 2, (64 - crop.height) // 2))
+            crops_dir.mkdir(parents=True, exist_ok=True)
+            out.save(crops_dir / f"{page.page_id}-{element.id}.png")
+            count += 1
+    return count
+
+
+def probe_screen_recording() -> tuple[bool, str]:
+    """Whether Screen Recording is available, using the same capture path as ax_collect."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "probe.png"
+        try:
+            capture_screenshot([0.0, 0.0], [4, 4], path)
+        except Exception as exc:
+            return False, str(exc)
+        return path.exists(), "" if path.exists() else "screencapture produced no file"
+
+
+@dataclass(frozen=True)
+class WalkCandidate:
+    element: Element
+    action: str
+    weight: float
+
+LOGIC_QUICKSTART_TEMPLATE = Path(
+    "/Applications/Logic Pro.app/Contents/Resources/Library.bundle/Projects/Templates/Quickstart.logicx")
+
+
+def prepare_throwaway_project(canonical: str, temp_dir: str) -> Path | None:
+    """Copy a factory blank project into the throwaway folder, when a safe factory template exists.
+
+    Logic Pro ships a small Quickstart project template. The copy is a new temporary document instance: opening it
+    never opens or writes a user project, and the collector deletes the whole temporary folder after quitting Logic.
+    Final Cut Pro ships no comparable blank library package, so it still requires a verifiable untitled library.
+    """
+    if canonical != "Logic Pro" or not temp_dir or not LOGIC_QUICKSTART_TEMPLATE.is_dir():
+        return None
+    target = Path(temp_dir) / "TinyGrounderThrowaway.logicx"
+    shutil.copytree(LOGIC_QUICKSTART_TEMPLATE, target)
+    for directory in [target, *(p for p in target.rglob("*") if p.is_dir())]:
+        directory.chmod(directory.stat().st_mode | 0o200)
+    return target
+
+
+class RandomWalkCollector:
+    """Bounded random-but-safe walks through one macOS app at a time.
+
+    Every click label passes the hard denylist in tools/mac_safety plus the app policy. Only search fields and
+    throwaway text documents receive keyboard input, and then only fixed harmless strings. Each recorded step is
+    pre-action page id -> action -> post-action page id; pages themselves are scrubbed before they are written.
+    """
+
+    def __init__(
+        self, mac: Mac, policy: AppsPolicy, split: str, out: Path, settle: float = 1.2,
+        sleep: Sleep = time.sleep, show: Callable[[str], None] = print, seed: int = 0,
+        max_steps: int = 0, walk_budget: int = 0, state_budget: int = 0,
+        screenshots: bool = False, binary: Path = ax.AXDUMP,
+        dump_app: Callable[[str], dict[str, Any]] | None = None,
+    ) -> None:
+        self.mac, self.policy, self.split, self.out = mac, policy, split, Path(out)
+        self.settle, self.sleep, self.show, self.seed = settle, sleep, show, seed
+        self.max_steps, self.walk_budget, self.state_budget = max_steps, walk_budget, state_budget
+        self.screenshots, self.binary = screenshots, binary
+        self.scrubber = Scrubber.from_system()
+        self.root = self.out / split
+        self.pages_dir = self.root / "pages"
+        self.walks_dir = self.root / "walks"
+        self.denials: dict[str, Counter[str]] = {}
+        self.denial_examples: list[dict[str, str]] = []
+        self.app_results: dict[str, dict[str, Any]] = {}
+        self.screenshot_failures: Counter[str] = Counter()
+        self.icon_crops = 0
+        self.dump_app = dump_app
+
+    def _rng(self, app: str) -> random.Random:
+        return random.Random((self.seed, self.split, app).__repr__())
+
+    def _dump(self, launch_name: str) -> dict[str, Any]:
+        raw = (self.dump_app(launch_name) if self.dump_app is not None else
+               ax.run_axdump(["--app", launch_name, "--timeout", "8"], binary=self.binary, timeout=13))
+        return self.scrubber.scrub_raw_dump(raw)
+
+    def _state(self, raw: dict[str, Any], app: str, store: WalkStateStore) -> StateResult:
+        signin = signin_or_payment_reason(raw)
+        if signin:
+            raise UnsafeStateError(signin, "signin_or_payment")
+        # private_view_reason gets only global history/account/profile terms here; policy terms are checked below.
+        policy = self.policy.policy_for(app)
+        private = private_view_reason(raw, policy.deny_views)
+        if private:
+            raise UnsafeStateError(private, "forbidden_view")
+        result = store.add(raw, app)
+        if result.is_new and self.screenshots:
+            self._screenshot(raw, result)
+        return result
+
+    def _screenshot(self, raw: dict[str, Any], result: StateResult) -> None:
+        page_path = self.pages_dir / result.page.site / f"{result.page.page_id}.json.gz"
+        png = state_png_path(page_path)
+        try:
+            capture_screenshot(raw["origin"], raw["viewport"], png)
+        except Exception as exc:
+            self.screenshot_failures[result.page.site] += 1
+            self.show(f"[{result.page.site}] screenshot failed: {exc}")
+            return
+        self.icon_crops += save_icon_crops(png, raw, result.page, png.parent / "crops")
+
+    def _deny(self, app: str, element: Element, term: str) -> None:
+        self.denials.setdefault(app, Counter())[term] += 1
+        if len(self.denial_examples) < 300:
+            self.denial_examples.append({"app": app, "label": element.text, "term": term})
+
+    def candidates(self, page: Page, app: str, throwaway_document: bool, frequency: Counter[str]) -> list[WalkCandidate]:
+        policy = self.policy.policy_for(app)
+        out: list[WalkCandidate] = []
+        for element in page.elements:
+            if not element.enabled or not element.in_viewport or not element.text.strip():
+                continue
+            label = element.text
+            if element.role in {"textbox", "searchbox"}:
+                if typing_allowed(policy.typing, element.role, element.tag, label, throwaway_document):
+                    out.append(WalkCandidate(element, WALK_TYPE, 0.7))
+                continue
+            if element.role not in policy.click_roles:
+                continue
+            folded = label.casefold()
+            context = f"{label} {element.context}".casefold()
+            if policy.allow_labels and not any(term.casefold() in context for term in policy.allow_labels):
+                continue
+            term = denied_click_term(label, policy.deny_labels)
+            if term:
+                self._deny(app, element, term)
+                continue
+            key = f"{element.role}\t{folded}"
+            base = {"button": 2.5, "link": 2.0, "tab": 2.5, "menuitem": 1.2, "radio": 1.2,
+                    "combobox": 0.8, "other": 1.0}.get(element.role, 0.5)
+            out.append(WalkCandidate(element, WALK_CLICK, base / (1 + frequency[key])))
+        return out
+
+    def _choose(self, candidates: list[WalkCandidate], rng: random.Random) -> WalkCandidate:
+        return rng.choices(candidates, weights=[candidate.weight for candidate in candidates], k=1)[0]
+
+    def _ensure_frontmost(self, launch_name: str) -> bool:
+        if self.mac.frontmost().casefold() != launch_name.casefold():
+            self.mac.launch(launch_name)
+            self.sleep(UNDO_PAUSE)
+        return self.mac.frontmost().casefold() == launch_name.casefold()
+
+    def _perform(self, launch_name: str, candidate: WalkCandidate, typed_text: str) -> None:
+        if not self._ensure_frontmost(launch_name):
+            raise RuntimeError(f"wrong frontmost app: {self.mac.frontmost()}")
+        x, y, w, h = candidate.element.abs_box
+        self.mac.click_at(launch_name, x + w / 2, y + h / 2)
+        if candidate.action == WALK_TYPE:
+            self.sleep(0.15)
+            self.mac.type_text(typed_text)
+
+    def run_walk(self, app: str, walk_index: int, store: WalkStateStore, rng: random.Random,
+                 throwaway_document: bool, frequency: Counter[str]) -> dict[str, Any]:
+        policy = self.policy.policy_for(app)
+        launch_name = policy.launch_name
+        max_steps = self.max_steps or policy.max_steps
+        walk_id = f"{slugify(app)}-{self.split}-{walk_index:03d}"
+        steps: list[dict[str, Any]] = []
+        end_reason = "step budget reached"
+        unchanged = 0
+        for step_index in range(max_steps):
+            pre_raw = self._dump(launch_name)
+            pre = self._state(pre_raw, app, store)
+            candidates = self.candidates(pre.page, app, throwaway_document, frequency)
+            if not candidates:
+                end_reason = "no safe actionable elements"
+                break
+            candidate = self._choose(candidates, rng)
+            typed = fixed_type_text(self.seed + walk_index + step_index) if candidate.action == WALK_TYPE else ""
+            frequency[f"{candidate.element.role}\t{candidate.element.text.casefold()}"] += 1
+            self._perform(launch_name, candidate, typed)
+            self.sleep(self.settle)
+            try:
+                frontmost = self.mac.frontmost()
+            except Exception:
+                frontmost = ""
+            if frontmost and frontmost.casefold() != launch_name.casefold():
+                end_reason = f"wrong app after action (frontmost is {frontmost})"
+                break
+            post_raw = self._dump(launch_name)
+            post = self._state(post_raw, app, store)
+            target = candidate.element
+            steps.append({
+                "index": step_index,
+                "pre_page_id": pre.page_id,
+                "post_page_id": post.page_id,
+                "action": {"type": candidate.action, "target_id": target.id, "role": target.role,
+                           "label": target.text, "tag": target.tag, "typed_text": typed},
+                "target": {"id": target.id, "equiv_ids": equiv_ids(pre.page.elements, target.id),
+                           "visible_text": self._provenance(pre_raw, target.id, "visible_text"),
+                           "nonvisual_text": self._provenance(pre_raw, target.id, "nonvisual_text")},
+            })
+            unchanged = unchanged + 1 if post.page_id == pre.page_id else 0
+            if unchanged >= 2:
+                end_reason = "state stopped changing"
+                break
+        return {"schema_version": WALK_SCHEMA_VERSION, "walk_id": walk_id, "app": app, "split": self.split,
+                "seed": self.seed, "steps": steps, "end_reason": end_reason}
+
+    @staticmethod
+    def _provenance(raw: dict[str, Any], element_id: int, key: str) -> str:
+        for row in raw.get("elements") or []:
+            if isinstance(row, dict) and row.get("id") == element_id:
+                return str(row.get(key) or "")
+        return ""
+
+    def _write_walks(self, canonical: str, walks: list[dict[str, Any]]) -> str:
+        if not walks:
+            return ""
+        path = self.walks_dir / f"{slugify(canonical)}.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as f:
+            for walk in walks:
+                f.write(json.dumps(walk, sort_keys=True) + "\n")
+        return str(path)
+
+    def _wait_for_window(self, launch_name: str, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                if self.mac.window_count(launch_name) > 0:
+                    return
+            except Exception:
+                pass
+            self.sleep(0.5)
+        raise RuntimeError(f"{launch_name} opened no accessible window within {timeout:.0f}s")
+
+    def run_app(self, app: str, host: str = "") -> dict[str, Any]:
+        canonical = self.policy.canonical(app)
+        policy = self.policy.policy_for(canonical)
+        result: dict[str, Any] = {"status": "skipped", "reason": "", "walks": 0, "states": 0, "steps": 0,
+                                  "denials": {}, "walk_file": ""}
+        self.app_results[canonical] = result
+        refusal = self.policy.refusal(canonical, self.split)
+        if canonical.casefold() == host.casefold() or policy.launch_name.casefold() == host.casefold():
+            refusal = "hosts this script"
+        if refusal:
+            result["reason"] = refusal
+            self.show(f"[{canonical}] skipped: {refusal}")
+            return result
+        if not self.mac.is_installed(policy.launch_name):
+            result["reason"] = "not installed"
+            self.show(f"[{canonical}] skipped: not installed")
+            return result
+
+        rng = self._rng(canonical)
+        store = WalkStateStore(self.pages_dir)
+        walks: list[dict[str, Any]] = []
+        frequency: Counter[str] = Counter()
+        was_running = self.mac.is_running(policy.launch_name)
+        temp_dir = ""
+        initial_windows = 0
+        try:
+            throwaway_path = None
+            if policy.throwaway_project:
+                temp_dir = tempfile.mkdtemp(prefix=f"tiny-grounder-{slugify(canonical)}-")
+                throwaway_path = prepare_throwaway_project(canonical, temp_dir)
+            try:
+                initial_windows = self.mac.window_count(policy.launch_name)
+            except Exception:
+                initial_windows = 0
+            if throwaway_path is not None:
+                self.mac.open_path(policy.launch_name, throwaway_path)
+            else:
+                self.mac.launch(policy.launch_name, policy.launch_args)
+            self.sleep(max(self.settle, 2.0))
+            for key in policy.start_keys:
+                check_key(key)
+                if self._ensure_frontmost(policy.launch_name):
+                    self.mac.press(key)
+                    self.sleep(self.settle)
+            wait_timeout = 25.0 if canonical in {"Logic Pro", "Final Cut Pro", "Xcode", "Docker"} else 8.0
+            try:
+                self._wait_for_window(policy.launch_name, wait_timeout / 2)
+            except RuntimeError:
+                # Menu-bar utilities often open no window on activation. cmd+, is the safe settings key and is
+                # already allowlisted; if the app has no preferences window either, the second wait fails cleanly.
+                if self._ensure_frontmost(policy.launch_name):
+                    self.mac.press("cmd+,")
+                    self.sleep(self.settle)
+                self._wait_for_window(policy.launch_name, wait_timeout / 2)
+            # A throwaway app is collected only when its initial window is demonstrably new/untitled. This refuses
+            # existing libraries/projects; media-app project creation is deliberately conservative (see report).
+            first_raw = self._dump(policy.launch_name)
+            first_state = self._state(first_raw, canonical, store)
+            title = (first_raw.get("title") or "").casefold()
+            verifiable_untitled = "untitled" in title or "unnamed" in title
+            throwaway_document = (policy.throwaway_project or canonical in {"Freeform", "Stickies", "TextEdit"}) and verifiable_untitled
+            if policy.throwaway_project and throwaway_path is None:
+                raise UnsafeStateError("no factory blank project/library template for a temp-folder copy", "throwaway_missing")
+            budget = self.walk_budget or policy.walk_budget
+            state_budget = self.state_budget or policy.state_budget
+            walk_index = 0
+            failures = 0
+            while len(walks) < budget and store.distinct_states < state_budget and failures < max(3, budget // 3):
+                try:
+                    walk = self.run_walk(canonical, walk_index, store, rng, throwaway_document, frequency)
+                except UnsafeStateError:
+                    raise
+                except Exception as exc:
+                    failures += 1
+                    self.show(f"[{canonical}] walk {walk_index} failed: {type(exc).__name__}: {exc}")
+                    self._close_open_dialogs(policy.launch_name)
+                    continue
+                if walk["steps"]:
+                    walks.append(walk)
+                    walk_index += 1
+                else:
+                    failures += 1
+                self._close_open_dialogs(policy.launch_name)
+            if walks:
+                path = self.walks_dir / f"{slugify(canonical)}.jsonl"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("w", encoding="utf-8") as f:
+                    for walk in walks:
+                        f.write(json.dumps(walk, sort_keys=True) + "\n")
+                result["walk_file"] = str(path)
+            result.update(status="collected", walks=len(walks), states=store.distinct_states,
+                          steps=sum(len(w["steps"]) for w in walks), denials=dict(self.denials.get(canonical, {})))
+            self.show(f"[{canonical}] collected {len(walks)} walks, {store.distinct_states} states")
+        except UnsafeStateError as exc:
+            result["reason"] = f"{exc.kind}: {exc.reason}"
+            result["walk_file"] = self._write_walks(canonical, walks)
+            if walks:
+                result.update(status="partial", walks=len(walks), states=store.distinct_states,
+                              steps=sum(len(w["steps"]) for w in walks), denials=dict(self.denials.get(canonical, {})))
+                self.show(f"[{canonical}] stopped early: {result['reason']}; kept {len(walks)} safe walks")
+            else:
+                self.show(f"[{canonical}] skipped: {result['reason']}")
+        except (ax.AxdumpError, RuntimeError, OSError, subprocess.SubprocessError, ValueError) as exc:
+            result["reason"] = f"{type(exc).__name__}: {exc}"
+            self.show(f"[{canonical}] error: {result['reason']}")
+        finally:
+            try:
+                self._cleanup_windows(policy.launch_name, initial_windows)
+            except Exception:
+                pass
+            if not was_running:
+                try:
+                    self.mac.quit(policy.launch_name)
+                except Exception:
+                    pass
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        return result
+
+    def _close_open_dialogs(self, launch_name: str) -> None:
+        """Best-effort close of dialogs/sheets opened by the walk: Escape first, then a visible Cancel button."""
+        for _ in range(3):
+            try:
+                if not self._ensure_frontmost(launch_name):
+                    return
+                if not self.mac.has_sheet(launch_name):
+                    return
+                self.mac.press("escape")
+                self.sleep(UNDO_PAUSE)
+                if not self.mac.has_sheet(launch_name):
+                    return
+                raw = self._dump(launch_name)
+                page = ax.page_from_dump(raw, "dialog-pending", slugify(launch_name))
+                cancel = next((e for e in page.elements if e.role == "button" and e.text.strip().casefold() == "cancel"), None)
+                if cancel is None:
+                    return
+                x, y, w, h = cancel.abs_box
+                self.mac.click_at(launch_name, x + w / 2, y + h / 2)
+                self.sleep(UNDO_PAUSE)
+            except Exception:
+                return
+
+    def _cleanup_windows(self, launch_name: str, initial_windows: int) -> None:
+        """Close only windows added during collection; answer save sheets with Don't Save, never Save."""
+        self._close_open_dialogs(launch_name)
+        for _ in range(8):
+            try:
+                if self.mac.window_count(launch_name) <= initial_windows:
+                    break
+                if not self._ensure_frontmost(launch_name):
+                    break
+                self.mac.press("cmd+w")
+                self.sleep(UNDO_PAUSE)
+                if self.mac.has_sheet(launch_name):
+                    self.mac.press(DONT_SAVE)
+                    self.sleep(UNDO_PAUSE)
+                    if self.mac.has_sheet(launch_name):
+                        self.mac.press("escape")
+                        self.sleep(UNDO_PAUSE)
+            except Exception:
+                break
+
+    def write_report(self) -> Path:
+        self.root.mkdir(parents=True, exist_ok=True)
+        report = {
+            "schema_version": WALK_SCHEMA_VERSION,
+            "split": self.split,
+            "policy": str(self.policy.path),
+            "seed": self.seed,
+            "apps": self.app_results,
+            "safety_denials": {app: dict(counts) for app, counts in self.denials.items()},
+            "safety_denial_examples": self.denial_examples,
+            "privacy_scrub_counts": dict(self.scrubber.counts),
+            "screenshots": {"enabled": self.screenshots, "failures": dict(self.screenshot_failures),
+                            "icon_crops": self.icon_crops},
+        }
+        path = self.root / "collection-report.json"
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+        return path
+
+
+
+
+def frontmost_is_loginwindow(binary: Path = ax.AXDUMP) -> bool:
+    """True when the WindowServer frontmost application is loginwindow (the session is locked or curtained)."""
+    try:
+        ax.run_axdump(["--frontmost", "--timeout", "3"], binary=binary, timeout=6)
+        return False
+    except ax.AxdumpError as exc:
+        match = re.search(r"pid (\d+)", str(exc))
+        if not match:
+            return False
+        proc = subprocess.run(["ps", "-p", match.group(1), "-o", "comm="], capture_output=True, text=True, timeout=3)
+        return "loginwindow" in proc.stdout
+
+def run_walk_mode(args: argparse.Namespace) -> int:
+    policy = load_policy(args.policy)
+    apps = [a.strip() for a in args.apps.split(",") if a.strip()] or policy.apps_for_split(args.split)
+    refused = [(app, policy.refusal(app, args.split)) for app in apps]
+    refused = [(app, reason) for app, reason in refused if reason]
+    if refused and args.apps:
+        for app, reason in refused:
+            print(f"[{app}] skipped: {reason}")
+        apps = [app for app in apps if not policy.refusal(app, args.split)]
+    if args.dry_run:
+        for app in apps:
+            policy_app = policy.policy_for(app)
+            print(f"{app}: up to {policy_app.walk_budget} walks x {policy_app.max_steps} steps, "
+                  f"{policy_app.state_budget} states; roles={sorted(policy_app.click_roles)} typing={policy_app.typing}")
+        return 0
+    if not args.binary.exists():
+        print(f"{args.binary} not found: run `swift build -c release` in {ax.AXDUMP.parents[2]}", file=sys.stderr)
+        return 2
+    if frontmost_is_loginwindow(args.binary):
+        print("the macOS session is at loginwindow (locked or curtained); GUI collection cannot run", file=sys.stderr)
+        return 4
+    screenshots, screenshot_reason = probe_screen_recording()
+    if not screenshots:
+        print(f"Screen Recording is not granted; continuing without screenshots ({screenshot_reason})")
+    mac = Mac()
+    host = mac.frontmost()
+    print(f"{host} is left alone. Do not touch the keyboard or mouse until collection finishes.")
+    walker = RandomWalkCollector(
+        mac, policy, args.split, Path(args.out), settle=args.settle, seed=args.seed,
+        max_steps=args.max_steps, walk_budget=args.walk_budget, state_budget=args.state_budget,
+        screenshots=screenshots, binary=args.binary,
+    )
+    try:
+        for app in apps:
+            walker.run_app(app, host)
+    except KeyboardInterrupt:
+        print()
+    report = walker.write_report()
+    print(f"wrote walk collection report {report}")
+    return 0
+
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--out", required=True, help="pages dir, e.g. data/pages_ax")
+    parser.add_argument("--out", required=True, help="pages dir for scene mode, walk output root in walk mode")
     parser.add_argument("--split", choices=SPLITS, default="train")
+    parser.add_argument("--mode", choices=("scenes", "walks"), default="scenes",
+                        help="legacy fixed safe scenes, or bounded random-but-safe goal-walk collection")
     parser.add_argument("--apps", default="", help="comma list overriding the split's default apps")
     parser.add_argument("--settle", type=float, default=DEFAULT_SETTLE, help="seconds to wait after each action")
     parser.add_argument("--min-elements", type=int, default=DEFAULT_MIN_ELEMENTS)
     parser.add_argument("--max-per-app", type=int, default=0, help="stop an app after this many saved pages (0 = no cap)")
+    parser.add_argument("--policy", type=Path, default=Path("configs/apps_policy.yaml"), help="app policy for walk mode")
+    parser.add_argument("--binary", type=Path, default=ax.AXDUMP, help="axdump binary")
+    parser.add_argument("--seed", type=int, default=0, help="random seed for walk mode")
+    parser.add_argument("--max-steps", type=int, default=0, help="walk-mode override for steps per walk")
+    parser.add_argument("--walk-budget", type=int, default=0, help="walk-mode override for walks per app")
+    parser.add_argument("--state-budget", type=int, default=0, help="walk-mode override for distinct states per app")
     parser.add_argument("--dry-run", action="store_true", help="print the plan and exit")
     args = parser.parse_args(argv)
+    if args.mode == "walks":
+        return run_walk_mode(args)
     apps = select_apps(args.apps, args.split)
     if args.dry_run:
         print(format_plan(apps))

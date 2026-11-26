@@ -48,6 +48,44 @@ counts saved, duplicate, too-few, wrong-app and error scenes per app.
 The terminal needs **Accessibility** (to send keystrokes and for axdump) and, for `--split test`, **Screen Recording**.
 Do not touch the keyboard or mouse while it runs; keystrokes go to whatever is in front.
 
+
+## Goal-walk collection and reverse task synthesis
+
+`--mode walks` is the bounded random-but-safe collector used for the second macOS next-step data build. Its app
+membership and per-app restrictions are in `configs/apps_policy.yaml`; the hard click denylist, typing boundary,
+sign-in/payment refusal and privacy scrubber are code in `tools/mac_safety.py` and cannot be weakened from YAML.
+
+```
+uv run python tools/ax_auto.py --mode walks --out data/mac_walks --split train --dry-run
+uv run python tools/ax_auto.py --mode walks --out data/mac_walks --split train
+uv run python tools/ax_auto.py --mode walks --out data/mac_walks --split test
+```
+
+The train split collects only the policy's train apps; the test split collects only test_v2 apps. frozen_test_v1,
+excluded apps, unknown apps and cross-split requests are refused before launch. A locked or curtained login session
+(`loginwindow` frontmost) exits with status 4 because no real window can be inspected safely. Screen Recording is
+probed once; when unavailable the run continues without screenshots. When available, each novel state has a window PNG
+beside its page JSON and icon-only elements are cropped to 64 px under `crops/`.
+
+Every step is recorded as `pre_page_id -> action -> post_page_id`. Novel states are exact/near-duplicate filtered with
+Jaccard >= 0.9. Pages are privacy-scrubbed before being written; history, account/profile and policy-denied views are
+never saved. Logic Pro is collected only through a writable temp-folder copy of its factory blank Quickstart project;
+the copy and folder are deleted after Logic is quit. Final Cut Pro has no factory blank library package on disk, so it
+is skipped rather than risk opening a user library. The collector writes
+`data/mac_walks/{split}/collection-report.json` with per-app states, walks, skip reasons, privacy counts, screenshot
+status and safety denials.
+
+After GUI exploration is complete, synthesize goals with the already-downloaded local Gemma GGUF. This phase starts
+`llama-server` itself and stops only the server it started:
+
+```
+uv run --group local python tools/mac_goals.py --walk-root data/mac_walks --split train --out data/nextstep --name mac_train_v2
+uv run --group local python tools/mac_goals.py --walk-root data/mac_walks --split test --out data/nextstep --name mac_test_v2
+```
+
+It emits goal-mode examples in the same schema as `data/nextstep/d_macos.jsonl`, per-set build reports, pages under
+`pages_<name>/`, and frozen SHA-256 manifests. Never run a ranker or `next_step_recall` on `mac_test_v2`.
+
 ## Next steps
 
 ```

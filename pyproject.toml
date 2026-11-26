@@ -51,6 +51,8 @@ grounder-tool = "grounder_tool.mcp:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
+# Goal synthesis talks to the already-installed local llama.cpp server; no model framework or download is needed.
+local = ["httpx==0.28.1"]
 
 [build-system]
 requires = ["hatchling"]

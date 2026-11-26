@@ -1,0 +1,285 @@
+# Application collection policy for goal-level macOS trajectory collection.
+# The hard click/type safety rules live in tools/mac_safety.py; this file supplies split membership,
+# launch constraints, and per-app restrictions. mac_walk collection refuses any app not in the requested set.
+schema_version: 1
+
+sets:
+  test_v2:
+    - Logic Pro
+    - VLC
+    - Keka
+    - Chess
+    - Podcasts
+    - Audio MIDI Setup
+  frozen_test_v1:
+    - Font Book
+    - Dictionary
+    - Script Editor
+    - Grapher
+    - Automator
+    - Clock
+    - Disk Utility
+  train:
+    - Final Cut Pro
+    - Rive
+    - LTX Desktop
+    - Flux
+    - JJazzLab
+    - TONE3000
+    - Spotify
+    - QuickTime Player
+    - TV
+    - News
+    - Image Playground
+    - Docker
+    - GitButler
+    - Ghostty
+    - Unsloth
+    - Llama
+    - Open Ports
+    - Port Manager
+    - Cap
+    - Stats
+    - Rectangle
+    - LinearMouse
+    - Hidden Bar
+    - DockDoor
+    - Lys
+    - TrellisWM
+    - Vorssaint
+    - edge
+    - TypeWhisper
+    - App Store
+    - Apps
+    - Games
+    - Tips
+    - Freeform
+    - Stickies
+    - Shortcuts
+    - Image Capture
+    - Magnifier
+    - ColorSync Utility
+    - Digital Color Meter
+    - Bluetooth File Exchange
+    - Print Center
+    - Screenshot
+    - VoiceOver Utility
+    - AirPort Utility
+    - Anki
+    - Visual Studio Code
+    - Xcode
+    - Preview
+    - TextEdit
+    - Calculator
+    - Maps
+    - Weather
+    - Stocks
+    - Books
+    - Music
+    - Safari
+    - Google Chrome
+  excluded:
+    - T3 Code
+    - T3 Code (Beta)
+    - Contacts
+    - Mail
+    - Messages
+    - FaceTime
+    - Phone
+    - iPhone Mirroring
+    - Passwords
+    - Find My
+    - FindMy
+    - Home
+    - Journal
+    - Photo Booth
+    - Voice Memos
+    - VoiceMemos
+    - WhatsApp
+    - Telegram
+    - Microsoft Teams
+    - ChatGPT
+    - ChatGPT Classic
+    - ClaudeBar
+    - Itsycal
+    - Raycast
+    - Tailscale
+    - Console
+    - System Information
+    - Time Machine
+    - Migration Assistant
+    - Boot Camp Assistant
+    - Screen Sharing
+    - Siri
+    - eve
+
+defaults:
+  max_steps: 6
+  state_budget: 40
+  walk_budget: 25
+  test_walk_budget: 30   # deliberately oversamples: incoherent test walks are discarded later
+  click_roles: [button, link, tab, radio, menuitem, combobox, other]
+  typing: search         # search | throwaway | never
+  launch_args: []
+  start_keys: []
+  deny_labels:
+    # Window controls and irreversible or externally visible operations not in the hard global list.
+    - close
+    - minimize
+    - minimise
+    - zoom
+    - full screen
+    - quit
+    - log in
+    - login
+    - sign up
+    - download
+    - print
+    - save
+    - clear
+    - open recent
+    - reopen
+    - save as
+    - save all
+    - revert
+    - burn
+    - erase all content
+  deny_views:
+    - history
+    - account
+    - profile
+
+apps:
+  Final Cut Pro:
+    set: train
+    throwaway_project: true
+    deny_labels: [open library, open existing, import media, import, share, save, close library]
+  Logic Pro:
+    set: test_v2
+    throwaway_project: true
+    deny_labels: [open project, open existing, open recent, import, share, save, close project]
+  Spotify:
+    set: train
+    click_roles: [button, link, tab, other]
+    typing: search
+    deny_labels: [account, profile, playback, offline, download, autoplay, explicit, log in, sign up, upgrade, premium]
+  Docker:
+    set: train
+    click_roles: [button, link, tab, radio, other]
+    typing: search
+    deny_labels: [start, run, pull, build, create, pause, restart, sign in, log in, upgrade, troubleshoot, feedback]
+  GitButler:
+    set: train
+    click_roles: [button, link, tab, other]
+    typing: never
+    allow_labels: [settings, preferences, new project, create project, back, cancel, appearance, general, project]
+    deny_labels: [open, clone, connect, sign in, log in, push, commit, merge, publish, sync]
+  Ghostty:
+    set: train
+    start_keys: [cmd+n]
+    typing: never
+    click_roles: [button, tab, other]
+  Open Ports:
+    set: train
+    typing: never
+    deny_labels: [kill, terminate, stop, close port, force]
+  Port Manager:
+    set: train
+    typing: never
+    deny_labels: [kill, terminate, stop, close port, force]
+  Cap:
+    set: train
+    typing: never
+    deny_labels: [record, start recording, stop recording, capture, microphone, camera, share, export, upload, delete]
+  TypeWhisper:
+    set: train
+    typing: never
+    deny_views: [history]
+  App Store:
+    set: train
+    click_roles: [button, link, tab, other]
+    typing: search
+    deny_labels: [get, buy, install, purchase, redeem, sign in, account]
+  Freeform:
+    set: train
+    start_keys: [cmd+n]
+    typing: throwaway
+  Stickies:
+    set: train
+    start_keys: [cmd+n]
+    typing: throwaway
+  Shortcuts:
+    set: train
+    click_roles: [button, link, tab, other]
+    typing: never
+    deny_labels: [new shortcut, create, run, automation, delete, share]
+  Anki:
+    set: train
+    typing: never
+    click_roles: [button, link, tab, other]
+    allow_labels: [default, settings, preferences, browse, back, cancel, statistics]
+    deny_labels: [add, create, import, export, sync, study, deck options, preferences]
+  Visual Studio Code:
+    set: train
+    launch_args: [--new-window]
+    typing: never
+    deny_labels: [open folder, open file, clone, sign in, install, update, trust, terminal]
+  Xcode:
+    set: train
+    typing: never
+    click_roles: [button, tab, other]
+    deny_labels: [create new project, clone, open existing, open project, sign in, accounts, integrate]
+  TextEdit:
+    set: train
+    start_keys: [cmd+n]
+    typing: throwaway
+  Safari:
+    set: train
+    start_keys: [cmd+,]
+    typing: never
+    click_roles: [button, tab, other]
+    deny_labels: [history, bookmarks, reading list, profile, sign in, autofill, password, clear, reset, import]
+  Google Chrome:
+    set: train
+    launch_args: [--new-window]
+    start_keys: [cmd+,]
+    typing: never
+    click_roles: [button, tab, radio, other]
+    deny_labels: [history, bookmarks, reading list, profile, sign in, sync, autofill, password, clear, reset, import]
+  Screenshot:
+    set: train
+    typing: never
+    deny_labels: [capture, record, screenshot, screen recording, save, delete, share, upload]
+  AirPort Utility:
+    set: train
+    typing: never
+    deny_labels: [configure, edit, update, restart, reset, delete, remove, add]
+  Image Playground:
+    set: train
+    typing: never
+    deny_labels: [generate, create image, share, save, copy, person, photo]
+  QuickTime Player:
+    set: train
+    typing: never
+    deny_labels: [open, record, export, share, save, trim]
+  VLC:
+    set: test_v2
+    typing: search
+    deny_labels: [open, convert, stream, save, record, delete, clear]
+  Keka:
+    set: test_v2
+    typing: never
+    deny_labels: [compress, extract, open, delete, password]
+  Chess:
+    set: test_v2
+    typing: never
+    deny_labels: [new game, restart, resign, take back, save, open]
+  Podcasts:
+    set: test_v2
+    typing: search
+    deny_labels: [subscribe, download, delete, remove, sign in, account]
+  Audio MIDI Setup:
+    set: test_v2
+    typing: never
+    click_roles: [button, tab, radio, combobox, other]
+    deny_labels: [delete, remove, create, add, configure, resample, reset]

@@ -22,7 +22,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
-from grounder.data.crawl import DEDUPE_JACCARD, TemplateIndex
+from grounder.data.dedupe import DEDUPE_JACCARD, TemplateIndex
 from grounder.data.pages import load_page, page_id_for, page_paths, slugify, text_signature, write_page
 from grounder.extract import ax
 from grounder.records import Page

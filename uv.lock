@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -1544,6 +1544,9 @@ train = [
 dev = [
     { name = "pytest" },
 ]
+local = [
+    { name = "httpx" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1578,6 +1581,7 @@ provides-extras = ["train", "baselines", "datasets-convert", "demo", "tool"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8" }]
+local = [{ name = "httpx", specifier = "==0.28.1" }]
 
 [[package]]
 name = "tldextract"
