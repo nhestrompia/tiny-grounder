@@ -4,9 +4,16 @@ public let maxTextChars = 80
 public let maxContextChars = 120
 
 /// Actions that make an accessibility element worth keeping.
-public let actionableActions: Set<String> = ["AXPress", "AXConfirm", "AXPick", "AXShowMenu", "AXIncrement"]
+public let actionableActions: Set<String> = [
+    "AXPress", "AXConfirm", "AXPick", "AXShowMenu", "AXIncrement", "AXShowDefaultUI", "AXShowAlternateUI",
+]
 /// Roles that take input and are kept even without an action.
 public let editableRoles: Set<String> = ["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXSlider"]
+/// Control roles are kept even when an app fails to advertise their actions; several macOS template pickers do this.
+private let controlRoles: Set<String> = [
+    "AXButton", "AXLink", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuItem", "AXMenuButton",
+    "AXIncrementor", "AXDisclosureTriangle",
+]
 
 private let roleMap: [String: String] = [
     "AXButton": "button", "AXLink": "link", "AXTextField": "textbox", "AXTextArea": "textbox",
@@ -35,9 +42,10 @@ public func mapRole(_ axRole: String, parentRole: String?, actions: [String]) ->
     return isActionable(actions) ? "other" : nil
 }
 
-/// Keep an element when it has an action or takes input. Plain text and images are context only.
+/// Keep an element when it has an action, takes input, or is a control even if the app omits its action list.
+/// Plain text and images are context only.
 public func isKept(axRole: String, actions: [String]) -> Bool {
-    isActionable(actions) || editableRoles.contains(axRole)
+    isActionable(actions) || editableRoles.contains(axRole) || controlRoles.contains(axRole)
 }
 
 public func collapse(_ s: String, limit: Int) -> String {

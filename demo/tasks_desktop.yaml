@@ -7,7 +7,8 @@
 #   id, app, goal, tags, path
 #   optional prepare: key chords sent after activation but before the first oracle step
 #   path step: action (click/type/select/key), target, plus text/key/option when needed
-#   target: role plus label or description; optional nth (1-based among matches)
+#   target: role plus label or description; optional nth (1-based among matches). Role+nth alone is
+#   allowed only for a value-bearing control with no stable accessible name.
 # Roles are tiny-grounder record roles (button, textbox, searchbox, combobox, tab, other, ...).
 
 # --- Font Book: read-only font browsing and previewing; no collections or fonts changed ---
@@ -17,14 +18,17 @@
   tags: [multistep, read-only, goal-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
+  - action: key
+    target: {role: textbox, label: Search}
+    key: cmd+f
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
     text: Courier New
   - action: click
-    target: {role: other, label: Courier New, nth: 1}
+    target: {role: button, label: Show Courier New, nth: 1}
   - action: click
-    target: {role: radio, label: Sample, nth: 1}
+    target: {role: radio, label: View as Samples, nth: 1}
 
 - id: fontbook-times-repertoire
   app: Font Book
@@ -32,14 +36,17 @@
   tags: [multistep, read-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
+  - action: key
+    target: {role: textbox, label: Search}
+    key: cmd+f
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
     text: Times
   - action: click
-    target: {role: other, label: Times, nth: 1}
+    target: {role: button, label: Show Times New Roman, nth: 1}
   - action: click
-    target: {role: radio, label: Repertoire, nth: 1}
+    target: {role: radio, label: View as Grid, nth: 1}
 
 - id: fontbook-custom-preview
   app: Font Book
@@ -47,18 +54,21 @@
   tags: [multistep, read-only, goal-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
+  - action: key
+    target: {role: textbox, label: Search}
+    key: cmd+f
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
     text: Avenir
   - action: click
-    target: {role: other, label: Avenir, nth: 1}
+    target: {role: button, label: Show Avenir, nth: 1}
   - action: click
-    target: {role: radio, label: Custom, nth: 1}
+    target: {role: radio, label: View as Samples, nth: 1}
   - action: click
-    target: {role: textbox, label: Type your own preview text, nth: 1}
+    target: {role: button, label: Edit Avenir sample, nth: 1}
   - action: type
-    target: {role: textbox, label: Type your own preview text, nth: 1}
+    target: {role: button, label: Edit Avenir sample, nth: 1}
     text: Pack my box with five dozen liquor jugs.
 
 - id: fontbook-grid-view-icon
@@ -67,16 +77,19 @@
   tags: [multistep, read-only, goal-only, icon]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
+  - action: key
+    target: {role: textbox, label: Search}
+    key: cmd+f
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
     text: Helvetica
   - action: click
-    target: {role: other, label: Helvetica, nth: 1}
+    target: {role: button, label: Show Helvetica, nth: 1}
   - action: click
-    target: {role: button, description: Grid View, nth: 1}
+    target: {role: radio, label: View as Grid, nth: 1}
   - action: click
-    target: {role: button, description: Repertoire View, nth: 1}
+    target: {role: radio, label: View as Samples, nth: 1}
 
 - id: fontbook-font-info
   app: Font Book
@@ -84,16 +97,19 @@
   tags: [multistep, read-only, icon]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
+  - action: key
+    target: {role: textbox, label: Search}
+    key: cmd+f
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, label: Search}
     text: Menlo
   - action: click
-    target: {role: other, label: Menlo, nth: 1}
+    target: {role: button, label: Show Menlo, nth: 1}
   - action: click
-    target: {role: button, description: Font Info, nth: 1}
+    target: {role: checkbox, label: Show info pane, nth: 1}
   - action: click
-    target: {role: button, description: Close, nth: 1}
+    target: {role: checkbox, label: Show info pane, nth: 1}
 
 # --- Dictionary: public reference content only; no account or personal data ---
 - id: dictionary-define-ephemeral
@@ -102,12 +118,15 @@
   tags: [multistep, read-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
+  - action: key
+    target: {role: textbox, nth: 1}
+    key: cmd+a
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     text: ephemeral
   - action: key
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     key: return
 
 - id: dictionary-thesaurus-stream
@@ -116,15 +135,18 @@
   tags: [multistep, read-only, goal-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
+  - action: key
+    target: {role: textbox, nth: 1}
+    key: cmd+a
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     text: rapid
   - action: key
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     key: return
   - action: click
-    target: {role: tab, label: Thesaurus, nth: 1}
+    target: {role: radio, label: English Thesaurus, nth: 1}
 
 - id: dictionary-back-forward
   app: Dictionary
@@ -132,12 +154,15 @@
   tags: [multistep, read-only, goal-only, icon]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
+  - action: key
+    target: {role: textbox, nth: 1}
+    key: cmd+a
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     text: entropy
   - action: key
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     key: return
   - action: click
     target: {role: button, description: Back, nth: 1}
@@ -150,15 +175,20 @@
   tags: [multistep, read-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
+  - action: key
+    target: {role: textbox, nth: 1}
+    key: cmd+a
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     text: Grace Hopper
   - action: key
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     key: return
   - action: click
-    target: {role: tab, label: Wikipedia, nth: 1}
+    target: {role: button, label: more dictionaries, nth: 1}
+  - action: click
+    target: {role: menuitem, label: Wikipedia, nth: 1}
 
 - id: dictionary-serendipity-entry
   app: Dictionary
@@ -166,15 +196,18 @@
   tags: [multistep, read-only]
   path:
   - action: click
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
+  - action: key
+    target: {role: textbox, nth: 1}
+    key: cmd+a
   - action: type
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     text: serendipity
   - action: key
-    target: {role: searchbox, label: Search}
+    target: {role: textbox, nth: 1}
     key: return
   - action: click
-    target: {role: link, label: serendipity, nth: 1}
+    target: {role: text, label: serendipity, nth: 1}
 
 # --- Script Editor: unsaved documents only; scripts are compiled, never run ---
 - id: scripteditor-compile-assignment
@@ -185,9 +218,9 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: set total to 2 + 2
   - action: click
     target: {role: button, description: Compile, nth: 1}
@@ -200,9 +233,9 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: "repeat with n from 1 to 3\nend repeat"
   - action: click
     target: {role: button, description: Compile, nth: 1}
@@ -215,21 +248,21 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: on shout(message)
   - action: key
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     key: return
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: return message & "!"
   - action: key
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     key: return
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: end shout
   - action: click
     target: {role: button, description: Compile, nth: 1}
@@ -242,9 +275,9 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: -- This draft only documents an idea and does nothing when compiled.
   - action: click
     target: {role: button, description: Compile, nth: 1}
@@ -257,15 +290,15 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: set greeting to "hello"
   - action: key
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     key: cmd+a
   - action: type
-    target: {role: textbox, description: Script, nth: 1}
+    target: {role: textbox, description: script source, nth: 1}
     text: set greeting to "hello, small world"
   - action: click
     target: {role: button, description: Compile, nth: 1}
@@ -279,11 +312,13 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: button, label: 2D Cartesian, nth: 1}
+    target: {role: tab, label: 2D Graph, nth: 1}
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: textbox, description: Equation, nth: 1}
+    target: {role: button, description: add, nth: 1}
+  - action: click
+    target: {role: menuitem, label: New Equation, nth: 1}
   - action: type
     target: {role: textbox, description: Equation, nth: 1}
     text: y=x^2
@@ -299,11 +334,13 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: button, label: 2D Cartesian, nth: 1}
+    target: {role: tab, label: 2D Graph, nth: 1}
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: textbox, description: Equation, nth: 1}
+    target: {role: button, description: add, nth: 1}
+  - action: click
+    target: {role: menuitem, label: New Equation, nth: 1}
   - action: type
     target: {role: textbox, description: Equation, nth: 1}
     text: y=sin(x)
@@ -319,11 +356,13 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: button, label: 2D Cartesian, nth: 1}
+    target: {role: tab, label: 2D Graph, nth: 1}
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: textbox, description: Equation, nth: 1}
+    target: {role: button, description: add, nth: 1}
+  - action: click
+    target: {role: menuitem, label: New Equation, nth: 1}
   - action: type
     target: {role: textbox, description: Equation, nth: 1}
     text: y=1/x
@@ -339,11 +378,13 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: button, label: 2D Cartesian, nth: 1}
+    target: {role: tab, label: 2D Graph, nth: 1}
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: textbox, description: Equation, nth: 1}
+    target: {role: button, description: add, nth: 1}
+  - action: click
+    target: {role: menuitem, label: New Equation, nth: 1}
   - action: type
     target: {role: textbox, description: Equation, nth: 1}
     text: y=x^3
@@ -361,11 +402,13 @@
   - key: cmd+n
   path:
   - action: click
-    target: {role: button, label: 2D Cartesian, nth: 1}
+    target: {role: tab, label: 2D Graph, nth: 1}
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: textbox, description: Equation, nth: 1}
+    target: {role: button, description: add, nth: 1}
+  - action: click
+    target: {role: menuitem, label: New Equation, nth: 1}
   - action: type
     target: {role: textbox, description: Equation, nth: 1}
     text: x^2+y^2=1
@@ -386,14 +429,17 @@
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
   - action: type
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
     text: Ask for Text
   - action: click
-    target: {role: other, label: Ask for Text, nth: 1}
+    target: {role: textbox, label: Ask for Text, nth: 1}
   - action: key
-    target: {role: other, label: Ask for Text, nth: 1}
+    target: {role: textbox, label: Ask for Text, nth: 1}
+    key: return
+  - action: key
+    target: {role: textbox, label: Ask for Text, nth: 1}
     key: return
 
 - id: automator-new-folder-workflow
@@ -408,14 +454,17 @@
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
   - action: type
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
     text: New Folder
   - action: click
-    target: {role: other, label: New Folder, nth: 1}
+    target: {role: textbox, label: New Folder, nth: 1}
   - action: key
-    target: {role: other, label: New Folder, nth: 1}
+    target: {role: textbox, label: New Folder, nth: 1}
+    key: return
+  - action: key
+    target: {role: textbox, label: New Folder, nth: 1}
     key: return
 
 - id: automator-rename-workflow
@@ -430,14 +479,17 @@
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
   - action: type
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
     text: Rename Finder Items
   - action: click
-    target: {role: other, label: Rename Finder Items, nth: 1}
+    target: {role: textbox, label: Rename Finder Items, nth: 1}
   - action: key
-    target: {role: other, label: Rename Finder Items, nth: 1}
+    target: {role: textbox, label: Rename Finder Items, nth: 1}
+    key: return
+  - action: key
+    target: {role: textbox, label: Rename Finder Items, nth: 1}
     key: return
 
 - id: automator-application-text
@@ -452,14 +504,17 @@
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
   - action: type
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
     text: Get Specified Text
   - action: click
-    target: {role: other, label: Get Specified Text, nth: 1}
+    target: {role: textbox, label: Get Specified Text, nth: 1}
   - action: key
-    target: {role: other, label: Get Specified Text, nth: 1}
+    target: {role: textbox, label: Get Specified Text, nth: 1}
+    key: return
+  - action: key
+    target: {role: textbox, label: Get Specified Text, nth: 1}
     key: return
 
 - id: automator-quick-action-speech
@@ -474,14 +529,17 @@
   - action: click
     target: {role: button, label: Choose, nth: 1}
   - action: click
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
   - action: type
-    target: {role: searchbox, label: Search, nth: 1}
+    target: {role: textbox, label: Name, nth: 1}
     text: Speak Text
   - action: click
-    target: {role: other, label: Speak Text, nth: 1}
+    target: {role: textbox, label: Speak Text, nth: 1}
   - action: key
-    target: {role: other, label: Speak Text, nth: 1}
+    target: {role: textbox, label: Speak Text, nth: 1}
+    key: return
+  - action: key
+    target: {role: textbox, label: Speak Text, nth: 1}
     key: return
 
 # --- Clock: transient stopwatch/timer use only; every timer is cancelled and every stopwatch reset ---
@@ -491,7 +549,7 @@
   tags: [multistep, transient, goal-only]
   path:
   - action: click
-    target: {role: button, label: Stopwatch, nth: 1}
+    target: {role: radio, label: Stopwatch, nth: 1}
   - action: click
     target: {role: button, label: Start, nth: 1}
   - action: click
@@ -507,7 +565,7 @@
   tags: [multistep, transient]
   path:
   - action: click
-    target: {role: button, label: Stopwatch, nth: 1}
+    target: {role: radio, label: Stopwatch, nth: 1}
   - action: click
     target: {role: button, label: Start, nth: 1}
   - action: click
@@ -525,7 +583,7 @@
   tags: [multistep, transient, goal-only]
   path:
   - action: click
-    target: {role: button, label: Timers, nth: 1}
+    target: {role: radio, label: Timers, nth: 1}
   - action: click
     target: {role: button, label: 1 min, nth: 1}
   - action: click
@@ -539,7 +597,7 @@
   tags: [multistep, transient]
   path:
   - action: click
-    target: {role: button, label: Timers, nth: 1}
+    target: {role: radio, label: Timers, nth: 1}
   - action: click
     target: {role: button, label: 5 min, nth: 1}
   - action: click
@@ -555,7 +613,7 @@
   tags: [multistep, transient, goal-only]
   path:
   - action: click
-    target: {role: button, label: Stopwatch, nth: 1}
+    target: {role: radio, label: Stopwatch, nth: 1}
   - action: click
     target: {role: button, label: Start, nth: 1}
   - action: click

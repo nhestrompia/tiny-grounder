@@ -16,6 +16,7 @@ final class LogicTests: XCTestCase {
         XCTAssertNil(mapRole("AXCell", parentRole: nil, actions: []))
         XCTAssertNil(mapRole("AXRow", parentRole: nil, actions: ["AXScrollToVisible"]))
         XCTAssertEqual(mapRole("AXRow", parentRole: nil, actions: ["AXPick"]), "other")
+        XCTAssertEqual(mapRole("AXRow", parentRole: nil, actions: ["AXShowDefaultUI"]), "other")
         XCTAssertEqual(mapRole("AXGroup", parentRole: nil, actions: ["AXPress"]), "button")
         XCTAssertNil(mapRole("AXGroup", parentRole: nil, actions: []))
         XCTAssertNil(mapRole("AXScrollBar", parentRole: nil, actions: []))
@@ -24,8 +25,9 @@ final class LogicTests: XCTestCase {
     func testKept() {
         XCTAssertTrue(isKept(axRole: "AXTextField", actions: []))
         XCTAssertTrue(isKept(axRole: "AXImage", actions: ["AXPress"]))
+        XCTAssertTrue(isKept(axRole: "AXButton", actions: []))
+        XCTAssertTrue(isKept(axRole: "AXRow", actions: ["AXShowDefaultUI"]))
         XCTAssertFalse(isKept(axRole: "AXStaticText", actions: []))
-        XCTAssertFalse(isKept(axRole: "AXButton", actions: ["AXShowDefaultUI"]))
     }
 
     func testTextPriorityAndSecureFields() {

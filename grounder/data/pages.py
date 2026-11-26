@@ -7,11 +7,37 @@ tooling can use it without torch.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Iterable, Iterator, Sequence
 
 from grounder.records import Example, Page
+
+
+def slugify(name: str) -> str:
+    """A stable lowercase file-system name for an app ("Visual Studio Code" -> "visual-studio-code")."""
+    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") or "app"
+
+
+def text_signature(page: Page) -> frozenset[tuple[str, int]]:
+    """The multiset of non-empty element texts as a set of (text, occurrence index) pairs."""
+    seen: Counter[str] = Counter()
+    pairs = set()
+    for el in page.elements:
+        text = el.text.casefold()
+        if text:
+            pairs.add((text, seen[text]))
+            seen[text] += 1
+    return frozenset(pairs)
+
+
+def page_id_for(site: str, page: Page) -> str:
+    """Deterministic and unique per distinct window content: site plus a hash of the text signature."""
+    digest = hashlib.sha1(repr(sorted(text_signature(page))).encode("utf-8")).hexdigest()[:10]
+    return f"{site}-{digest}"
 
 
 def page_paths(pages_dir: str | Path) -> list[Path]:

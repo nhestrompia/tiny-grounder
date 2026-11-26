@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
+import signal
 import json
 import re
 import subprocess
@@ -35,11 +37,10 @@ from typing import Any
 
 import yaml
 
-from grounder.data.pages import write_examples, write_page
+from grounder.data.pages import page_id_for, slugify, write_examples, write_page
 from grounder.extract import ax
 from grounder.item_tags import TargetLabel, item_tags
 from grounder.records import ROLE_TO_ID, Element, Example, Page, action_repr, equiv_ids
-from tools.ax_collect import page_id_for, slugify
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "demo/tasks_desktop.yaml"
@@ -118,11 +119,13 @@ def parse_target(raw: dict[str, Any], task_id: str) -> TargetSpec:
     if raw["role"] not in ROLE_TO_ID:
         raise ValueError(f"{task_id}: unknown target role {raw["role"]!r}")
     label, description = raw.get("label", ""), raw.get("description", "")
-    if bool(label) == bool(description):
-        raise ValueError(f"{task_id}: target needs exactly one of label or description")
     nth = raw.get("nth")
     if nth is not None and (not isinstance(nth, int) or nth < 1):
         raise ValueError(f"{task_id}: target.nth must be a positive integer")
+    if label and description:
+        raise ValueError(f"{task_id}: target needs at most one of label or description")
+    if not label and not description and nth is None:
+        raise ValueError(f"{task_id}: a role-only target needs nth")
     return TargetSpec(str(raw["role"]), str(label), str(description), nth)
 
 
@@ -189,6 +192,18 @@ def key_script(key: str) -> str:
     return f'tell application "System Events" to keystroke {applescript_string(base)}{suffix}'
 
 
+def type_text_scripts(text: str) -> list[str]:
+    """System Events lines for text: quoted strings escaped, lines separated by explicit Return keys."""
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    scripts = []
+    for index, chunk in enumerate(lines):
+        if chunk:
+            scripts.append(f'tell application "System Events" to keystroke {applescript_string(chunk)}')
+        if index + 1 < len(lines):
+            scripts.append(key_script("return"))
+    return scripts
+
+
 @dataclass(frozen=True)
 class Resolution:
     primary: Element
@@ -198,9 +213,11 @@ class Resolution:
 
 
 def candidates_for(elements: Iterable[Element], target: TargetSpec) -> tuple[list[Element], str]:
-    """Exact role+text matches, or substring matches only when no exact match exists."""
+    """Exact role+text matches, substring matches when no exact match exists, or role-only with nth."""
     needle = norm(target.needle)
     same_role = [e for e in elements if e.role == target.role]
+    if not needle:
+        return same_role, "role"
     exact = [e for e in same_role if norm(e.text) == needle]
     if exact:
         return exact, "exact"
@@ -233,7 +250,10 @@ class SystemEventsDriver:
     """Small injectable macOS effect layer; tests replace every method with a fake."""
 
     def _run(self, command: list[str]) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(command, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+        try:
+            return subprocess.run(command, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"{command[0]} timed out") from exc
 
     def _check(self, command: list[str]) -> str:
         proc = self._run(command)
@@ -251,7 +271,7 @@ class SystemEventsDriver:
         """`open -a`, retried: LaunchServices returns -609 for a short while after the app has quit."""
         for attempt in range(attempts):
             try:
-                self._check(["open", "-a", app])
+                self._check(["open", "-a", app, "--args", "-ApplePersistenceIgnoreState", "YES"])
                 return
             except RuntimeError:
                 if attempt == attempts - 1:
@@ -276,12 +296,8 @@ class SystemEventsDriver:
         self._osascript(key_script(key))
 
     def type_text(self, text: str) -> None:
-        lines = text.split("\n")
-        for index, chunk in enumerate(lines):
-            if chunk:
-                self._osascript(f'tell application "System Events" to keystroke {applescript_string(chunk)}')
-            if index + 1 < len(lines):
-                self.press_key("return")
+        for script in type_text_scripts(text):
+            self._osascript(script)
 
     def click_at(self, app: str, x: float, y: float) -> None:
         self._osascript(
@@ -289,10 +305,34 @@ class SystemEventsDriver:
             f'tell process {applescript_string(app)}',
             f'click at {{{round(x)}, {round(y)}}}',
             'end tell',
+            'end tell',
         )
 
+    def process_id(self, app: str) -> int | None:
+        proc = self._run(["pgrep", "-x", app])
+        if proc.returncode != 0:
+            return None
+        try:
+            return int(proc.stdout.splitlines()[0])
+        except (IndexError, ValueError):
+            return None
+
+    def terminate(self, app: str) -> None:
+        pid = self.process_id(app)
+        if pid is not None:
+            os.kill(pid, signal.SIGTERM)
+
     def quit(self, app: str) -> None:
-        self._osascript(f"quit app {applescript_string(app)}")
+        try:
+            self._osascript(f"quit app {applescript_string(app)}")
+        except RuntimeError:
+            pass
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if self.process_id(app) is None:
+                return
+            time.sleep(0.1)
+        self.terminate(app)
 
 
 def ensure_frontmost(driver: SystemEventsDriver, app: str) -> None:
@@ -411,6 +451,12 @@ class DesktopRecorder:
             return result
         self.sleep(self.settle)
         initial_windows = self.driver.window_count(task.app)
+        current_windows = initial_windows
+        for _ in range(6):
+            if current_windows:
+                break
+            self.sleep(0.5)
+            current_windows = self.driver.window_count(task.app)
         try:
             try:
                 ensure_frontmost(self.driver, task.app)
@@ -423,9 +469,19 @@ class DesktopRecorder:
                 ensure_frontmost(self.driver, task.app)
                 self.driver.press_key(key)
                 self.sleep(UNDO_PAUSE)
+            if task.prepare:
+                for _ in range(10):
+                    if self.driver.window_count(task.app):
+                        break
+                    self.sleep(0.5)
             history: list[str] = []
             for index, step in enumerate(task.path):
-                raw = self.dump_app(task.app)
+                try:
+                    raw = self.dump_app(task.app)
+                except Exception as exc:
+                    result.drops.append(Drop(task.id, index, step.action, DROP_ACTION_ERROR, f"axdump: {exc}"))
+                    result.not_attempted = len(task.path) - index - 1
+                    break
                 raw_app = raw.get("app") or ""
                 if norm(raw_app) != norm(task.app):
                     result.drops.append(Drop(task.id, index, step.action, DROP_WRONG_APP,
@@ -438,6 +494,22 @@ class DesktopRecorder:
                     result.not_attempted = len(task.path) - index - 1
                     break
                 resolved = resolve_target(page.elements, step.target)
+                if isinstance(resolved, str) and resolved in {DROP_NO_MATCH, DROP_NTH_MISSING}:
+                    for _ in range(2):
+                        self.sleep(0.5)
+                        try:
+                            retry_raw = self.dump_app(task.app)
+                        except Exception:
+                            break
+                        if norm(retry_raw.get("app") or "") != norm(task.app):
+                            break
+                        retry_page = self.page_from_raw(retry_raw, task.app)
+                        if not retry_page.elements:
+                            continue
+                        retry_resolved = resolve_target(retry_page.elements, step.target)
+                        if not isinstance(retry_resolved, str):
+                            raw, page, resolved = retry_raw, retry_page, retry_resolved
+                            break
                 if isinstance(resolved, str):
                     result.drops.append(Drop(task.id, index, step.action, resolved, step.target.needle))
                     result.not_attempted = len(task.path) - index - 1
@@ -462,7 +534,10 @@ class DesktopRecorder:
                 history.append(history_entry(step, resolved.primary))
                 self.sleep(self.settle)
         finally:
-            self._cleanup(task, initial_windows, was_running)
+            try:
+                self._cleanup(task, initial_windows, was_running)
+            except Exception:
+                pass
         return result
 
     def _cleanup(self, task: DesktopTask, initial_windows: int, was_running: bool) -> None:
@@ -482,7 +557,10 @@ class DesktopRecorder:
                         self.sleep(UNDO_PAUSE)
         finally:
             if not was_running:
-                self.driver.quit(app)
+                try:
+                    self.driver.quit(app)
+                except Exception:
+                    pass
 
 
 def dedupe_examples(examples: Iterable[Example]) -> tuple[list[Example], int]:

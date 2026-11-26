@@ -50,7 +50,7 @@ from playwright.async_api import Browser, BrowserContext, Error as PlaywrightErr
 
 from grounder.data.blocklist import read_blocklist
 from grounder.data.language import DEFAULT_MIN_ENGLISH, add_min_english_argument, english_pages
-from grounder.data.pages import iter_pages, write_page
+from grounder.data.pages import iter_pages, text_signature, write_page
 from grounder.extract.web import extract_page
 from grounder.records import Page
 
@@ -237,18 +237,6 @@ async def load_robots(client: httpx.AsyncClient, origin: str) -> RobotFileParser
 
 
 # --- template dedupe --------------------------------------------------------------------------
-
-
-def text_signature(page: Page) -> frozenset[tuple[str, int]]:
-    """The multiset of non-empty element texts as a set of (text, occurrence index) pairs."""
-    seen: Counter[str] = Counter()
-    pairs = set()
-    for el in page.elements:
-        text = el.text.casefold()
-        if text:
-            pairs.add((text, seen[text]))
-            seen[text] += 1
-    return frozenset(pairs)
 
 
 def jaccard(a: frozenset, b: frozenset) -> float:

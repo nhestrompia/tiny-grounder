@@ -1,22 +1,222 @@
 {
   "counts": {
-    "examples": 0,
-    "pages": 0
+    "drop:no_matching_element": 14,
+    "dropped_steps": 14,
+    "duplicates": 0,
+    "examples": 122,
+    "examples_raw": 122,
+    "not_attempted_after_drop": 33,
+    "pages": 38
   },
-  "message": "axdump needs the Accessibility permission. Open System Settings > Privacy & Security > Accessibility, enable the terminal app you run this from, then run axdump again.",
+  "message": "",
   "outputs": [
     {
-      "bytes": 402,
+      "bytes": 6100,
       "path": "data/nextstep/d_macos-build.json",
-      "sha256": "fd8af82e4a2d5675d08a9efbbb6db507d7f9c193e6f8c5a034ca9241690a99dd"
+      "sha256": "84dd8bcc85e5b069fa6b3b48146a1e8bb4ca8f3848809bb9034e664b9fdaba2b"
+    },
+    {
+      "bytes": 41649,
+      "path": "data/nextstep/d_macos.jsonl",
+      "sha256": "95c07e8d73897f779e91a8542d910bda82a4e30fe1922b347e62512193387e7a"
+    },
+    {
+      "bytes": 2781,
+      "path": "data/nextstep/pages_d_macos/automator/automator-0189a4b342.json.gz",
+      "sha256": "038f4f3b9b26168aa81a0c1c8af3d41d2d7ead2f60c36a4d698b1e30736c5718"
+    },
+    {
+      "bytes": 1885,
+      "path": "data/nextstep/pages_d_macos/automator/automator-26773fc749.json.gz",
+      "sha256": "d7cb147a0005982b8161219d8077282fc7b8a5f6422cb1fa0bd5568f03c785db"
+    },
+    {
+      "bytes": 1908,
+      "path": "data/nextstep/pages_d_macos/automator/automator-4fb608f0ae.json.gz",
+      "sha256": "9ae5635877bace38596cacf60af1b5f3aadbbd9ac529f0b7336c2ad56db1e60c"
+    },
+    {
+      "bytes": 1901,
+      "path": "data/nextstep/pages_d_macos/automator/automator-5d2406b460.json.gz",
+      "sha256": "9f39cebe46535689b93985933988cc9510c74d305087ed9510331eabcd7333c9"
+    },
+    {
+      "bytes": 1917,
+      "path": "data/nextstep/pages_d_macos/automator/automator-61dbffadd6.json.gz",
+      "sha256": "1b7d0ce60f949f52a71bfc6cbd9e9f1bcea9bc13997ec506afda8de4e490b3fc"
+    },
+    {
+      "bytes": 664,
+      "path": "data/nextstep/pages_d_macos/automator/automator-a2b1f37cb6.json.gz",
+      "sha256": "51be91e9f180d987f775bd61bfe3cb92509b613b9bc24df7019ec32725c13561"
+    },
+    {
+      "bytes": 1938,
+      "path": "data/nextstep/pages_d_macos/automator/automator-a79f8c25ac.json.gz",
+      "sha256": "46dad364ab9a7db28ea903637aa73d69b466053ff0cd0b4a12e94d8bcff0fa41"
+    },
+    {
+      "bytes": 2782,
+      "path": "data/nextstep/pages_d_macos/automator/automator-b2c893770f.json.gz",
+      "sha256": "7559a2650bf624b926279d71db8620edcc585f9545353c4265bb6bb61802635f"
+    },
+    {
+      "bytes": 2782,
+      "path": "data/nextstep/pages_d_macos/automator/automator-ba2a18fb0a.json.gz",
+      "sha256": "9128e803ffd302f139e00fa460e827a4ad3e37c5f31d5dd9768ccac746769f15"
+    },
+    {
+      "bytes": 795,
+      "path": "data/nextstep/pages_d_macos/clock/clock-09cb15c82a.json.gz",
+      "sha256": "f36dc9b85559b97bcd1b0fddedc430d7e7bf600c20a0fcdd4c3de5d2cd8537c3"
+    },
+    {
+      "bytes": 883,
+      "path": "data/nextstep/pages_d_macos/clock/clock-79079f227e.json.gz",
+      "sha256": "0dd5c2e9c19d2154c6b119c52b9779c75cb739cdce518e4d97974693f3194c15"
+    },
+    {
+      "bytes": 840,
+      "path": "data/nextstep/pages_d_macos/clock/clock-83b17245cf.json.gz",
+      "sha256": "cd7679d7544c54bff9c40ec487d922e075a3f900aaea2299f43c2d99b80ec843"
+    },
+    {
+      "bytes": 835,
+      "path": "data/nextstep/pages_d_macos/clock/clock-8d4432bbee.json.gz",
+      "sha256": "47a6012287ea6b40ac18214cfc987fc6b6b21c5917570ab6c5509f7458ff58a2"
+    },
+    {
+      "bytes": 775,
+      "path": "data/nextstep/pages_d_macos/clock/clock-a93d7f08ec.json.gz",
+      "sha256": "279fcb0b471beb9cd6f25305ed109e05cc7aef1b9102035352dd290cc7f19023"
+    },
+    {
+      "bytes": 881,
+      "path": "data/nextstep/pages_d_macos/clock/clock-ab5621d793.json.gz",
+      "sha256": "6284b7772fee4727d9d11a99452939c10fce3d0fa74c59db1d7e8d2c3f3cd040"
+    },
+    {
+      "bytes": 886,
+      "path": "data/nextstep/pages_d_macos/clock/clock-e4d0cb9518.json.gz",
+      "sha256": "3e19358b5da9835222e79ace8e6da7c7686c124bbd1e187e66d067e8c6429573"
+    },
+    {
+      "bytes": 801,
+      "path": "data/nextstep/pages_d_macos/clock/clock-eebdb1cb86.json.gz",
+      "sha256": "3faae4d313865273888ecd2ea7fa8a044b7a7fc8ba88c05b40d1c5ee0395bc0f"
+    },
+    {
+      "bytes": 2171,
+      "path": "data/nextstep/pages_d_macos/disk-utility/disk-utility-e3c97a0de4.json.gz",
+      "sha256": "81a6d58a23f920063c32d255dfa970fe6b489106aa751aaf2155731b156039cf"
+    },
+    {
+      "bytes": 2051,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-044b92231a.json.gz",
+      "sha256": "20fd1f2d8d82b9dc721c6b89ef7388cced6b4f04b8fee1ab41b0e68d5218d926"
+    },
+    {
+      "bytes": 2125,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-20cca1b57c.json.gz",
+      "sha256": "0bd1f8c29f8dbc843cc52c08e1b2b33ba2220d137d40ded0e62679a58b746c6d"
+    },
+    {
+      "bytes": 1841,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-306f39a607.json.gz",
+      "sha256": "738341532abd19dc2c6e449bef0b854eb59f8dd3aebf5dbb204696b90d617326"
+    },
+    {
+      "bytes": 1942,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-68f616e650.json.gz",
+      "sha256": "d011f92e948f5ccad054695286fc0c53feab8afdce24717e6f85022c93cb375a"
+    },
+    {
+      "bytes": 1833,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-845193cf60.json.gz",
+      "sha256": "183a44126b77eb01cfd21dd7543f44a2173c473fbaa6fa517f1ba857391522fd"
+    },
+    {
+      "bytes": 2270,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-86018fcd67.json.gz",
+      "sha256": "ad8e8aebe0e01802a05d4668a0d40fec2bc8c92baff27c1c69ea16323e7e811f"
+    },
+    {
+      "bytes": 1829,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-96dcaf7559.json.gz",
+      "sha256": "ea44228700eb23b20e6900c2c35defcbb3be7b8f9a6f418d1e22d43f1b91bbdc"
+    },
+    {
+      "bytes": 2247,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-bf1003e8c1.json.gz",
+      "sha256": "bd7560bf090c916b2ba8e919d91a6653ad9b818108eaeeb07d1e7fd2392d6471"
+    },
+    {
+      "bytes": 2105,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-c51732a008.json.gz",
+      "sha256": "078f739e594446e67e84035f5f696141888db38d981b277d97e7da6ea6c80fe4"
+    },
+    {
+      "bytes": 2292,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-d888078851.json.gz",
+      "sha256": "7e89ec1e4e8e10cdf044b15eecbecfe56711e479a623166f19686d095c470861"
+    },
+    {
+      "bytes": 4607,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-e78fda8e57.json.gz",
+      "sha256": "a91f2b4246f40d358eeb06d7e837bfa606c8271361ac95ea042b35e3d45584b4"
+    },
+    {
+      "bytes": 2015,
+      "path": "data/nextstep/pages_d_macos/font-book/font-book-ee7f51d997.json.gz",
+      "sha256": "c76dc9d79d94d13e566559dc6ab9c07f4234d9771df2fe855a2a8f41a14fb189"
+    },
+    {
+      "bytes": 942,
+      "path": "data/nextstep/pages_d_macos/grapher/grapher-24edec0e60.json.gz",
+      "sha256": "b44ff7c2214f451f7143651c429fcffefdcec50b7e6945a945e657f438c754f4"
+    },
+    {
+      "bytes": 797,
+      "path": "data/nextstep/pages_d_macos/grapher/grapher-2e9f39c391.json.gz",
+      "sha256": "1f1452b5e65c213d13be65712562d3b1ae86ddd1bd5744048f414b8a48cb2e5a"
+    },
+    {
+      "bytes": 577,
+      "path": "data/nextstep/pages_d_macos/grapher/grapher-48768c2069.json.gz",
+      "sha256": "e6e3f6e0bb3c46938453be343d85d5221c1b7b74f825606390bdccc192475655"
+    },
+    {
+      "bytes": 881,
+      "path": "data/nextstep/pages_d_macos/script-editor/script-editor-0e9fbe65c6.json.gz",
+      "sha256": "b4068ae82b69e00e4d57b57fa8c275b431b198f8d4882c7b44558735feb59803"
+    },
+    {
+      "bytes": 882,
+      "path": "data/nextstep/pages_d_macos/script-editor/script-editor-1762f6ef29.json.gz",
+      "sha256": "82efa0b07ffb1aa35a40cfa7c9a0e3f84158424eeb0c6485e127dd3a98cdcdea"
+    },
+    {
+      "bytes": 880,
+      "path": "data/nextstep/pages_d_macos/script-editor/script-editor-22ba33574c.json.gz",
+      "sha256": "d99a9c5ffd95798c03dd636d12d0b00f79e19d18d865f7fcfd967df0ef22dc87"
+    },
+    {
+      "bytes": 882,
+      "path": "data/nextstep/pages_d_macos/script-editor/script-editor-4dd1f17a96.json.gz",
+      "sha256": "e67a4eb13c3d809fe8c9fd2a774cfee3dd0a852a12113e587ed18fcb853eb0b9"
+    },
+    {
+      "bytes": 881,
+      "path": "data/nextstep/pages_d_macos/script-editor/script-editor-e0563fc90c.json.gz",
+      "sha256": "d21b32c0553c51b19a56f11a4880da8b317bea43e549b60e0937c44de0e20fd4"
     }
   ],
   "set": "d_macos",
-  "status": "not_recorded_permission_missing",
+  "status": "recorded",
   "tasks_file": {
-    "bytes": 18633,
+    "bytes": 20266,
     "path": "demo/tasks_desktop.yaml",
-    "sha256": "6afc06f09beecc4c8836a554d6d11fad092f7562eb669820543b3364960df774",
+    "sha256": "90b5cb7a4810815c9143b962400be1e092a2706101dfc71c9e3674d36cde340b",
     "tasks": 31
   }
 }

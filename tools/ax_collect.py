@@ -15,8 +15,6 @@ the terminal; without it the page is saved and a warning is shown). See docs/mac
 from __future__ import annotations
 
 import argparse
-import hashlib
-import re
 import subprocess
 import sys
 import time
@@ -24,8 +22,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
-from grounder.data.crawl import DEDUPE_JACCARD, TemplateIndex, text_signature
-from grounder.data.pages import load_page, page_paths, write_page
+from grounder.data.crawl import DEDUPE_JACCARD, TemplateIndex
+from grounder.data.pages import load_page, page_id_for, page_paths, slugify, text_signature, write_page
 from grounder.extract import ax
 from grounder.records import Page
 
@@ -37,17 +35,6 @@ SAVED, TOO_FEW, LEAK, DUPLICATE = "saved", "too few", "leak", "duplicate"
 
 Dump = Callable[[], dict[str, Any]]
 Screenshot = Callable[[list[float], list[int], Path], None]
-
-
-def slugify(name: str) -> str:
-    """A stable lowercase file-system name for an app ("Visual Studio Code" -> "visual-studio-code")."""
-    return re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") or "app"
-
-
-def page_id_for(site: str, page: Page) -> str:
-    """Deterministic and unique per distinct window content: site plus a hash of the text signature."""
-    digest = hashlib.sha1(repr(sorted(text_signature(page))).encode("utf-8")).hexdigest()[:10]
-    return f"{site}-{digest}"
 
 
 def screenshot_command(origin: list[float], size: list[int], path: Path) -> list[str]:
