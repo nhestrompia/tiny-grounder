@@ -49,6 +49,7 @@ import tldextract
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
 from grounder.data.blocklist import read_blocklist
+from grounder.data.dedupe import DEDUPE_JACCARD, TemplateIndex, jaccard
 from grounder.data.language import DEFAULT_MIN_ENGLISH, add_min_english_argument, english_pages
 from grounder.data.pages import iter_pages, text_signature, write_page
 from grounder.extract.web import extract_page
@@ -63,7 +64,6 @@ SPLIT_PERCENT: tuple[int, ...] = (90, 95, 100)  # cumulative upper bounds of tra
 TRANCO_URL = "https://tranco-list.eu/top-1m.csv.zip"
 LOG_NAME = "crawl_log.jsonl"
 MIN_ELEMENTS = 5
-DEDUPE_JACCARD = 0.9
 NAV_TIMEOUT_MS = 15_000
 SETTLE_MS = 500
 PAGE_BUDGET_S = 90
@@ -237,33 +237,6 @@ async def load_robots(client: httpx.AsyncClient, origin: str) -> RobotFileParser
 
 
 # --- template dedupe --------------------------------------------------------------------------
-
-
-def jaccard(a: frozenset, b: frozenset) -> float:
-    union = len(a | b)
-    return len(a & b) / union if union else 0.0
-
-
-class TemplateIndex:
-    """Remembers kept pages' signatures and flags near-duplicates (exact Jaccard >= `threshold`)."""
-
-    def __init__(self, threshold: float = DEDUPE_JACCARD) -> None:
-        self.threshold = threshold
-        self._by_size: dict[int, list[frozenset]] = {}
-
-    def is_duplicate(self, signature: frozenset) -> bool:
-        n = len(signature)
-        if n == 0:
-            return False
-        low, high = int(np.ceil(self.threshold * n)), int(n / self.threshold)
-        return any(
-            jaccard(signature, other) >= self.threshold
-            for size in range(low, high + 1)
-            for other in self._by_size.get(size, ())
-        )
-
-    def add(self, signature: frozenset) -> None:
-        self._by_size.setdefault(len(signature), []).append(signature)
 
 
 # --- log --------------------------------------------------------------------------------------

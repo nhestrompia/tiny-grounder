@@ -1,0 +1,305 @@
+{
+  "apps": {
+    "test": {
+      "installed": [
+        {
+          "app": "Audio MIDI Setup",
+          "launch_name": "Audio MIDI Setup"
+        },
+        {
+          "app": "Chess",
+          "launch_name": "Chess"
+        },
+        {
+          "app": "Keka",
+          "launch_name": "Keka"
+        },
+        {
+          "app": "Logic Pro",
+          "launch_name": "Logic Pro"
+        },
+        {
+          "app": "Podcasts",
+          "launch_name": "Podcasts"
+        },
+        {
+          "app": "VLC",
+          "launch_name": "VLC"
+        }
+      ],
+      "missing": []
+    },
+    "train": {
+      "installed": [
+        {
+          "app": "AirPort Utility",
+          "launch_name": "AirPort Utility"
+        },
+        {
+          "app": "Anki",
+          "launch_name": "Anki"
+        },
+        {
+          "app": "App Store",
+          "launch_name": "App Store"
+        },
+        {
+          "app": "Apps",
+          "launch_name": "Apps"
+        },
+        {
+          "app": "Bluetooth File Exchange",
+          "launch_name": "Bluetooth File Exchange"
+        },
+        {
+          "app": "Books",
+          "launch_name": "Books"
+        },
+        {
+          "app": "Calculator",
+          "launch_name": "Calculator"
+        },
+        {
+          "app": "Cap",
+          "launch_name": "Cap"
+        },
+        {
+          "app": "ColorSync Utility",
+          "launch_name": "ColorSync Utility"
+        },
+        {
+          "app": "Digital Color Meter",
+          "launch_name": "Digital Color Meter"
+        },
+        {
+          "app": "DockDoor",
+          "launch_name": "DockDoor"
+        },
+        {
+          "app": "Docker",
+          "launch_name": "Docker"
+        },
+        {
+          "app": "edge",
+          "launch_name": "edge"
+        },
+        {
+          "app": "Final Cut Pro",
+          "launch_name": "Final Cut Pro"
+        },
+        {
+          "app": "Flux",
+          "launch_name": "Flux"
+        },
+        {
+          "app": "Freeform",
+          "launch_name": "Freeform"
+        },
+        {
+          "app": "Games",
+          "launch_name": "Games"
+        },
+        {
+          "app": "Ghostty",
+          "launch_name": "Ghostty"
+        },
+        {
+          "app": "GitButler",
+          "launch_name": "GitButler"
+        },
+        {
+          "app": "Google Chrome",
+          "launch_name": "Google Chrome"
+        },
+        {
+          "app": "Hidden Bar",
+          "launch_name": "Hidden Bar"
+        },
+        {
+          "app": "Image Capture",
+          "launch_name": "Image Capture"
+        },
+        {
+          "app": "Image Playground",
+          "launch_name": "Image Playground"
+        },
+        {
+          "app": "JJazzLab",
+          "launch_name": "JJazzLab"
+        },
+        {
+          "app": "LinearMouse",
+          "launch_name": "LinearMouse"
+        },
+        {
+          "app": "Llama",
+          "launch_name": "Llama"
+        },
+        {
+          "app": "LTX Desktop",
+          "launch_name": "LTX Desktop"
+        },
+        {
+          "app": "Lys",
+          "launch_name": "Lys"
+        },
+        {
+          "app": "Magnifier",
+          "launch_name": "Magnifier"
+        },
+        {
+          "app": "Maps",
+          "launch_name": "Maps"
+        },
+        {
+          "app": "Music",
+          "launch_name": "Music"
+        },
+        {
+          "app": "News",
+          "launch_name": "News"
+        },
+        {
+          "app": "Open Ports",
+          "launch_name": "Open Ports"
+        },
+        {
+          "app": "Port Manager",
+          "launch_name": "Port Manager"
+        },
+        {
+          "app": "Preview",
+          "launch_name": "Preview"
+        },
+        {
+          "app": "Print Center",
+          "launch_name": "Print Center"
+        },
+        {
+          "app": "QuickTime Player",
+          "launch_name": "QuickTime Player"
+        },
+        {
+          "app": "Rectangle",
+          "launch_name": "Rectangle"
+        },
+        {
+          "app": "Rive",
+          "launch_name": "Rive"
+        },
+        {
+          "app": "Safari",
+          "launch_name": "Safari"
+        },
+        {
+          "app": "Screenshot",
+          "launch_name": "Screenshot"
+        },
+        {
+          "app": "Shortcuts",
+          "launch_name": "Shortcuts"
+        },
+        {
+          "app": "Spotify",
+          "launch_name": "Spotify"
+        },
+        {
+          "app": "Stats",
+          "launch_name": "Stats"
+        },
+        {
+          "app": "Stickies",
+          "launch_name": "Stickies"
+        },
+        {
+          "app": "Stocks",
+          "launch_name": "Stocks"
+        },
+        {
+          "app": "TextEdit",
+          "launch_name": "TextEdit"
+        },
+        {
+          "app": "Tips",
+          "launch_name": "Tips"
+        },
+        {
+          "app": "TONE3000",
+          "launch_name": "TONE3000"
+        },
+        {
+          "app": "TrellisWM",
+          "launch_name": "TrellisWM"
+        },
+        {
+          "app": "TV",
+          "launch_name": "TV"
+        },
+        {
+          "app": "TypeWhisper",
+          "launch_name": "TypeWhisper"
+        },
+        {
+          "app": "Unsloth",
+          "launch_name": "Unsloth"
+        },
+        {
+          "app": "Visual Studio Code",
+          "launch_name": "Visual Studio Code"
+        },
+        {
+          "app": "VoiceOver Utility",
+          "launch_name": "VoiceOver Utility"
+        },
+        {
+          "app": "Vorssaint",
+          "launch_name": "Vorssaint"
+        },
+        {
+          "app": "Weather",
+          "launch_name": "Weather"
+        },
+        {
+          "app": "Xcode",
+          "launch_name": "Xcode"
+        }
+      ],
+      "missing": []
+    }
+  },
+  "collection": {
+    "coherent_walks": 0,
+    "examples": 0,
+    "privacy_scrub_counts": {},
+    "safety_denials": {},
+    "states": 0,
+    "walks": 0
+  },
+  "collector_probe": {
+    "command": "uv run python tools/ax_auto.py --mode walks --out data/mac_walks --split train --apps Calculator --walk-budget 1 --state-budget 1 --max-steps 1",
+    "exit_code": 4,
+    "stderr": "the macOS session is at loginwindow (locked or curtained); GUI collection cannot run"
+  },
+  "created_at": "2026-11-26T04:34:35.363727+00:00",
+  "data_committed": false,
+  "loginwindow_frontmost": true,
+  "manifest_committed": false,
+  "model": {
+    "gguf_bytes": 14439363584,
+    "gguf_sha256": "3eca3b8f6d7baf218a7dd6bba5fb59a56ee25fe2d567b6f5f589b4f697eca51d",
+    "license": "Apache-2.0",
+    "name": "google/gemma-4-26B-A4B-it-qat-q4_0-gguf"
+  },
+  "note": "No walk data or next-step examples were produced, so there is no dataset manifest. This report is evidence of the pre-collection environment blocker, not a build report.",
+  "reason": "macOS GUI session is at loginwindow (locked or curtained); axdump reports no accessible window for every application",
+  "screen_recording": {
+    "available": false,
+    "reason": "could not create image from rect"
+  },
+  "status": "blocked_before_collection",
+  "tests": {
+    "command": "uv run pytest -q",
+    "exit_code": 0,
+    "result": "750 passed, 24 skipped"
+  }
+}
