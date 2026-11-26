@@ -247,8 +247,16 @@ class SystemEventsDriver:
     def is_running(self, app: str) -> bool:
         return self._osascript(f"application {applescript_string(app)} is running") == "true"
 
-    def launch(self, app: str) -> None:
-        self._check(["open", "-a", app])
+    def launch(self, app: str, attempts: int = 4) -> None:
+        """`open -a`, retried: LaunchServices returns -609 for a short while after the app has quit."""
+        for attempt in range(attempts):
+            try:
+                self._check(["open", "-a", app])
+                return
+            except RuntimeError:
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(2.0 * (attempt + 1))
 
     def frontmost(self) -> str:
         return self._osascript(
@@ -395,7 +403,12 @@ class DesktopRecorder:
         """Run one task. If a step cannot be resolved/performed, later steps are not attempted."""
         result = TaskResult()
         was_running = self.driver.is_running(task.app)
-        self.driver.launch(task.app)
+        try:
+            self.driver.launch(task.app)
+        except RuntimeError as exc:  # the app never opened: the whole task is dropped, the run continues
+            first = task.path[0]
+            result.drops.append(Drop(task.id, 0, first.action, DROP_ACTION_ERROR, f"launch: {exc}"))
+            return result
         self.sleep(self.settle)
         initial_windows = self.driver.window_count(task.app)
         try:
