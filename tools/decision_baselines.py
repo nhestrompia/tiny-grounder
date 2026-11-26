@@ -24,7 +24,7 @@ from grounder.data.pages import load_page
 from grounder_tool.rankers import make_ranker
 from tools.next_step_recall import hit_at_distinct
 
-DECISIONS = ("show", "next", "enough", "worked", "done")
+DECISIONS = ("show", "next", "enough", "enough_v2", "worked", "worked_v2", "done")
 VISUAL_PATTERNS = (
     "icon", "magnifier", "logo", "image", "picture", "visual", "screenshot", "top bar", "bottom",
     "far right", "small menu", "button in the header", "footer",
@@ -64,6 +64,8 @@ def binary_metrics(y: list[bool], pred: list[bool], scores: list[float] | None =
         "n": len(y), "base_rate": mean(y), "accuracy": (tp + tn) / len(y) if y else 0.0,
         "precision": tp / (tp + fp) if tp + fp else None,
         "recall": tp / (tp + fn) if tp + fn else None,
+        "negative_precision": tn / (tn + fn) if tn + fn else None,
+        "negative_recall": tn / (tn + fp) if tn + fp else None,
         "tp": tp, "fp": fp, "fn": fn, "tn": tn,
     }
     if scores is not None and any(y) and not all(y):
@@ -130,11 +132,28 @@ def action_type_baselines(rows: list[dict[str, Any]], pages: dict[str, Any]) -> 
     }
 
 
+def empty_text_ratio(page: Any) -> float:
+    interactive = [e for e in page.elements if e.role not in {"text", "image"}] or page.elements
+    return sum(not e.text.strip() for e in interactive) / len(interactive) if interactive else 0.0
+
+
+def per_arm_base_rates(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    counts: dict[str, Counter] = {}
+    for row in rows:
+        arm = row["provenance"]["arm"]
+        counts.setdefault(arm, Counter())
+        counts[arm]["n"] += 1
+        counts[arm]["positive"] += int(bool(row["label"]))
+    return {
+        arm: {"n": c["n"], "positive": c["positive"], "base_rate": c["positive"] / c["n"] if c["n"] else 0.0}
+        for arm, c in sorted(counts.items())
+    }
+
+
 def visual_score(row: dict[str, Any], page: Any) -> float:
     goal = row["goal"].casefold()
     phrase_hit = any(pattern in goal for pattern in VISUAL_PATTERNS)
-    interactive = [e for e in page.elements if e.role not in {"text", "image"}] or page.elements
-    empty_ratio = sum(not e.text.strip() for e in interactive) / len(interactive) if interactive else 0.0
+    empty_ratio = empty_text_ratio(page)
     return min(1.0, (0.7 if phrase_hit else 0.0) + 0.3 * empty_ratio)
 
 
@@ -161,40 +180,54 @@ def answer_overlap_score(row: dict[str, Any], page: Any) -> float:
     return best
 
 
-def binary_baseline_report(rows: list[dict[str, Any]], pages: dict[str, Any], decision: str) -> dict[str, Any]:
+def binary_baseline_report(rows: list[dict[str, Any]], pages: dict[str, Any], decision: str,
+                           include_arm_baseline: bool = True) -> dict[str, Any]:
     y = [bool(row["label"]) for row in rows]
     majority_label = mean(y) >= 0.5
     majority_pred = [majority_label] * len(y)
-    scores: list[float] = []
+
+    def empty_scores() -> list[float]:
+        return [
+            empty_text_ratio(pages[row["page_id"]]) if row["page_id"] in pages else 0.0
+            for row in rows
+        ]
+
+    def url_scores() -> list[float]:
+        return [1.0 if row["features"]["url_changed_after_previous_action"] else 0.0 for row in rows]
+
+    heuristic_specs: list[tuple[str, list[float], str, float]] = []
+    if decision in {"enough", "worked"}:
+        scores = url_scores()
+        heuristic_specs.append(("url_changed_after_action", scores, ">=", 0.5))
+        scores = empty_scores()
+        heuristic_specs.append(("empty_text_ratio", scores, ">", 0.0))
     if decision == "enough":
-        for row in rows:
-            page = pages.get(row["page_id"])
-            scores.append(visual_score(row, page) if page is not None else 0.0)
-        threshold = 0.5
-        heuristic = "visual_terms_and_empty_text_ratio"
-    elif decision == "worked":
-        scores = [1.0 if row["features"]["url_changed_after_previous_action"] else 0.0 for row in rows]
-        threshold = 0.5
-        heuristic = "url_changed_after_action"
-    elif decision == "done":
-        for row in rows:
-            page = pages.get(row["page_id"])
-            scores.append(answer_overlap_score(row, page) if page is not None else 0.0)
-        threshold = 0.5
-        heuristic = "goal_line_token_overlap"
-    else:
-        raise ValueError(decision)
-    pred = [score >= threshold for score in scores]
-    report = {
-        "majority": binary_metrics(y, majority_pred),
-        heuristic: {
+        scores = [
+            visual_score(row, pages[row["page_id"]]) if row["page_id"] in pages else 0.0
+            for row in rows
+        ]
+        heuristic_specs.append(("visual_terms_and_empty_text_ratio", scores, ">=", 0.5))
+    if decision == "done":
+        scores = [
+            answer_overlap_score(row, pages[row["page_id"]]) if row["page_id"] in pages else 0.0
+            for row in rows
+        ]
+        heuristic_specs.append(("goal_line_token_overlap", scores, ">=", 0.5))
+
+    report = {"majority": binary_metrics(y, majority_pred)}
+    for name, scores, comparison, threshold in heuristic_specs:
+        if comparison == ">":
+            pred = [score > threshold for score in scores]
+        else:
+            pred = [score >= threshold for score in scores]
+        report[name] = {
             **binary_metrics(y, pred, scores),
             "threshold": threshold,
+            "comparison": comparison,
             "score_min": min(scores) if scores else 0.0,
             "score_max": max(scores) if scores else 0.0,
-        },
-    }
-    if decision == "enough":
+        }
+    if decision == "enough" and include_arm_baseline:
         arm_scores = [1.0 if row["features"]["arm"] == "vision" else 0.0 for row in rows]
         arm_pred = [bool(score) for score in arm_scores]
         report["vision_arm"] = binary_metrics(y, arm_pred, arm_scores)
@@ -203,18 +236,22 @@ def binary_baseline_report(rows: list[dict[str, Any]], pages: dict[str, Any], de
 
 def evaluate(dev_decisions: Path) -> dict[str, Any]:
     report: dict[str, Any] = {"split": "dev", "decisions": {}}
-    for decision in DECISIONS:
-        rows = read_jsonl(dev_decisions / decision / "dev.jsonl")
+    for dataset in DECISIONS:
+        semantic = dataset.removesuffix("_v2")
+        rows = read_jsonl(dev_decisions / dataset / "dev.jsonl")
         pages = load_pages(dev_decisions, rows)
-        entry: dict[str, Any] = {"n": len(rows), "pages": len(pages)}
-        if decision in {"show", "next"}:
+        entry: dict[str, Any] = {"n": len(rows), "pages": len(pages), "semantic_decision": semantic}
+        if semantic in {"show", "next"}:
             entry["target_ranking"] = target_rank_baselines(rows, pages)
-        if decision == "next":
+        if semantic == "next":
             entry["action_type"] = action_type_baselines(rows, pages)
-        if decision in {"enough", "worked", "done"}:
+        if semantic in {"enough", "worked", "done"}:
             entry["base_rate"] = mean([bool(row["label"]) for row in rows])
-            entry["binary"] = binary_baseline_report(rows, pages, decision)
-        report["decisions"][decision] = entry
+            entry["per_arm_base_rates"] = per_arm_base_rates(rows)
+            entry["binary"] = binary_baseline_report(
+                rows, pages, semantic, include_arm_baseline=(dataset == "enough"),
+            )
+        report["decisions"][dataset] = entry
     return report
 
 
@@ -234,6 +271,12 @@ def markdown_tables(report: dict[str, Any]) -> str:
             lines.append(f"| NEXT | textbox → type rule | accuracy | {action['textbox_type_rule']['accuracy']:.3f} |")
         if "binary" in entry:
             lines.append(f"| {decision.upper()} | base rate | positive share | {entry['base_rate']:.3f} |")
+            if decision.startswith(("enough", "worked")):
+                for arm, arm_row in entry.get("per_arm_base_rates", {}).items():
+                    lines.append(
+                        f"| {decision.upper()} | base rate arm={arm} | positive share (n) | "
+                        f"{arm_row['base_rate']:.3f} (n={arm_row['n']}) |"
+                    )
             for name, row in entry["binary"].items():
                 auroc_text = "n/a" if row.get("auroc") is None else f"{row['auroc']:.3f}"
                 precision = "n/a" if row.get("precision") is None else f"{row['precision']:.3f}"

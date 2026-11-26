@@ -30,15 +30,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from grounder.data.pages import page_paths, write_page
+from grounder.data.pages import load_page, page_paths, write_page
 from grounder.records import Element, action_repr
-from tools.harvest_queries import parse_action, read_run
+from tools.harvest_queries import map_rows, parse_action, read_run
 from tools.next_step_recall import build_bench
 
 ACTION_TOOLS = {"click", "type", "fill", "go_back", "click_xy", "type_text", "scroll"}
 OBSERVATION_TOOLS = {"snapshot", "observe", "find", "inspect", "read", "screenshot"}
 TEXT_RECHECK_TOOLS = {"snapshot", "observe", "find", "inspect", "read"}
 COMMITMENT_TOOLS = ACTION_TOOLS | {"done"}
+SHOW_NEXT_DROP_KEYS = {"duplicates", "element_unrecoverable", "page_unrecoverable", "unlabelled_or_failed_action"}
 
 SOURCE_TASKS = {
     "bench-v2": "demo/tasks_v2.yaml",
@@ -91,7 +92,7 @@ def scan_states(events: list[dict[str, Any]], start_url: str) -> list[dict[str, 
         after = urls[-1] if urls else before
         info = {
             "event": ev, "order": order, "name": name, "args": ev.get("args", {}),
-            "is_error": bool(ev.get("is_error")), "url_before": before, "url_after": after,
+            "is_error": bool(ev.get("is_error")), "url_before": before, "url_after": after, "result": result,
         }
         states[-1]["events"].append(info)
         url = after
@@ -187,16 +188,92 @@ def page_id_for(har: str, task_id: str, url: str) -> str:
     return "next-" + hashlib.sha256(f"{har}\0{task_id}\0{url}".encode()).hexdigest()[:20]
 
 
+def parsed_target_key(action: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Semantic target key of a successful click/type action, normalised to Page roles."""
+    parsed = parse_action(action.get("result") or "")
+    if not parsed:
+        return None
+    verb, role, text = parsed
+    if verb != action.get("name"):
+        return None
+    normalised_role = _TAGS.get(role, role)
+    normalised_text = re.sub(r"\s+", " ", text).strip().casefold()
+    return (action.get("name", ""), normalised_role, normalised_text)
+
+
+def same_target_retry_v2(previous: dict[str, Any], next_call: dict[str, Any]) -> bool:
+    """Whether a later action retries the same target; raw-id fallback requires the same page."""
+    if previous["name"] != next_call["name"]:
+        return False
+    previous_key = parsed_target_key(previous)
+    next_key = parsed_target_key(next_call)
+    if previous_key is not None and next_key is not None:
+        return previous_key == next_key
+    if previous.get("url_after") != next_call.get("url_before"):
+        return False
+    a, b = previous["args"], next_call["args"]
+    if previous["name"] in {"click", "type"} and ("id" in a or "id" in b):
+        return a.get("id") == b.get("id")
+    if previous["name"] == "click_xy":
+        return (abs(float(a.get("x", -1.0)) - float(b.get("x", -2.0))) <= 2.0
+                and abs(float(a.get("y", -1.0)) - float(b.get("y", -2.0))) <= 2.0)
+    if previous["name"] == "fill":
+        ids = lambda fields: sorted(str(f.get("id")) for f in fields if isinstance(f, dict))
+        return ids(a.get("fields", [])) == ids(b.get("fields", [])) and bool(ids(a.get("fields", [])))
+    return False
+
+
+def target_exists_in_page(page: Any, action: dict[str, Any]) -> bool | None:
+    """Whether the action's parsed target has any plausible match in a replayed page."""
+    if page is None:
+        return None
+    parsed = parse_action(action.get("result") or "")
+    if not parsed:
+        return None
+    _verb, role, text = parsed
+    role = _TAGS.get(role, role)
+    return bool(map_rows(page.elements, [{"role": role, "text": text}], by_context=False))
+
+
+def worked_progress_label(previous_action: dict[str, Any] | None, future_actions: list[dict[str, Any]],
+                          run_success: bool, pre_action_page: Any = None) -> tuple[bool | None, str]:
+    """Progress-based WORKED v2 label.
+
+    Re-observation is evidence neither of failure nor success. Only errors, retries within two committed actions,
+    successful completion, or a next target absent from the pre-action page produce a label.
+    """
+    if previous_action is None or not future_actions:
+        return None, "not_applicable"
+    if previous_action["is_error"]:
+        return False, "tool_error"
+    for action in future_actions[:2]:
+        if same_target_retry_v2(previous_action, action):
+            return False, "retry_same_target_within_2_actions"
+    next_call = future_actions[0]
+    if next_call["name"] == "done" and run_success:
+        return True, "done_after_action_and_run_successful"
+    if next_call["name"] in {"click", "type"}:
+        exists = target_exists_in_page(pre_action_page, next_call)
+        if exists is False:
+            return True, "next_action_target_not_in_pre_action_page"
+        if exists is True:
+            return None, "next_action_target_already_existed"
+        if pre_action_page is None:
+            return None, "pre_action_page_unrecoverable"
+        return None, "next_action_target_unparseable"
+    return None, "no_progress_evidence"
+
+
 def state_records(run: dict[str, Any], run_dir: str, task: Any, events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], Counter]:
     """Decision states of one run before page availability is known."""
     drops: Counter = Counter()
-    records = []
     arm = run.get("arm", run.get("config", ""))
     site = run.get("site", "")
     if site in FROZEN_TEST_SITES:
         drops["frozen_test_site"] += 1
         return [], drops
     har = getattr(task, "har", "") or f"data/bench_v2/har/{task.id}.zip"
+    states = []
     for state in scan_states(events, task.start_url):
         next_call, observations = commitment(state)
         if next_call is None:
@@ -206,10 +283,18 @@ def state_records(run: dict[str, Any], run_dir: str, task: Any, events: list[dic
         if not url.startswith(("http://", "https://")):
             drops["bad_url"] += 1
             continue
+        states.append((state, next_call, observations, url))
+
+    records = []
+    for index, (state, next_call, observations, url) in enumerate(states):
         previous = state["previous_action"]
+        future_actions = [next_call]
+        if index + 1 < len(states):
+            future_actions.append(states[index + 1][1])
         enough, enough_reason = enough_label(observations, previous, bool(run.get("success")))
         done, done_reason = done_label(next_call, bool(run.get("success")))
         worked = worked_label(previous, next_call, observations)
+        pre_action_url = previous["url_before"] if previous else ""
         record = {
             "goal": run.get("goal") or task.goal,
             "history": state["history"],
@@ -228,6 +313,12 @@ def state_records(run: dict[str, Any], run_dir: str, task: Any, events: list[dic
             "next_call": next_call["name"],
             "observations": observations,
             "previous_action": previous,
+            "future_actions": future_actions,
+            "pre_action_url": pre_action_url,
+            "pre_action_page_id": (
+                page_id_for(har, task.id, pre_action_url)
+                if pre_action_url.startswith(("http://", "https://")) else ""
+            ),
             "labels": {"enough": (enough, enough_reason), "done": (done, done_reason), "worked": worked},
         }
         records.append(record)
@@ -384,7 +475,7 @@ def provenance(rec: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def base_row(decision: str, rec: dict[str, Any], label: Any, reason: str) -> dict[str, Any]:
+def base_row(decision: str, rec: dict[str, Any], label: Any, reason: str, rule: str | None = None) -> dict[str, Any]:
     previous = rec.get("previous_action")
     return {
         "decision": decision,
@@ -393,7 +484,7 @@ def base_row(decision: str, rec: dict[str, Any], label: Any, reason: str) -> dic
         "page_id": rec["page_id"],
         "label": label,
         "provenance": provenance(rec),
-        "rule": RULES[decision],
+        "rule": rule or RULES[decision],
         "label_reason": reason,
         "features": {
             "arm": rec["arm"],
@@ -424,6 +515,129 @@ def behavioural_rows(records: list[dict[str, Any]], available_pages: set[str]) -
         else:
             label, reason = worked
             rows["worked"].append(base_row("worked", rec, label, reason))
+    return rows, drops
+
+
+def is_text_arm(arm: str) -> bool:
+    return arm == "a11y-cap" or arm.startswith("find")
+
+
+def load_enough_pairs(source_root: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    """Text/vision run outcomes by task-level (task, agent) counterfactual pair."""
+    pairs: dict[tuple[str, str], dict[str, Any]] = defaultdict(
+        lambda: {"text_runs": {}, "vision_successes": []}
+    )
+    for run_dir in SOURCE_TASKS:
+        rows_path = source_root / "runs" / run_dir / "runs.jsonl"
+        if not rows_path.exists():
+            continue
+        for line in rows_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            arm = row.get("arm", row.get("config", ""))
+            key = (row["task_id"], row.get("agent", ""))
+            if is_text_arm(arm):
+                pairs[key]["text_runs"][(run_dir, "__".join(run_key(row)))] = bool(row.get("success"))
+            elif arm == "vision":
+                pairs[key]["vision_successes"].append(bool(row.get("success")))
+    return {
+        key: value for key, value in pairs.items()
+        if value["text_runs"] and value["vision_successes"]
+    }
+
+
+def enough_pair_report(pairs: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any]:
+    negative_runs = 0
+    positive_runs = 0
+    dropped_runs = 0
+    for value in pairs.values():
+        vision_success = any(value["vision_successes"])
+        for text_success in value["text_runs"].values():
+            if text_success:
+                negative_runs += 1
+            elif vision_success:
+                positive_runs += 1
+            else:
+                dropped_runs += 1
+    return {
+        "qualifying_pairs": len(pairs),
+        "pairs_with_any_vision_success": sum(any(v["vision_successes"]) for v in pairs.values()),
+        "pairs_with_all_vision_failed": sum(not any(v["vision_successes"]) for v in pairs.values()),
+        "text_runs_in_qualifying_pairs": sum(len(v["text_runs"]) for v in pairs.values()),
+        "negative_text_runs": negative_runs,
+        "positive_text_runs": positive_runs,
+        "dropped_text_runs_both_failed": dropped_runs,
+        "text_run_positive_base_rate": positive_runs / (positive_runs + negative_runs) if positive_runs + negative_runs else None,
+        "vision_success_policy": "any successful vision run for the (task, agent) pair",
+    }
+
+
+def enough_v2_rows(records: list[dict[str, Any]], available_pages: set[str],
+                   pairs: dict[tuple[str, str], dict[str, Any]]) -> tuple[list[dict[str, Any]], Counter]:
+    """Task-level counterfactual ENOUGH labels for text-arm states only."""
+    rows: list[dict[str, Any]] = []
+    drops: Counter = Counter()
+    for rec in records:
+        if rec["page_id"] not in available_pages:
+            drops["enough_v2:page_unrecoverable"] += 1
+            continue
+        if not is_text_arm(rec["arm"]):
+            drops["enough_v2:not_text_arm"] += 1
+            continue
+        pair = pairs.get((rec["task_id"], rec["agent"]))
+        if pair is None:
+            drops["enough_v2:no_paired_vision"] += 1
+            continue
+        run_key2 = (rec["run_dir"], rec["run_id"])
+        if run_key2 not in pair["text_runs"]:
+            drops["enough_v2:no_paired_text_run"] += 1
+            continue
+        if rec["run_success"]:
+            rows.append(base_row("enough", rec, False, "text_arm_succeeded", rule="enough.paired_arm_v2"))
+        elif any(pair["vision_successes"]):
+            rows.append(base_row("enough", rec, True, "text_failed_and_vision_succeeded", rule="enough.paired_arm_v2"))
+        else:
+            drops["enough_v2:both_text_and_vision_failed"] += 1
+    return rows, drops
+
+
+def worked_v2_rows(records: list[dict[str, Any]], available_pages: set[str],
+                   pages_dir: Path) -> tuple[list[dict[str, Any]], Counter]:
+    """Progress-based WORKED labels, loading pre-action pages only when target comparison needs them."""
+    rows: list[dict[str, Any]] = []
+    drops: Counter = Counter()
+    page_files = {path.name.removesuffix(".json.gz"): path for path in page_paths(pages_dir)} if pages_dir.exists() else {}
+    page_cache: dict[str, Any] = {}
+
+    def cached_page(page_id: str) -> Any:
+        if not page_id or page_id not in page_files:
+            return None
+        if page_id not in page_cache:
+            page_cache[page_id] = load_page(page_files[page_id])
+        return page_cache[page_id]
+
+    for rec in records:
+        if rec["previous_action"] is None:
+            drops["worked_v2:no_previous_action"] += 1
+            continue
+        if not rec.get("future_actions"):
+            drops["worked_v2:no_next_commitment"] += 1
+            continue
+        if rec["page_id"] not in available_pages:
+            drops["worked_v2:page_unrecoverable"] += 1
+            continue
+        pre_page = cached_page(rec.get("pre_action_page_id", ""))
+        label, reason = worked_progress_label(
+            rec["previous_action"], rec.get("future_actions", []), rec["run_success"], pre_page,
+        )
+        if label is None:
+            if rec.get("observations"):
+                drops["worked_v2:reobservation_without_progress_evidence"] += 1
+            else:
+                drops[f"worked_v2:{reason}"] += 1
+            continue
+        rows.append(base_row("worked", rec, label, reason, rule="worked.progress_v2"))
     return rows, drops
 
 
@@ -554,6 +768,50 @@ def write_splits(rows: dict[str, list[dict[str, Any]]], out_dir: Path) -> tuple[
     return summary, assignment
 
 
+def per_arm_base_rates(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    counts: dict[str, Counter] = defaultdict(Counter)
+    for row in rows:
+        arm = row["provenance"]["arm"]
+        counts[arm]["n"] += 1
+        counts[arm]["positive"] += int(bool(row["label"]))
+    return {
+        arm: {"n": c["n"], "positive": c["positive"], "base_rate": c["positive"] / c["n"] if c["n"] else 0.0}
+        for arm, c in sorted(counts.items())
+    }
+
+
+def write_v2_splits(v2_rows: dict[str, list[dict[str, Any]]], assignment: dict[str, str],
+                    out_dir: Path) -> dict[str, Any]:
+    """Write auxiliary v2 datasets with the v1 site assignment unchanged."""
+    summary: dict[str, Any] = {}
+    for name, rows in sorted(v2_rows.items()):
+        out = out_dir / name
+        out.mkdir(parents=True, exist_ok=True)
+        decision_summary: dict[str, Any] = {"rows": {}, "sites": {}, "base_rates": {}, "per_arm_base_rates": {}}
+        reasons: Counter = Counter(row["label_reason"] for row in rows)
+        for split in SPLIT_RATIOS:
+            split_rows = []
+            for row in rows:
+                row_split = assignment.get(row["provenance"]["site"])
+                if row_split != split:
+                    continue
+                row = dict(row)
+                row["split"] = split
+                split_rows.append(row)
+            with open(out / f"{split}.jsonl", "w", encoding="utf-8") as fh:
+                for row in split_rows:
+                    fh.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+            decision_summary["rows"][split] = len(split_rows)
+            decision_summary["sites"][split] = len({r["provenance"]["site"] for r in split_rows})
+            decision_summary["base_rates"][split] = (
+                sum(bool(r["label"]) for r in split_rows) / len(split_rows) if split_rows else None
+            )
+            decision_summary["per_arm_base_rates"][split] = per_arm_base_rates(split_rows)
+        decision_summary["label_reasons"] = dict(sorted(reasons.items()))
+        summary[name] = decision_summary
+    return summary
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -562,11 +820,15 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_test_manifest(out_dir: Path) -> dict[str, Any]:
-    """Freeze the test rows and every page they reference by SHA-256."""
+def write_test_manifest(out_dir: Path, decisions: tuple[str, ...] = DECISIONS,
+                        filename: str = "test-manifest.json", preserve_existing: bool = False) -> dict[str, Any]:
+    """Freeze test rows and every page they reference by SHA-256."""
+    target = out_dir / filename
+    if preserve_existing and target.exists():
+        return json.loads(target.read_text())
     referenced_pages = set()
     entries = []
-    for decision in DECISIONS:
+    for decision in decisions:
         path = out_dir / decision / "test.jsonl"
         if not path.exists():
             continue
@@ -582,9 +844,10 @@ def write_test_manifest(out_dir: Path) -> dict[str, Any]:
         "version": 1,
         "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "algorithm": "sha256",
+        "decisions": list(decisions),
         "files": entries,
     }
-    (out_dir / "test-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    target.write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
@@ -645,12 +908,19 @@ def extract(args: argparse.Namespace) -> dict[str, Any]:
     rows_show_next, show_next_drops = show_next_rows(source_root, ROOT, pages_dir)
     available = cached_page_ids(pages_dir) & {r["page_id"] for r in records}
     rows_behavioural, behavioural_drops = behavioural_rows(records, available)
+    enough_pairs = load_enough_pairs(source_root)
+    rows_enough_v2, enough_v2_drops = enough_v2_rows(records, available, enough_pairs)
+    rows_worked_v2, worked_v2_drops = worked_v2_rows(records, available, pages_dir)
     rows = merge_rows([rows_behavioural, rows_show_next])
     split_summary, assignment = write_splits(rows, out_dir)
-    manifest = write_test_manifest(out_dir)
+    v2_summary = write_v2_splits({"enough_v2": rows_enough_v2, "worked_v2": rows_worked_v2}, assignment, out_dir)
+    manifest = write_test_manifest(out_dir, preserve_existing=True)
+    manifest_v2 = write_test_manifest(
+        out_dir, decisions=("enough_v2", "worked_v2"), filename="test-manifest-v2.json",
+    )
     audit = screenshot_audit(source_root, scan_agent_images=not args.skip_agent_image_scan)
     drops: Counter = Counter()
-    for part in (scan_drops, page_drops, behavioural_drops, show_next_drops):
+    for part in (scan_drops, page_drops, behavioural_drops, enough_v2_drops, worked_v2_drops, show_next_drops):
         drops.update(part)
     show_next_counts = {}
     for run_dir in SOURCE_TASKS:
@@ -670,6 +940,9 @@ def extract(args: argparse.Namespace) -> dict[str, Any]:
         "screenshot_audit": audit,
         "split_assignment": assignment,
         "test_manifest_files": len(manifest["files"]),
+        "test_manifest_v2_files": len(manifest_v2["files"]),
+        "decisions_v2": v2_summary,
+        "enough_v2_pairs": enough_pair_report(enough_pairs),
         "artifact_bytes": sum(p.stat().st_size for p in out_dir.rglob("*") if p.is_file()),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")

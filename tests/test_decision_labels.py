@@ -3,10 +3,10 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from grounder.records import Example
+from grounder.records import Element, Example, Page
 from tools.decision_labels import (
-    commitment, done_label, enough_label, rows_from_next_examples, same_target_retry,
-    scan_states, state_records, worked_label,
+    commitment, done_label, enough_label, enough_v2_rows, rows_from_next_examples, same_target_retry,
+    scan_states, state_records, worked_label, worked_progress_label,
 )
 from tools.harvest_queries import read_run
 from tools.next_step_recall import parse_steps
@@ -18,9 +18,9 @@ def events(name):
     return read_run(str(FIXTURES / name))[0]
 
 
-def run(success=True):
+def run(success=True, arm="fixture"):
     return {
-        "agent": "claude:test", "config": "fixture", "arm": "fixture", "task_id": "fixture-task",
+        "agent": "claude:test", "config": arm, "arm": arm, "task_id": "fixture-task",
         "repeat": 0, "success": success, "site": "example.org",
     }
 
@@ -29,8 +29,8 @@ def task():
     return SimpleNamespace(id="fixture-task", start_url="https://example.org/", goal="fixture goal", har="fixture.zip")
 
 
-def records(name, success=True):
-    return state_records(run(success), "fixture-runs", task(), events(name))[0]
+def records(name, success=True, arm="fixture"):
+    return state_records(run(success, arm), "fixture-runs", task(), events(name))[0]
 
 
 def test_scan_states_groups_observations_before_the_next_commitment():
@@ -143,3 +143,85 @@ def test_assign_sites_keeps_sites_disjoint_and_covers_all():
     assert len(assignment) == 20
     assert set(assignment.values()) == {"train", "dev", "test"}
     assert len(assignment) == len(set(assignment))
+
+
+def test_enough_v2_uses_paired_text_and_vision_outcomes():
+    recs = records("success_text.server.jsonl", success=True, arm="a11y-cap")
+    run_id = recs[0]["run_id"]
+    pair = {
+        ("fixture-task", "claude:test"): {
+            "text_runs": {("fixture-runs", run_id): True},
+            "vision_successes": [True],
+        }
+    }
+    available = {rec["page_id"] for rec in recs}
+    rows, drops = enough_v2_rows(recs, available, pair)
+    assert len(rows) == len(recs)
+    assert all(row["label"] is False for row in rows)
+    assert {row["label_reason"] for row in rows} == {"text_arm_succeeded"}
+    assert {row["rule"] for row in rows} == {"enough.paired_arm_v2"}
+    assert not drops
+
+    failed_recs = records("success_text.server.jsonl", success=False, arm="a11y-cap")
+    pair[("fixture-task", "claude:test")]["text_runs"] = {("fixture-runs", run_id): False}
+    rows, drops = enough_v2_rows(failed_recs, {rec["page_id"] for rec in failed_recs}, pair)
+    assert len(rows) == len(failed_recs)
+    assert all(row["label"] is True for row in rows)
+    assert {row["label_reason"] for row in rows} == {"text_failed_and_vision_succeeded"}
+
+    pair[("fixture-task", "claude:test")]["vision_successes"] = [False]
+    rows, drops = enough_v2_rows(failed_recs, {rec["page_id"] for rec in failed_recs}, pair)
+    assert rows == []
+    assert drops["enough_v2:both_text_and_vision_failed"] == len(failed_recs)
+
+    rows, drops = enough_v2_rows(failed_recs, {rec["page_id"] for rec in failed_recs}, {})
+    assert rows == []
+    assert drops["enough_v2:no_paired_vision"] == len(failed_recs)
+
+
+def test_worked_v2_find_recheck_does_not_count_as_failure():
+    recs = records("find_recheck_progress.server.jsonl", success=True, arm="find[exact]")
+    rec = recs[1]
+    assert rec["observations"][0]["name"] == "find"
+    pre_page = Page(
+        "pre", "https://example.org/", "example.org", "Home", [1280, 800], [1280, 800],
+        [Element(1, "link", "Docs"), Element(2, "link", "Home")],
+    )
+    assert worked_progress_label(rec["previous_action"], rec["future_actions"], True, pre_page) == (
+        True, "next_action_target_not_in_pre_action_page",
+    )
+
+
+def test_worked_v2_retry_within_two_actions_is_negative_even_after_recheck():
+    recs = records("find_recheck_retry.server.jsonl", success=True, arm="find[exact]")
+    rec = recs[1]
+    assert rec["observations"][0]["name"] == "find"
+    assert [action["name"] for action in rec["future_actions"]] == ["click", "click"]
+    assert worked_progress_label(rec["previous_action"], rec["future_actions"], True, None) == (
+        False, "retry_same_target_within_2_actions",
+    )
+
+
+def test_worked_v2_successful_done_is_positive_and_tool_error_negative():
+    recs = records("success_text.server.jsonl", success=True)
+    assert worked_progress_label(
+        recs[2]["previous_action"], recs[2]["future_actions"], True, None,
+    ) == (True, "done_after_action_and_run_successful")
+
+    failed = records("failure_retry.server.jsonl", success=False)
+    assert worked_progress_label(
+        failed[1]["previous_action"], failed[1]["future_actions"], False, None,
+    ) == (False, "tool_error")
+
+
+def test_worked_v2_reobservation_alone_is_not_a_label():
+    recs = records("success_text.server.jsonl", success=True, arm="find[exact]")
+    rec = recs[1]
+    assert rec["observations"][0]["name"] == "snapshot"
+    pre_page = Page(
+        "pre", "https://example.org/", "example.org", "Home", [1280, 800], [1280, 800],
+        [Element(1, "link", "Docs"), Element(2, "textbox", "Search")],
+    )
+    label, reason = worked_progress_label(rec["previous_action"], rec["future_actions"], True, pre_page)
+    assert label is None
+    assert reason == "next_action_target_already_existed"
