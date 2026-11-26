@@ -1,0 +1,170 @@
+{
+  "run_dirs": {
+    "bench-v2": {
+      "a11y-cap": {
+        "runs": 778,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1212,
+        "calls": 4020,
+        "agent_image_payloads": 0
+      },
+      "find-blend-": {
+        "calls": 4913,
+        "agent_image_payloads": 0
+      },
+      "find-exact-": {
+        "calls": 4987,
+        "agent_image_payloads": 0
+      },
+      "find[blend]": {
+        "runs": 773,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1516
+      },
+      "find[exact]": {
+        "runs": 776,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1469
+      },
+      "vision": {
+        "runs": 720,
+        "run_images": 4363,
+        "run_image_bytes": 758371644,
+        "run_steps": 2606,
+        "calls": 5195,
+        "image_events": 4363,
+        "image_event_bytes": 758371644,
+        "explicit_screenshot_calls": 1890,
+        "action_steps_with_image": 2473,
+        "agent_image_payloads": 5935
+      }
+    },
+    "bench-v2-smoke": {
+      "a11y-cap": {
+        "runs": 3,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 10,
+        "calls": 37,
+        "agent_image_payloads": 0
+      },
+      "find-blend-": {
+        "calls": 33,
+        "agent_image_payloads": 0
+      },
+      "find-exact-": {
+        "calls": 24,
+        "agent_image_payloads": 0
+      },
+      "find[blend]": {
+        "runs": 3,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 11
+      },
+      "find[exact]": {
+        "runs": 3,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 7
+      }
+    },
+    "bench-v3": {
+      "a11y-cap": {
+        "runs": 536,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1393,
+        "calls": 2918,
+        "agent_image_payloads": 0
+      },
+      "find+observe[exact+blend]": {
+        "runs": 536,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1432
+      },
+      "find+observe[exact]": {
+        "runs": 536,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 1447
+      },
+      "find-observe-exact-": {
+        "calls": 3704,
+        "agent_image_payloads": 0
+      },
+      "find-observe-exact-blend-": {
+        "calls": 3649,
+        "agent_image_payloads": 0
+      }
+    },
+    "bench-v3-pilot": {
+      "a11y-cap": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 74,
+        "calls": 131,
+        "agent_image_payloads": 0
+      },
+      "find+observe[exact+blend]": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 126
+      },
+      "find+observe[exact]": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 113
+      },
+      "find-observe-exact-": {
+        "calls": 197,
+        "agent_image_payloads": 0
+      },
+      "find-observe-exact-blend-": {
+        "calls": 206,
+        "agent_image_payloads": 0
+      }
+    },
+    "bench-v3-pilot2": {
+      "a11y-cap": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 73,
+        "calls": 138,
+        "agent_image_payloads": 0
+      },
+      "find+observe[exact+blend]": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 55
+      },
+      "find+observe[exact]": {
+        "runs": 20,
+        "run_images": 0,
+        "run_image_bytes": 0,
+        "run_steps": 63
+      },
+      "find-observe-exact-": {
+        "calls": 140,
+        "agent_image_payloads": 0
+      },
+      "find-observe-exact-blend-": {
+        "calls": 128,
+        "agent_image_payloads": 0
+      }
+    }
+  },
+  "notes": [
+    "server.jsonl stores image dimensions and byte counts, not PNG payloads",
+    "agent.jsonl stores image/png payloads returned to Claude as base64; Codex transcripts may differ"
+  ]
+}

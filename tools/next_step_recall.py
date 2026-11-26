@@ -81,12 +81,17 @@ def parse_steps(events: list[dict], start_url: str) -> list[dict]:
     """
     url, history, steps = start_url, [], []
     history_indices = []
+    action_ordinal = 0
     tags = {'a': 'link', 'input': 'textbox', 'textarea': 'textbox', 'select': 'combobox'}
     for ev in events:
         result = ev.get('result') or ''
+        if ev.get('name') in ('click', 'type', 'fill', 'go_back', 'click_xy', 'type_text', 'scroll'):
+            action_ordinal += 1
         if ev.get('name') in ('click', 'type', 'click_xy', 'type_text'):
             parsed = None if ev.get('is_error') else parse_action(result)
-            step = {'url': url, 'history': list(history), 'action': parsed, 'args': ev.get('args', {}), 'history_indices': list(history_indices)}
+            step = {'url': url, 'history': list(history), 'action': parsed, 'args': ev.get('args', {}),
+                    'history_indices': list(history_indices), 'name': ev.get('name'), 'call_n': ev.get('n'),
+                    'is_error': bool(ev.get('is_error')), 'action_step': action_ordinal}
             steps.append(step)
             if parsed:
                 verb, role, text = parsed
@@ -105,7 +110,8 @@ def parse_steps(events: list[dict], start_url: str) -> list[dict]:
 
 
 def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v2.yaml',
-                name: str | None = None, root: Path = ROOT) -> tuple[EvalSet, dict]:
+                name: str | None = None, root: Path = ROOT, out_root: Path | None = None,
+                cache_dir: Path | None = None) -> tuple[EvalSet, dict]:
     """Recover next-step labels from a benchmark run's server logs.
 
     Only successful runs yield labels, and only click/type steps whose target element is
@@ -113,6 +119,7 @@ def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v
     """
     from demo.browser import BrowserSession, load_tasks
 
+    out_root = out_root or root
     name = name or Path(runs_dir).name
     tasks = {t.id: t for t in load_tasks(root / tasks_file)}
     run_rows = [json.loads(l) for l in (root / runs_dir / 'runs.jsonl').read_text().splitlines() if l.strip()]
@@ -123,7 +130,7 @@ def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v
     stats = Counter()
     pages, examples, seen, cached = {}, [], set(), {}
     failures, provenance = [], []
-    cache_dir = root / 'data/nextstep/pages'
+    cache_dir = cache_dir or (out_root / 'data/nextstep/pages')
     for path in sorted((root / runs_dir / 'logs').glob('*.server.jsonl')):
         key = tuple(path.name.removesuffix('.server.jsonl').split('__'))
         run = runs.get(key)
@@ -186,13 +193,17 @@ def build_bench(runs_dir: str = 'runs/bench-v2', tasks_file: str = 'demo/tasks_v
                         examples.append(Example(pid, 'goal', 'goal', summary.get('goal') or task.goal,
                                                 [resolved_history.get(i, h) for i, h in zip(step['history_indices'], step['history'])],
                                                 targets[0], targets, task.id))
-                        provenance.append({'log': path.name, 'step': index, 'task': task.id, 'url': url,
-                                           'page_id': pid, 'target_ids': targets})
+                        provenance.append({'log': path.name, 'run_id': path.name.removesuffix('.server.jsonl'),
+                                           'step': step.get('action_step', index), 'call_n': step.get('call_n'), 'task': task.id, 'url': url,
+                                           'page_id': pid, 'target_ids': targets, 'action': verb,
+                                           'type_text': step['args'].get('text', '') if verb == 'type' else '',
+                                           'agent': run.get('agent', ''), 'arm': run.get('arm', run.get('config', '')),
+                                           'run_success': bool(run.get('success')), 'site': page.site})
             if reason:
                 stats['dropped_steps'] += 1
                 stats[reason] += 1
     stats['usable_unique'] = len(examples)
-    target = root / 'data/nextstep'
+    target = out_root / 'data/nextstep'
     target.mkdir(parents=True, exist_ok=True)
     write_examples(examples, target / f'{name}.jsonl')
     (target / f'{name}-build.json').write_text(json.dumps({'counts': dict(stats), 'page_failures': failures,

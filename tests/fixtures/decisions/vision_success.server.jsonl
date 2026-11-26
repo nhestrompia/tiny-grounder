@@ -1,0 +1,6 @@
+{"type": "call", "n": 1, "name": "screenshot", "args": {}, "is_error": false, "result": "url: https://example.org/\ntitle: Home", "image_bytes": 1000, "width": 1280, "height": 800}
+{"type": "call", "n": 2, "name": "scroll", "args": {"dy": 500.0}, "is_error": false, "result": "scrolled by 500px\nurl: https://example.org/\ntitle: Home", "image_bytes": 1100, "width": 1280, "height": 800}
+{"type": "call", "n": 3, "name": "click_xy", "args": {"x": 20.0, "y": 30.0}, "is_error": false, "result": "clicked at (20, 30)\nurl: https://example.org/next\ntitle: Next", "image_bytes": 1200, "width": 1280, "height": 800}
+{"type": "call", "n": 4, "name": "screenshot", "args": {}, "is_error": false, "result": "url: https://example.org/next\ntitle: Next", "image_bytes": 1200, "width": 1280, "height": 800}
+{"type": "call", "n": 5, "name": "done", "args": {"answer": "done"}, "is_error": false, "result": "ok"}
+{"type": "summary", "goal": "fixture goal", "success": true}
