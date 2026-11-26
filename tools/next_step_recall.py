@@ -1,4 +1,7 @@
-"""Evaluate the real observe digest, with paired site/seed bootstrap intervals.
+"""Evaluate the real observe digest, with paired task/seed bootstrap intervals.
+
+The primary metric is recall@3 over distinct observe-equivalent elements. Budget recall and
+site/app-clustered intervals remain secondary reports, as fixed by docs/model-uniqueness-prereg.md.
 
 Full run used (from the repository root):
     uv run python tools/next_step_recall.py --set mind2web_task --set mind2web_website \
@@ -33,8 +36,8 @@ from grounder.baselines.blend import blend
 from grounder.data.crawl import registrable_domain
 from grounder.data.pages import load_examples, load_page, write_examples, write_page
 from grounder.ranking import Ranked, positive_ids
-from grounder.records import Element, Example, action_repr, equiv_ids
-from grounder_tool.digest import observe, estimate_tokens
+from grounder.records import Element, Example, Page, action_repr, equiv_ids, equiv_key
+from grounder_tool.digest import observe, estimate_tokens, _clip, _line
 from grounder_tool.rankers import make_ranker
 from tools.compare_rankers import EvalSet, group_labels, load_pages_for, paired_bootstrap
 from tools.harvest_queries import map_rows, parse_action, read_run
@@ -214,10 +217,180 @@ def rankings(s: EvalSet, ckpt: str, out: Path, device: str) -> list[Ranked]:
     return result
 
 
+PRIMARY_METRIC = 'recall@3'
+STRUCTURAL_BUDGET = 300
+TAG_ORDER = ('literal', 'goal-only', 'icon', 'untagged')
+
+
+def distinct_ids(ids: list[int], elements: list[Element]) -> list[int]:
+    """Ranked ids with observe's equivalence deduplication, preserving rank order."""
+    by_id = {e.id: e for e in elements}
+    seen = set()
+    out = []
+    for identifier in ids:
+        key = equiv_key(by_id[identifier])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(identifier)
+    return out
+
+
+def hit_at_distinct(ranked: Ranked, example: Example, elements: list[Element], k: int = 3) -> bool:
+    return hit(distinct_ids(ranked.ids, elements)[:k], example)
+
+
+def whole_page_fits(page: Page, budget: int = STRUCTURAL_BUDGET) -> bool:
+    """Ranker-free structural check: can observe fit every distinct element line plus header/footer?
+
+    This reproduces observe's no-landmark, no-passage formatting. Duplicate targets collapse by `equiv_key`;
+    the first extraction-order representative of each equivalence class supplies the line.
+    """
+    cap = max(0, budget) * 4
+    total = len(page.elements)
+
+    def footer(k: int) -> str:
+        return f"showing {k} of {total} elements; call find(query) for others or inspect(id) for detail"
+
+    header_cap = max(0, cap - len(footer(0)) - 1)
+    if header_cap < len("url: \ntitle: "):
+        return not page.elements
+    url_cap = min(200, (header_cap - 13) // 2)
+    title_cap = min(120, header_cap - 13 - url_cap)
+    lines = [f"url: {_clip(page.url, url_cap)}", f"title: {_clip(page.title, title_cap)}"]
+    seen = set()
+    distinct = []
+    for element in page.elements:
+        key = equiv_key(element)
+        if key in seen:
+            continue
+        seen.add(key)
+        distinct.append(element)
+    element_lines = [_line(element, None) for element in distinct]
+    digest = "\n".join([*lines, *element_lines, footer(len(element_lines))])
+    return len(digest) <= cap
+
+
+def metric_order(budgets: list[int]) -> list[str]:
+    return [PRIMARY_METRIC, *(f'recall@{b}' for b in budgets), *(f'recall@k{k}' for k in (5, 10, 20))]
+
+
+def measure(s: EvalSet, ranked: dict[str, list[list[Ranked]]], budgets: list[int]) -> tuple[dict, dict]:
+    """Binary per-example hit arrays for every ranker/seed, plus digest element counts."""
+    metrics, counts = {}, {}
+    names = metric_order(budgets)
+    for name, seeds in ranked.items():
+        values = {m: [] for m in names}
+        counts[name] = {str(b): [] for b in budgets}
+        for seed in seeds:
+            cur = {m: [] for m in names}
+            cur_counts = {str(b): [] for b in budgets}
+            for e, r in zip(s.examples, seed):
+                page = s.pages[e.page_id]
+                cur[PRIMARY_METRIC].append(hit_at_distinct(r, e, page.elements, 3))
+                for b in budgets:
+                    text = observe(page, e.query, FixedRanker(r), budget=b, history=e.history)
+                    assert estimate_tokens(text) <= b
+                    ids = listed_ids(text)
+                    cur[f'recall@{b}'].append(hit(ids, e))
+                    cur_counts[str(b)].append(len(ids))
+                for k in (5, 10, 20):
+                    cur[f'recall@k{k}'].append(hit(r.ids[:k], e))
+            for m in values:
+                values[m].append(cur[m])
+            for b in cur_counts:
+                counts[name][b].append(cur_counts[b])
+        metrics[name] = {m: np.array(v, dtype=bool) for m, v in values.items()}
+        counts[name] = {b: np.array(v, dtype=int) for b, v in counts[name].items()}
+    return metrics, counts
+
+
+def bootstrap_pairs(names: list[str]) -> list[tuple[str, str]]:
+    pairs = [(n, '_zero') for n in names]
+    pairs += [(n, b) for n in names for b in ('exact', 'bm25') if b in names and n != b]
+    pairs += [(a, b) for a, b in [('xs', 'm'), ('blend[xs]', 'blend[m]')] if a in names and b in names]
+    return pairs
+
+
+def slice_report(metrics: dict, counts: dict, families: dict, groups: np.ndarray, mask: np.ndarray,
+                 budgets: list[int], draws: int, metric_names: list[str] | None = None) -> dict:
+    """Absolute and paired bootstrap rows for one slice of examples."""
+    mask = np.asarray(mask, dtype=bool)
+    n = int(mask.sum())
+    sliced_groups = groups[mask]
+    result = {'n': n, 'n_groups': len(set(sliced_groups)) if n else 0, 'rankers': {n_: {} for n_ in metrics}}
+    if not n:
+        return result
+    metric_names = metric_names or metric_order(budgets)
+    budget_metrics = {f'recall@{b}' for b in budgets}
+    names = list(metrics)
+    pairs = bootstrap_pairs(names)
+    for metric in metric_names:
+        # Binary synthetic ranks expose arbitrary recall via the imported top1 bootstrap.
+        # A fixed all-miss reference gives the absolute recall CI with the same draws.
+        arrays = {n_: np.where(v[metric][:, mask], 1, 10**9) for n_, v in metrics.items()}
+        arrays['_zero'] = np.full((1, len(sliced_groups)), 10**9)
+        boot = paired_bootstrap(arrays, families, sliced_groups, pairs, draws=draws)
+        for name in names:
+            row = dict(boot[name, '_zero']['top1'])
+            row['mean'] = row.pop('diff')
+            row['vs'] = {b: boot[a, b]['top1'] for a, b in pairs if a == name and b != '_zero'}
+            if metric in budget_metrics:
+                row['mean_k'] = float(np.mean(counts[name][metric.removeprefix('recall@')][:, mask]))
+            result['rankers'][name][metric] = row
+    return result
+
+
+def tag_masks(examples: list[Example]) -> dict[str, np.ndarray]:
+    tags = [(e.tags or []) for e in examples]
+    out = {tag: np.array([tag in row for row in tags], dtype=bool) for tag in TAG_ORDER[:-1]}
+    out['untagged'] = np.array([not row for row in tags], dtype=bool)
+    return out
+
+
+def gate_report(overall: dict, tags: dict) -> dict:
+    """The amended pre-registered gate: recall@3 overall CI plus the literal point-estimate check."""
+    rows = overall.get('rankers', {})
+    required = {'blend[xs]', 'exact', 'bm25'}
+    missing = sorted(required - set(rows))
+    if missing or any(PRIMARY_METRIC not in rows.get(n, {}) for n in required - set(missing)):
+        return {'pass': False, 'metric': PRIMARY_METRIC, 'computable': False, 'missing': missing}
+    baseline = max(('exact', 'bm25'), key=lambda n: rows[n][PRIMARY_METRIC]['mean'])
+    primary = rows['blend[xs]'][PRIMARY_METRIC]['vs'][baseline]
+    literal = tags.get('literal', {'n': 0, 'rankers': {}})
+    literal_rows = literal.get('rankers', {})
+    literal_diff = None
+    if literal.get('n') and 'blend[xs]' in literal_rows and 'exact' in literal_rows:
+        literal_diff = (literal_rows['blend[xs]'][PRIMARY_METRIC]['mean']
+                        - literal_rows['exact'][PRIMARY_METRIC]['mean'])
+    first_pass = primary['lo'] > 0
+    second_pass = literal_diff is not None and literal_diff >= -0.01
+    return {
+        'pass': bool(first_pass and second_pass),
+        'metric': PRIMARY_METRIC,
+        'computable': True,
+        'blend_minus_max_lexical': {
+            'baseline': baseline,
+            'baseline_mean': rows[baseline][PRIMARY_METRIC]['mean'],
+            'blend_mean': rows['blend[xs]'][PRIMARY_METRIC]['mean'],
+            'diff': primary['diff'], 'lo': primary['lo'], 'hi': primary['hi'],
+            'pass': bool(first_pass),
+        },
+        'literal_blend_minus_exact': {
+            'n': literal.get('n', 0),
+            'diff': literal_diff,
+            'threshold': -0.01,
+            'pass': bool(second_pass),
+        },
+    }
+
+
 def evaluate(s: EvalSet, models: dict, budgets: list[int], names: list[str], out: Path,
-             device: str, group_by: str, draws: int) -> dict:
+             device: str, group_by: str = 'source', draws: int = 2000) -> dict:
     if not s.examples:
         raise ValueError(f'{s.name}: no examples')
+    if STRUCTURAL_BUDGET not in budgets:
+        raise ValueError(f'{s.name}: budget {STRUCTURAL_BUDGET} is required for the discriminating-items report')
     ranked, families = {}, {}
     lexical = {}
     for name in ('exact', 'bm25'):
@@ -239,42 +412,43 @@ def evaluate(s: EvalSet, models: dict, budgets: list[int], names: list[str], out
         if name in names:
             ranked[name] = [[blend(m, b, 8.0) for m, b in zip(seed, lexical['bm25'])] for seed in seeds]
             families[name] = family
-    groups = group_labels(s, group_by)
-    metrics, counts = {}, {}
-    for name, seeds in ranked.items():
-        values = {f'recall@{b}': [] for b in budgets} | {f'recall@k{k}': [] for k in (5, 10, 20)}
-        counts[name] = {str(b): [] for b in budgets}
-        for seed in seeds:
-            cur = {m: [] for m in values}
-            for e, r in zip(s.examples, seed):
-                for b in budgets:
-                    text = observe(s.pages[e.page_id], e.query, FixedRanker(r), budget=b, history=e.history)
-                    assert estimate_tokens(text) <= b
-                    ids = listed_ids(text)
-                    cur[f'recall@{b}'].append(hit(ids, e))
-                    counts[name][str(b)].append(len(ids))
-                for k in (5, 10, 20):
-                    cur[f'recall@k{k}'].append(hit(r.ids[:k], e))
-            for m in values:
-                values[m].append(cur[m])
-        metrics[name] = {m: np.array(v, dtype=bool) for m, v in values.items()}
-    result = {'n': len(s.examples), 'n_groups': len(set(groups)), 'rankers': {n: {} for n in ranked}}
-    for metric in next(iter(metrics.values())):
-        # Binary synthetic ranks expose arbitrary recall via the imported top1 bootstrap.
-        # A fixed all-miss reference gives the absolute recall CI with the same draws.
-        arrays = {n: np.where(v[metric], 1, 10**9) for n, v in metrics.items()}
-        arrays['_zero'] = np.full((1, len(s.examples)), 10**9)
-        pairs = [(n, '_zero') for n in ranked]
-        pairs += [(n, b) for n in ranked for b in ('exact', 'bm25') if b in ranked and n != b]
-        pairs += [(a, b) for a, b in [('xs', 'm'), ('blend[xs]', 'blend[m]')] if a in ranked and b in ranked]
-        boot = paired_bootstrap(arrays, families, groups, pairs, draws=draws)
-        for n in ranked:
-            row = dict(boot[n, '_zero']['top1'])
-            row['mean'] = row.pop('diff')
-            row['vs'] = {b: boot[a, b]['top1'] for a, b in pairs if a == n and b != '_zero'}
-            if metric.startswith('recall@') and metric[7:].isdigit():
-                row['mean_k'] = float(np.mean(counts[n][metric[7:]]))
-            result['rankers'][n][metric] = row
+    metrics, counts = measure(s, ranked, budgets)
+    all_mask = np.ones(len(s.examples), dtype=bool)
+    task_groups = group_labels(s, 'source')
+    site_groups = group_labels(s, 'page_site')
+    names_order = metric_order(budgets)
+    overall_task = slice_report(metrics, counts, families, task_groups, all_mask, budgets, draws, names_order)
+    overall_site = slice_report(metrics, counts, families, site_groups, all_mask, budgets, draws, names_order)
+
+    fits = np.array([whole_page_fits(s.pages[e.page_id], STRUCTURAL_BUDGET) for e in s.examples], dtype=bool)
+    discriminating = slice_report(metrics, counts, families, task_groups, ~fits, budgets, draws,
+                                  [f'recall@{STRUCTURAL_BUDGET}'])
+    tag_results = {
+        tag: slice_report(metrics, counts, families, task_groups, mask, budgets, draws, names_order)
+        for tag, mask in tag_masks(s.examples).items()
+    }
+    structural_items = [
+        {'index': i, 'source': e.source, 'page_id': e.page_id, 'target_id': e.target_id, 'fits': bool(fit)}
+        for i, (e, fit) in enumerate(zip(s.examples, fits))
+    ]
+    result = {
+        'n': len(s.examples),
+        'n_groups': len(set(task_groups)),
+        'n_groups_page_site': len(set(site_groups)),
+        'primary_cluster': 'source',
+        'secondary_cluster': 'page_site',
+        'rankers': overall_task['rankers'],
+        'rankers_page_site': overall_site['rankers'],
+        'structural': {
+            'budget': STRUCTURAL_BUDGET,
+            'n_fitting': int(fits.sum()),
+            'n_discriminating': int((~fits).sum()),
+            'items': structural_items,
+        },
+        'discriminating': discriminating,
+        'tags': tag_results,
+    }
+    result['gate'] = gate_report({'rankers': result['rankers']}, tag_results)
     return result
 
 
@@ -283,19 +457,51 @@ def fmt(v: dict, delta: bool = False) -> str:
     return f"{100*v[key]:.1f} [{100*v['lo']:.1f}, {100*v['hi']:.1f}]"
 
 
+def metric_label(metric: str) -> str:
+    if metric == PRIMARY_METRIC:
+        return 'recall@3 distinct'
+    if metric.startswith('recall@k'):
+        return 'raw recall@' + metric.removeprefix('recall@k')
+    return metric
+
+
+def gate_line(gate: dict) -> str:
+    if not gate.get('computable'):
+        return '**Gate: FAIL** — not computable for the selected arms.'
+    first = gate['blend_minus_max_lexical']
+    second = gate['literal_blend_minus_exact']
+    first_text = (f"recall@3 blend[xs] − max(exact, bm25) = {100*first['diff']:+.1f} pp "
+                  f"[{100*first['lo']:+.1f}, {100*first['hi']:+.1f}] against {first['baseline']}")
+    if second['diff'] is None:
+        second_text = 'literal recall@3 blend[xs] − exact not computable (no literal items)'
+    else:
+        second_text = (f"literal recall@3 blend[xs] − exact = {100*second['diff']:+.1f} pp "
+                       f"(n={second['n']}, threshold −1.0 pp)")
+    status = 'PASS' if gate['pass'] else 'FAIL'
+    return f"**Gate: {status}** — {first_text}; {second_text}."
+
+
 def markdown(report: dict) -> str:
     lines = ['# Next-step recall', '',
-             'Recall and paired deltas in percentage points [95% CI]. Site/source clusters and neural seeds '
-             f"resampled with compare_rankers.paired_bootstrap, {report['setup']['draws']:,} draws, seed 0. Alpha fixed at 8.", '',
-             'The real observe formatter is used without landmarks. Tokens = ceil(characters/4). Hits use target plus '
-             'equivalent ids; null examples are excluded. Recall@k uses the raw ranking without a token budget. '
-             'Neural point estimates average three seeds; family seeds are shared with their blends within each draw.', '',
+             'Recall and paired deltas in percentage points [95% CI]. The primary metric is recall@3: the target or an '
+             'equivalent id within the first 3 distinct elements after observe-style `equiv_key` deduplication. '
+             'Task (`Example.source`) clusters and neural seeds are resampled with compare_rankers.paired_bootstrap, '
+             f"{report['setup']['draws']:,} draws, seed 0. Site/app (`page_site`) intervals are secondary. Alpha fixed at 8.", '',
+             'The real observe formatter is used without landmarks. Tokens = ceil(characters/4). Budget hits use target plus '
+             'equivalent ids; null examples are excluded. `recall@300`, `recall@600` and `recall@1200` are token-budget '
+             'digests; raw recall@5/10/20 uses the unbudgeted ranking as before. Neural point estimates average three seeds; '
+             'family seeds are shared with their blends within each draw.', '',
+             'The structural discriminating-items check runs no ranker: it sizes every distinct element line plus the observe '
+             'header/footer at B=300. Per-tag rows use the automatic `literal`, `goal-only` and `icon` metadata; tags can '
+             'overlap, and examples with none of the stored tags are shown as untagged.', '',
              'Caveats: trajectories contain self-selected actions from successful runs; coordinate-only and failed '
              'actions are dropped. Role-only log histories use recovered element tags where possible and inferred '
              'HTML tags otherwise. map_rows allows text-only fallback and accepts all matching targets. '
              'Mind2Web test_domain shares 16/53 domains with training; see docs/leakage.md.', '']
     for name, s in report['sets'].items():
-        lines += [f"## {name}: {s['n']} examples, {s['n_groups']} groups", '',
+        lines += [f"## {name}: {s['n']} examples, {s['n_groups']} task clusters ({s['n_groups_page_site']} site/app clusters)", '',
+                  gate_line(s['gate']), '',
+                  '### Overall metrics, task-clustered intervals', '',
                   '| Ranker | Metric | Recall [CI] | Mean K | Δ vs exact [CI] | Δ vs BM25 [CI] | Δ XS vs M [CI] |',
                   '|---|---|---|---|---|---|---|']
         for ranker, metrics in s['rankers'].items():
@@ -303,8 +509,34 @@ def markdown(report: dict) -> str:
                 other = 'm' if ranker == 'xs' else 'blend[m]'
                 delta = lambda base: fmt(v['vs'][base], True) if base in v['vs'] else '-'
                 shown = f"{v['mean_k']:.1f}" if 'mean_k' in v else '-'
-                lines.append(f"| {ranker} | {metric} | {fmt(v)} | {shown} | "
+                lines.append(f"| {ranker} | {metric_label(metric)} | {fmt(v)} | {shown} | "
                              f"{delta('exact')} | {delta('bm25')} | {delta(other) if ranker in ('xs', 'blend[xs]') else '-'} |")
+        lines += ['', '### Secondary site/app-clustered absolute intervals', '',
+                  '| Ranker | Metric | Recall [page_site CI] |', '|---|---|---|']
+        for ranker, metrics in s['rankers_page_site'].items():
+            for metric, v in metrics.items():
+                lines.append(f"| {ranker} | {metric_label(metric)} | {fmt(v)} |")
+        structural = s['structural']
+        discriminating = s['discriminating']
+        lines += ['', '### Discriminating items at B=300', '',
+                  f"Whole page fits the B=300 digest for {structural['n_fitting']} of {s['n']} items; "
+                  f"the non-fitting discriminating slice has {structural['n_discriminating']} items.", '',
+                  '| Ranker | B=300 recall on non-fitting items [task CI] |', '|---|---|---|']
+        for ranker, metrics in discriminating['rankers'].items():
+            v = metrics.get(f"recall@{STRUCTURAL_BUDGET}")
+            lines.append(f"| {ranker} | {fmt(v) if v else '-'} |")
+        lines += ['', '### Per-tag breakdown, task-clustered intervals', '']
+        budget_metrics = [m for m in next(iter(s['rankers'].values())) if 'mean_k' in next(iter(s['rankers'].values()))[m]]
+        header = '| Tag | N | Ranker | recall@3 distinct [CI] | ' + ' | '.join(f'{m} [CI]' for m in budget_metrics) + ' |'
+        lines += [header, '|---|---|---|---|' + '---|' * len(budget_metrics)]
+        for tag, data in s['tags'].items():
+            if not data['n']:
+                lines.append(f"| {tag} | 0 | - | - | " + ' | '.join('-' for _ in budget_metrics) + ' |')
+                continue
+            for ranker, metrics in data['rankers'].items():
+                cells = [fmt(metrics[PRIMARY_METRIC])]
+                cells += [fmt(metrics[m]) for m in budget_metrics]
+                lines.append(f"| {tag} | {data['n']} | {ranker} | " + ' | '.join(cells) + ' |')
         lines.append('')
     lines += ['## Data recovery', '', '```json', json.dumps(report['data'], indent=2), '```', '',
               f"Runtime: {report['runtime_seconds']:.1f} seconds. CPU deterministic inference; all checkpoints retained.", '']
@@ -320,9 +552,9 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--device', default='cpu')
     parser.add_argument('--threads', type=int, default=4)
-    parser.add_argument('--group-by', choices=['page_site', 'source'], default='page_site')
     parser.add_argument('--draws', type=int, default=2000)
     args = parser.parse_args()
+    args.budgets = sorted(set(args.budgets) | {300, 600, 1200})
     import torch
 
     torch.set_num_threads(args.threads)
@@ -355,7 +587,7 @@ def main():
         print(f'{s.name}: {len(s.examples)} examples; {stats}', flush=True)
         report['data'][s.name] = stats
         report['sets'][s.name] = evaluate(s, models, args.budgets, args.rankers, args.out,
-                                         args.device, args.group_by, args.draws)
+                                         args.device, draws=args.draws)
         report['runtime_seconds'] = time.perf_counter()-started
         (args.out / 'report.json').write_text(json.dumps(report, indent=2))
         (args.out / 'report.md').write_text(markdown(report))
