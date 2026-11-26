@@ -122,3 +122,21 @@ uv run --extra demo --with tldextract python tools/decision_labels.py extract \
 ```
 
 The extractor reads the other checkout only. It writes pages, rows, `summary.json`, `screenshot-audit.json`, and the test manifests in this checkout. When a v1 manifest already exists, extraction preserves it rather than rewriting the frozen file.
+
+## Review verdict (2026-11-26, before any model is trained)
+
+- **SHOW, NEXT, DONE (v1): accepted** for training and gating.
+- **ENOUGH (v1 and v2): not trainable from these logs.**
+  - v1 encodes "run failed" or "vision arm".
+  - In v2, 62 of 231 (task, agent) pairs carry both labels: the same agent on the same task passes some text runs and
+    fails others, and each failure is labelled "screenshot needed". So most positives are agent variance.
+  - The test split has only 14 positive runs, and every heuristic has AUROC < 0.55.
+  - Plan: ENOUGH ships as a structural rule (the target or the top-ranked elements have no visible text, or a high
+    empty-text ratio, plus the ranker's null probability). A learned version waits for a source with a real
+    counterfactual: the same state with and without pixels, e.g. icon-only targets in the Mac walks.
+- **WORKED (v2): label valid, but a model isn't needed yet.**
+  - URL change alone reaches AUROC 0.90 (P 0.988, R 0.978), because v2 positives are mostly navigation or `done`.
+  - Same-URL interactions (forms, SPAs, desktop dialogs), where a model would add value, are mostly dropped for lack
+    of evidence.
+  - Plan: ship WORKED as a deterministic before/after page diff checked against the action's intent. Revisit with the
+    Mac walks, which store pre- and post-action dumps for same-window interactions.
