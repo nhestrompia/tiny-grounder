@@ -11,6 +11,8 @@ public struct DumpElement: Codable, Equatable {
     public var absBox: [Double]
     public var inViewport: Bool
     public var enabled: Bool
+    public var visibleText: String
+    public var nonvisualText: String
     public var conf: Double = 1.0
     public var source: String = "ax"
     public var href: String = ""
@@ -19,12 +21,15 @@ public struct DumpElement: Codable, Equatable {
         case id, role, text, context, tag, box, conf, source, href, enabled
         case absBox = "abs_box"
         case inViewport = "in_viewport"
+        case visibleText = "visible_text"
+        case nonvisualText = "nonvisual_text"
     }
 
     public init(id: Int, role: String, text: String, context: String, tag: String, box: [Double],
-                absBox: [Double], inViewport: Bool, enabled: Bool) {
+                absBox: [Double], inViewport: Bool, enabled: Bool, visibleText: String = "", nonvisualText: String = "") {
         self.id = id; self.role = role; self.text = text; self.context = context; self.tag = tag
         self.box = box; self.absBox = absBox; self.inViewport = inViewport; self.enabled = enabled
+        self.visibleText = visibleText; self.nonvisualText = nonvisualText
     }
 }
 

@@ -57,6 +57,27 @@ public func pickText(title: String?, description: String?, value: String?, help:
     return ""
 }
 
+/// Visible label provenance for evaluation tags: title, non-secure value, or an associated static label.
+/// This is separate from `pickText`, whose accessibility fallbacks are not visible text.
+public func pickVisibleText(title: String?, value: String?, staticLabel: String?, isSecure: Bool) -> String {
+    let candidates = [title, isSecure ? nil : value, staticLabel]
+    for candidate in candidates {
+        let text = collapse(candidate ?? "", limit: maxTextChars)
+        if !text.isEmpty { return text }
+    }
+    return ""
+}
+
+/// Non-visual label provenance for evaluation tags: accessibility description first, then help/tooltip.
+public func pickNonvisualText(description: String?, help: String?) -> String {
+    let candidates = [description, help]
+    for candidate in candidates {
+        let text = collapse(candidate ?? "", limit: maxTextChars)
+        if !text.isEmpty { return text }
+    }
+    return ""
+}
+
 /// Context: window title, nearest titled ancestor group, sibling static texts; own text removed; at most 120 chars.
 public func buildContext(windowTitle: String, groupTitle: String, siblingTexts: [String], ownText: String) -> String {
     let siblings = siblingTexts.map { collapse($0, limit: maxTextChars) }.filter { !$0.isEmpty && $0 != ownText }

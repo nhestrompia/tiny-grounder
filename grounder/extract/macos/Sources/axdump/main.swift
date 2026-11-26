@@ -82,6 +82,13 @@ func actions(_ el: AXUIElement) -> [String] {
     return AXUIElementCopyActionNames(el, &names) == .success ? (names as? [String]) ?? [] : []
 }
 
+/// Visible text of a separate static label element associated through AXTitleUIElement, when present.
+func staticLabelText(_ el: AXUIElement) -> String? {
+    guard let value = attribute(el, "AXTitleUIElement"), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+    let label = value as! AXUIElement
+    return string(label, kAXValueAttribute) ?? string(label, kAXTitleAttribute)
+}
+
 /// [x, y, w, h] in screen points.
 func frame(_ el: AXUIElement) -> [Double]? {
     var point = CGPoint.zero, size = CGSize.zero
@@ -121,15 +128,22 @@ struct Walker {
         if isKept(axRole: axRole, actions: acts), let role = mapRole(axRole, parentRole: parentRole, actions: acts),
            let rect = frame(el), isVisible(rect, window: window) {
             let secure = string(el, kAXSubroleAttribute) == "AXSecureTextField"
-            let text = pickText(
-                title: string(el, kAXTitleAttribute), description: string(el, kAXDescriptionAttribute),
-                value: string(el, kAXValueAttribute), help: string(el, kAXHelpAttribute),
-                placeholder: string(el, "AXPlaceholderValue"), isSecure: secure)
+            let title = string(el, kAXTitleAttribute)
+            let description = string(el, kAXDescriptionAttribute)
+            let value = string(el, kAXValueAttribute)
+            let help = string(el, kAXHelpAttribute)
+            let placeholder = string(el, "AXPlaceholderValue")
+            let text = pickText(title: title, description: description, value: value, help: help,
+                                placeholder: placeholder, isSecure: secure)
+            let visible = pickVisibleText(title: title, value: value,
+                                          staticLabel: staticLabelText(el), isSecure: secure)
+            let nonvisual = pickNonvisualText(description: description, help: help)
             elements.append(DumpElement(
                 id: elements.count, role: role, text: text,
                 context: buildContext(windowTitle: windowTitle, groupTitle: groupTitle, siblingTexts: siblings, ownText: text),
                 tag: axRole, box: normalisedBox(rect, window: window), absBox: rect,
-                inViewport: true, enabled: bool(el, kAXEnabledAttribute) ?? true))
+                inViewport: true, enabled: bool(el, kAXEnabledAttribute) ?? true,
+                visibleText: visible, nonvisualText: nonvisual))
         }
         let kids = children(el)
         var nextGroup = groupTitle

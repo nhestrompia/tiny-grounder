@@ -36,6 +36,16 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(pickText(title: String(repeating: "a", count: 200), description: nil, value: nil, help: nil, placeholder: nil, isSecure: false).count, 80)
     }
 
+    func testVisibleAndNonvisualProvenance() {
+        XCTAssertEqual(pickVisibleText(title: "Save", value: "typed", staticLabel: "Name", isSecure: false), "Save")
+        XCTAssertEqual(pickVisibleText(title: "", value: "typed", staticLabel: "Name", isSecure: false), "typed")
+        XCTAssertEqual(pickVisibleText(title: "", value: "secret", staticLabel: "Password", isSecure: true), "Password")
+        XCTAssertEqual(pickVisibleText(title: "", value: "", staticLabel: "Name", isSecure: false), "Name")
+        XCTAssertEqual(pickVisibleText(title: "", value: "", staticLabel: nil, isSecure: false), "")
+        XCTAssertEqual(pickNonvisualText(description: " Compile ", help: "tooltip"), "Compile")
+        XCTAssertEqual(pickNonvisualText(description: "", help: "tooltip"), "tooltip")
+    }
+
     func testContext() {
         XCTAssertEqual(buildContext(windowTitle: "Settings", groupTitle: "Network", siblingTexts: ["Wi-Fi", "Save"], ownText: "Save"),
                        "Settings · Network · Wi-Fi")
@@ -65,5 +75,7 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(first["abs_box"] as? [Double], [1, 2, 3, 4])
         XCTAssertEqual(first["source"] as? String, "ax")
         XCTAssertEqual(first["in_viewport"] as? Bool, true)
+        XCTAssertNotNil((first as NSDictionary)["visible_text"])
+        XCTAssertNotNil((first as NSDictionary)["nonvisual_text"])
     }
 }

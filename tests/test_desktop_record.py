@@ -9,7 +9,6 @@ import pytest
 from grounder.data.pages import load_examples, load_page, page_paths
 from grounder.records import Element
 from tools import desktop_record as dr
-from tools.nextstep_tags import GOAL_ONLY, ICON
 
 FIXTURES = Path(__file__).parent / "fixtures" / "desktop"
 
@@ -98,15 +97,17 @@ def test_recording_writes_compatible_examples_pages_report_and_manifest(tmp_path
     result, manifest_path = dr.record_and_write([task], recorder, tmp_path, "d_test", Path("demo/tasks_desktop.yaml"))
 
     assert result.counts["examples"] == 3 and result.counts["pages"] == 1
-    assert not result.drops and result.tag_counts[GOAL_ONLY] == 3 and result.tag_counts[ICON] == 1
+    assert not result.drops and result.tag_counts["goal-only"] == 2 and result.tag_counts["icon"] == 1 and result.tag_counts["literal"] == 1
     examples_path = tmp_path / "d_test.jsonl"
     rows = [json.loads(line) for line in examples_path.read_text().splitlines()]
     assert rows[0]["tags"] == ["goal-only"] and rows[2]["tags"] == ["goal-only", "icon"]
     assert rows[0]["history"] == [] and rows[1]["history"] == ["[AXTextArea]  Script -> CLICK"]
     assert rows[1]["history"] == ["[AXTextArea]  Script -> CLICK"]
     assert rows[2]["history"][-1] == "[AXTextArea]  Script -> TYPE: set total to 2 + 2"
-    # The extra tags field is ignored by the exact loader tools/next_step_recall.py uses.
-    assert [e.target_id for e in load_examples(examples_path)] == [2, 2, 1]
+    # The exact loader tools/next_step_recall.py uses round-trips the automatic tags.
+    loaded = load_examples(examples_path)
+    assert [e.target_id for e in loaded] == [2, 2, 1]
+    assert loaded[2].tags == ["goal-only", "icon"]
 
     [page_path] = page_paths(tmp_path / "pages_d_test")
     page = load_page(page_path)
@@ -155,3 +156,15 @@ def test_frontmost_mismatch_prevents_prepare_keys_and_input():
     result = recorder.record_task(script_task())
     assert result.drops[0].reason == dr.DROP_WRONG_APP
     assert not [entry for entry in driver.log if entry[0] in {"click", "type", "key"}]
+
+
+def test_old_axdump_without_label_provenance_drops_instead_of_guessing_tags():
+    driver = FakeDriver()
+    raw = fixture("script_editor_window.json")
+    for element in raw["elements"]:
+        element.pop("visible_text")
+        element.pop("nonvisual_text")
+    recorder = dr.DesktopRecorder(driver, lambda app: copy.deepcopy(raw), sleep=lambda seconds: None)
+    result = recorder.record_task(script_task())
+    assert result.drops[0].reason == dr.DROP_LABEL_PROVENANCE
+    assert not result.examples and not [entry for entry in driver.log if entry[0] in {"click", "type"}]

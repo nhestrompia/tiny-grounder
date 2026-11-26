@@ -1,21 +1,122 @@
 {
-  "viewport": [1000, 700],
-  "doc_size": [1000, 700],
+  "viewport": [
+    1000,
+    700
+  ],
+  "doc_size": [
+    1000,
+    700
+  ],
   "title": "Font Book",
   "app": "Font Book",
-  "origin": [90.0, 70.0],
+  "origin": [
+    90.0,
+    70.0
+  ],
   "elements": [
-    {"id": 0, "role": "searchbox", "text": "Search", "context": "Font Book", "tag": "AXSearchField",
-     "box": [0.78, 0.02, 0.18, 0.04], "abs_box": [870.0, 84.0, 180.0, 28.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""},
-    {"id": 1, "role": "other", "text": "Courier New", "context": "Font Book · Fonts", "tag": "AXRow",
-     "box": [0.22, 0.2, 0.25, 0.04], "abs_box": [310.0, 210.0, 250.0, 28.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""},
-    {"id": 2, "role": "button", "text": "Grid View", "context": "Font Book", "tag": "AXButton",
-     "box": [0.45, 0.02, 0.03, 0.04], "abs_box": [540.0, 84.0, 30.0, 28.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""},
-    {"id": 3, "role": "radio", "text": "Sample", "context": "Font Book", "tag": "AXRadioButton",
-     "box": [0.5, 0.02, 0.06, 0.04], "abs_box": [590.0, 84.0, 60.0, 28.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""}
+    {
+      "id": 0,
+      "role": "searchbox",
+      "text": "Search",
+      "context": "Font Book",
+      "tag": "AXSearchField",
+      "box": [
+        0.78,
+        0.02,
+        0.18,
+        0.04
+      ],
+      "abs_box": [
+        870.0,
+        84.0,
+        180.0,
+        28.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "Search",
+      "nonvisual_text": ""
+    },
+    {
+      "id": 1,
+      "role": "other",
+      "text": "Courier New",
+      "context": "Font Book \u00b7 Fonts",
+      "tag": "AXRow",
+      "box": [
+        0.22,
+        0.2,
+        0.25,
+        0.04
+      ],
+      "abs_box": [
+        310.0,
+        210.0,
+        250.0,
+        28.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "Courier New",
+      "nonvisual_text": ""
+    },
+    {
+      "id": 2,
+      "role": "button",
+      "text": "Grid View",
+      "context": "Font Book",
+      "tag": "AXButton",
+      "box": [
+        0.45,
+        0.02,
+        0.03,
+        0.04
+      ],
+      "abs_box": [
+        540.0,
+        84.0,
+        30.0,
+        28.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "",
+      "nonvisual_text": "Grid View"
+    },
+    {
+      "id": 3,
+      "role": "radio",
+      "text": "Sample",
+      "context": "Font Book",
+      "tag": "AXRadioButton",
+      "box": [
+        0.5,
+        0.02,
+        0.06,
+        0.04
+      ],
+      "abs_box": [
+        590.0,
+        84.0,
+        60.0,
+        28.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "Sample",
+      "nonvisual_text": ""
+    }
   ]
 }

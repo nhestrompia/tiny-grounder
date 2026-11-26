@@ -1,18 +1,96 @@
 {
-  "viewport": [900, 650],
-  "doc_size": [900, 650],
+  "viewport": [
+    900,
+    650
+  ],
+  "doc_size": [
+    900,
+    650
+  ],
   "title": "Untitled",
   "app": "Script Editor",
-  "origin": [120.0, 80.0],
+  "origin": [
+    120.0,
+    80.0
+  ],
   "elements": [
-    {"id": 0, "role": "button", "text": "Run", "context": "Untitled", "tag": "AXButton",
-     "box": [0.05, 0.02, 0.04, 0.04], "abs_box": [165.0, 93.0, 36.0, 26.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""},
-    {"id": 1, "role": "button", "text": "Compile", "context": "Untitled", "tag": "AXButton",
-     "box": [0.11, 0.02, 0.04, 0.04], "abs_box": [219.0, 93.0, 36.0, 26.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""},
-    {"id": 2, "role": "textbox", "text": "Script", "context": "Untitled", "tag": "AXTextArea",
-     "box": [0.03, 0.12, 0.9, 0.75], "abs_box": [147.0, 158.0, 810.0, 487.0],
-     "in_viewport": true, "enabled": true, "conf": 1.0, "source": "ax", "href": ""}
+    {
+      "id": 0,
+      "role": "button",
+      "text": "Run",
+      "context": "Untitled",
+      "tag": "AXButton",
+      "box": [
+        0.05,
+        0.02,
+        0.04,
+        0.04
+      ],
+      "abs_box": [
+        165.0,
+        93.0,
+        36.0,
+        26.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "",
+      "nonvisual_text": "Run"
+    },
+    {
+      "id": 1,
+      "role": "button",
+      "text": "Compile",
+      "context": "Untitled",
+      "tag": "AXButton",
+      "box": [
+        0.11,
+        0.02,
+        0.04,
+        0.04
+      ],
+      "abs_box": [
+        219.0,
+        93.0,
+        36.0,
+        26.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "",
+      "nonvisual_text": "Compile"
+    },
+    {
+      "id": 2,
+      "role": "textbox",
+      "text": "Script",
+      "context": "Untitled",
+      "tag": "AXTextArea",
+      "box": [
+        0.03,
+        0.12,
+        0.9,
+        0.75
+      ],
+      "abs_box": [
+        147.0,
+        158.0,
+        810.0,
+        487.0
+      ],
+      "in_viewport": true,
+      "enabled": true,
+      "conf": 1.0,
+      "source": "ax",
+      "href": "",
+      "visible_text": "Script",
+      "nonvisual_text": ""
+    }
   ]
 }

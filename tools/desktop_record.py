@@ -35,11 +35,11 @@ from typing import Any
 
 import yaml
 
-from grounder.data.pages import write_page
+from grounder.data.pages import write_examples, write_page
 from grounder.extract import ax
+from grounder.item_tags import TargetLabel, item_tags
 from grounder.records import ROLE_TO_ID, Element, Example, Page, action_repr, equiv_ids
 from tools.ax_collect import page_id_for, slugify
-from tools.nextstep_tags import tag_target
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "demo/tasks_desktop.yaml"
@@ -69,6 +69,7 @@ DROP_NTH_MISSING = "nth_match_missing"
 DROP_WRONG_APP = "wrong_app"
 DROP_ACTION_ERROR = "action_error"
 DROP_EMPTY_PAGE = "empty_page"
+DROP_LABEL_PROVENANCE = "label_provenance_missing"
 
 
 def norm(text: str) -> str:
@@ -90,12 +91,6 @@ class TargetSpec:
     @property
     def needle(self) -> str:
         return self.label if self.label else self.description
-
-    @property
-    def text_source(self) -> str:
-        # This is provenance for automatic item tags: `description` means the oracle intentionally used an
-        # accessibility-only name, while `label` means visible text/placeholder/value.
-        return "description" if self.description and not self.label else "label"
 
 
 @dataclass(frozen=True)
@@ -198,7 +193,6 @@ def key_script(key: str) -> str:
 class Resolution:
     primary: Element
     target_ids: tuple[int, ...]
-    text_source: str
     match_kind: str
     match_count: int
 
@@ -232,7 +226,7 @@ def resolve_target(elements: list[Element], target: TargetSpec) -> Resolution | 
     for element in selected:
         ids.add(element.id)
         ids.update(equiv_ids(elements, element.id))
-    return Resolution(selected[0], tuple(sorted(ids)), target.text_source, match_kind, len(candidates))
+    return Resolution(selected[0], tuple(sorted(ids)), match_kind, len(candidates))
 
 
 class SystemEventsDriver:
@@ -328,6 +322,21 @@ def perform_action(driver: SystemEventsDriver, app: str, step: Step, resolution:
         raise ValueError(f"unsupported action {step.action!r}")
 
 
+def ax_target_label(raw: dict[str, Any], element: Element) -> TargetLabel | None:
+    """Read the label provenance emitted by the current axdump for the resolved element.
+
+    Older axdump binaries only carry the merged `text`, so visible and accessibility-only text cannot be
+    separated accurately. Rather than guessing evaluation tags, the step is dropped as provenance-missing.
+    """
+    rows = raw.get("elements") or []
+    by_id = {row.get("id"): row for row in rows if isinstance(row, dict)}
+    row = by_id.get(element.id)
+    if row is None or "visible_text" not in row or "nonvisual_text" not in row:
+        return None
+    return TargetLabel(text=element.text, visible_text=str(row.get("visible_text") or ""),
+                       nonvisual_text=str(row.get("nonvisual_text") or ""))
+
+
 def history_entry(step: Step, element: Element) -> str:
     if step.action == TYPE:
         return action_repr(element, step.text)
@@ -346,14 +355,8 @@ class Drop:
 
 
 @dataclass
-class TaggedExample:
-    example: Example
-    tags: set[str]
-
-
-@dataclass
 class TaskResult:
-    examples: list[TaggedExample] = field(default_factory=list)
+    examples: list[Example] = field(default_factory=list)
     drops: list[Drop] = field(default_factory=list)
     not_attempted: int = 0
     pages: dict[str, Page] = field(default_factory=dict)
@@ -361,7 +364,7 @@ class TaskResult:
 
 @dataclass
 class RecordResult:
-    examples: list[TaggedExample]
+    examples: list[Example]
     drops: list[Drop]
     counts: Counter[str]
     tag_counts: Counter[str]
@@ -426,17 +429,22 @@ class DesktopRecorder:
                     result.drops.append(Drop(task.id, index, step.action, resolved, step.target.needle))
                     result.not_attempted = len(task.path) - index - 1
                     break
+                label = ax_target_label(raw, resolved.primary)
+                if label is None:
+                    result.drops.append(Drop(task.id, index, step.action, DROP_LABEL_PROVENANCE, step.target.needle))
+                    result.not_attempted = len(task.path) - index - 1
+                    break
+                tags = item_tags(task.goal, history, label)
                 try:
                     perform_action(self.driver, task.app, step, resolved)
                 except Exception as exc:  # the effect layer boundary reports one concise reason
                     result.drops.append(Drop(task.id, index, step.action, DROP_ACTION_ERROR, str(exc)))
                     result.not_attempted = len(task.path) - index - 1
                     break
-                tags = tag_target(resolved.primary, task.goal, history, resolved.text_source)
                 example = Example(page_id=page.page_id, kind="goal", mode="goal", query=task.goal,
                                   history=list(history), target_id=resolved.primary.id,
-                                  equiv_ids=list(resolved.target_ids), source=task.id)
-                result.examples.append(TaggedExample(example, tags))
+                                  equiv_ids=list(resolved.target_ids), source=task.id, tags=tags)
+                result.examples.append(example)
                 result.pages[page.page_id] = page
                 history.append(history_entry(step, resolved.primary))
                 self.sleep(self.settle)
@@ -464,23 +472,22 @@ class DesktopRecorder:
                 self.driver.quit(app)
 
 
-def dedupe_examples(rows: Iterable[TaggedExample]) -> tuple[list[TaggedExample], int]:
+def dedupe_examples(examples: Iterable[Example]) -> tuple[list[Example], int]:
     """Remove exact duplicate next-step examples while keeping repeated states with different histories."""
     out, seen = [], set()
     duplicates = 0
-    for row in rows:
-        e = row.example
-        ident = (e.source, e.page_id, tuple(e.equiv_ids), tuple(e.history), e.target_id)
+    for example in examples:
+        ident = (example.source, example.page_id, tuple(example.equiv_ids), tuple(example.history), example.target_id)
         if ident in seen:
             duplicates += 1
             continue
         seen.add(ident)
-        out.append(row)
+        out.append(example)
     return out, duplicates
 
 
 def collect_results(task_results: dict[str, TaskResult]) -> RecordResult:
-    examples = [row for result in task_results.values() for row in result.examples]
+    examples = [example for result in task_results.values() for example in result.examples]
     examples, duplicates = dedupe_examples(examples)
     drops = [drop for result in task_results.values() for drop in result.drops]
     counts: Counter[str] = Counter()
@@ -488,38 +495,23 @@ def collect_results(task_results: dict[str, TaskResult]) -> RecordResult:
     pages: dict[str, Page] = {}
     per_task: dict[str, dict[str, int]] = {}
     for task_id, result in task_results.items():
-        for row in result.examples:
+        for _example in result.examples:
             counts["examples_raw"] += 1
         counts["dropped_steps"] += len(result.drops)
         counts["not_attempted_after_drop"] += result.not_attempted
         for drop in result.drops:
             counts[f"drop:{drop.reason}"] += 1
         pages.update(result.pages)
-        kept = sum(1 for row in examples if row.example.source == task_id)
+        kept = sum(1 for example in examples if example.source == task_id)
         per_task[task_id] = {"examples": kept, "dropped": len(result.drops), "not_attempted": result.not_attempted}
     counts["duplicates"] = duplicates
-    needed = {row.example.page_id for row in examples}
+    needed = {example.page_id for example in examples}
     pages = {pid: page for pid, page in pages.items() if pid in needed}
     counts["examples"] = len(examples)
     counts["pages"] = len(pages)
-    for row in examples:
-        tag_counts.update(row.tags)
+    for example in examples:
+        tag_counts.update(example.tags)
     return RecordResult(examples, drops, counts, tag_counts, pages, per_task)
-
-
-def tagged_example_dict(row: TaggedExample) -> dict[str, Any]:
-    """Example serialization plus a compatible extra `tags` array (ignored by Example.from_dict)."""
-    data = row.example.to_dict()
-    data["tags"] = sorted(row.tags)
-    return data
-
-
-def write_tagged_examples(rows: Iterable[TaggedExample], path: str | Path) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(tagged_example_dict(row), sort_keys=True) + "\n")
 
 
 def sha256_file(path: str | Path) -> str:
@@ -586,7 +578,7 @@ def record_and_write(
     result = collect_results(task_results)
     written_pages = [write_page(page, pages_dir) for page in result.pages.values()]
     examples_path = out_dir / f"{name}.jsonl"
-    write_tagged_examples(result.examples, examples_path)
+    write_examples(result.examples, examples_path)
     report_path = write_build_report(result, out_dir / f"{name}-build.json", "recorded")
     manifest = write_manifest(out_dir, name, tasks_file, len(tasks), "recorded",
                               [examples_path, report_path, *written_pages], dict(result.counts))
