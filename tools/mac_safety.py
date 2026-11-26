@@ -18,7 +18,14 @@ HARD_CLICK_DENYLIST: tuple[str, ...] = tuple(sorted({
     "send", "delete", "remove", "erase", "trash", "empty", "format", "partition", "commit", "push", "merge",
     "kill", "terminate", "stop container", "force quit", "sign out", "log out", "sign in", "install",
     "update now", "restart", "shut down", "reset", "revoke", "unlink",
+    # Account, library and permission changes (review 2026-11-26).
+    "follow", "like", "save", "download", "accept", "agree", "allow", "enable", "turn on", "turn off",
+    "clear", "add to library", "add to playlist", "rate this", "write a review",
 }))
+
+# Whole-label denials: short labels that are too common as substrings ("Get Info", "Target") but mean
+# install/consent on their own (App Store "Get", permission prompts).
+HARD_EXACT_DENYLIST: frozenset[str] = frozenset({"get", "ok", "on", "off", "yes", "continue", "upgrade"})
 
 FIXED_TYPE_STRINGS: tuple[str, ...] = (
     "search test",
@@ -46,6 +53,8 @@ _WORD_RE = re.compile(r"\b(history|account|profile)s?\b", re.IGNORECASE)
 def denied_click_term(label: str, extra_terms: Iterable[str] = ()) -> str:
     """The denylist term found in `label`, or ''. Case-insensitive substring matching."""
     folded = label.casefold()
+    if folded.strip() in HARD_EXACT_DENYLIST:
+        return folded.strip()
     for term in (*HARD_CLICK_DENYLIST, *extra_terms):
         if term.casefold() in folded:
             return term

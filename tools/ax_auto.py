@@ -221,6 +221,19 @@ class Mac:
         except (IndexError, ValueError):
             return None
 
+    def bundle_id(self, app: str) -> str:
+        return self._osascript(f"id of app {applescript_string(app)}")
+
+    def export_prefs(self, bundle_id: str, path: str) -> bool:
+        """Snapshot an app's preferences domain; False when it has none yet."""
+        return self._run(["defaults", "export", bundle_id, path]).returncode == 0
+
+    def import_prefs(self, bundle_id: str, path: str) -> None:
+        self._run(["defaults", "import", bundle_id, path])
+
+    def delete_prefs(self, bundle_id: str) -> None:
+        self._run(["defaults", "delete", bundle_id])
+
     def quit(self, app: str) -> None:
         """Politely quit an app this collector launched, with SIGTERM as a last-resort cleanup for that same app."""
         try:
@@ -704,8 +717,20 @@ class RandomWalkCollector:
         walks: list[dict[str, Any]] = []
         frequency: Counter[str] = Counter()
         was_running = self.mac.is_running(policy.launch_name)
+        if was_running:
+            # A running app is the user's live session: its preferences can't be restored safely while it runs.
+            result["reason"] = "already running (close it to collect)"
+            self.show(f"[{canonical}] skipped: {result['reason']}")
+            return result
         temp_dir = ""
         initial_windows = 0
+        prefs_dir = tempfile.mkdtemp(prefix=f"tiny-grounder-prefs-{slugify(canonical)}-")
+        prefs_file = os.path.join(prefs_dir, "prefs.plist")
+        try:
+            bundle = self.mac.bundle_id(policy.launch_name)
+        except Exception:
+            bundle = ""
+        had_prefs = bool(bundle) and self.mac.export_prefs(bundle, prefs_file)
         try:
             throwaway_path = None
             if policy.throwaway_project:
@@ -796,6 +821,18 @@ class RandomWalkCollector:
                     self.mac.quit(policy.launch_name)
                 except Exception:
                     pass
+            # Put back any preference a walk changed (radio buttons and pop-ups in Settings windows persist).
+            if bundle:
+                try:
+                    if had_prefs:
+                        self.mac.import_prefs(bundle, prefs_file)
+                    else:
+                        self.mac.delete_prefs(bundle)
+                    result["prefs_restored"] = True
+                except Exception as exc:
+                    result["prefs_restored"] = False
+                    self.show(f"[{canonical}] WARNING: preferences not restored: {exc}")
+            shutil.rmtree(prefs_dir, ignore_errors=True)
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
         return result

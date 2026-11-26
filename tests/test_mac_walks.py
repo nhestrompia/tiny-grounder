@@ -109,6 +109,10 @@ class WalkFakeMac:
     def click_at(self, app, x, y): self.log.append(("click", app, x, y))
     def type_text(self, text): self.log.append(("type", text))
     def quit(self, app): self.log.append(("quit", app))
+    def bundle_id(self, app): return f"com.example.{app.lower()}"
+    def export_prefs(self, bundle, path): self.log.append(("export_prefs", bundle)); return True
+    def import_prefs(self, bundle, path): self.log.append(("import_prefs", bundle))
+    def delete_prefs(self, bundle): self.log.append(("delete_prefs", bundle))
 
 
 def walk_raw(app: str, variant: int) -> dict:
@@ -229,3 +233,32 @@ def test_logic_throwaway_copy_is_a_new_temp_instance_not_the_factory_template(tm
     (target / "marker").write_text("changed")
     assert (source / "marker").read_text() == "factory"
     assert target.stat().st_mode & 0o200
+
+
+def test_review_denylist_blocks_account_install_and_consent_labels():
+    from tools.mac_safety import denied_click_term
+    for label in ["Get", "Allow", "Follow", "Like", "Save to Your Library", "Download", "Accept", "Agree",
+                  "Enable notifications", "Turn On", "Clear History", "OK", "Continue"]:
+        assert denied_click_term(label), label
+    # Exact-label terms don't block ordinary labels that merely contain them.
+    for label in ["Get Info", "Target", "Okay to browse", "Online help", "Continue Reading Guide"]:
+        term = denied_click_term(label)
+        assert term not in {"get", "ok", "on", "continue"}, (label, term)
+
+
+def test_preferences_are_snapshotted_and_restored_after_quit(tmp_path):
+    dumps = [walk_raw("Calculator", 0), walk_raw("Calculator", 0), walk_raw("Calculator", 1)]
+    collector, mac = make_walk_collector(tmp_path, dumps, max_steps=1, walk_budget=1, state_budget=4)
+    result = collector.run_app("Calculator")
+    events = [e[0] for e in mac.log]
+    assert events.index("export_prefs") < events.index("launch")
+    assert events.index("quit") < events.index("import_prefs")
+    assert result.get("prefs_restored") is True
+
+
+def test_already_running_app_is_skipped_not_explored(tmp_path):
+    collector, mac = make_walk_collector(tmp_path, [walk_raw("Calculator", 0)])
+    mac.is_running = lambda app: True
+    result = collector.run_app("Calculator")
+    assert result["status"] == "skipped" and "already running" in result["reason"]
+    assert not any(e[0] in {"launch", "click", "export_prefs"} for e in mac.log)
