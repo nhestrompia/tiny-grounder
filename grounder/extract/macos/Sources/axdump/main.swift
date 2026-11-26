@@ -89,6 +89,19 @@ func staticLabelText(_ el: AXUIElement) -> String? {
     return string(label, kAXValueAttribute) ?? string(label, kAXTitleAttribute)
 }
 
+/// First static text inside a table row/cell. Outline rows often expose selection actions but leave their
+/// visible label on a child static-text element rather than on the row itself.
+func rowStaticText(_ el: AXUIElement, depth: Int = 0) -> String? {
+    if depth > 3 { return nil }
+    if string(el, kAXRoleAttribute) == "AXStaticText" {
+        return string(el, kAXValueAttribute) ?? string(el, kAXTitleAttribute)
+    }
+    for child in children(el) {
+        if let text = rowStaticText(child, depth: depth + 1), !text.isEmpty { return text }
+    }
+    return nil
+}
+
 /// [x, y, w, h] in screen points.
 func frame(_ el: AXUIElement) -> [Double]? {
     var point = CGPoint.zero, size = CGSize.zero
@@ -133,10 +146,14 @@ struct Walker {
             let value = string(el, kAXValueAttribute)
             let help = string(el, kAXHelpAttribute)
             let placeholder = string(el, "AXPlaceholderValue")
-            let text = pickText(title: title, description: description, value: value, help: help,
+            let associatedLabel = staticLabelText(el) ?? (["AXRow", "AXCell"].contains(axRole) ? rowStaticText(el) : nil)
+            var text = pickText(title: title, description: description, value: value, help: help,
                                 placeholder: placeholder, isSecure: secure)
+            if text.isEmpty, let associatedLabel {
+                text = collapse(associatedLabel, limit: maxTextChars)
+            }
             let visible = pickVisibleText(title: title, value: value,
-                                          staticLabel: staticLabelText(el), isSecure: secure)
+                                          staticLabel: associatedLabel, isSecure: secure)
             let nonvisual = pickNonvisualText(description: description, help: help)
             elements.append(DumpElement(
                 id: elements.count, role: role, text: text,

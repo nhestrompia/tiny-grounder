@@ -1,9 +1,276 @@
 {
   "action_method": "System Events process-scoped coordinate clicks and allowlisted keyboard input",
-  "counts": {},
-  "drops": [],
-  "message": "axdump needs the Accessibility permission. Open System Settings > Privacy & Security > Accessibility, enable the terminal app you run this from, then run axdump again.",
-  "per_task": {},
-  "status": "not_recorded_permission_missing",
-  "tag_counts": {}
+  "counts": {
+    "drop:no_matching_element": 14,
+    "dropped_steps": 14,
+    "duplicates": 0,
+    "examples": 122,
+    "examples_raw": 122,
+    "not_attempted_after_drop": 33,
+    "pages": 38
+  },
+  "drops": [
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 5,
+      "target": "Edit Avenir sample",
+      "task": "fontbook-custom-preview"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 0,
+      "target": "",
+      "task": "dictionary-define-ephemeral"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 0,
+      "target": "",
+      "task": "dictionary-thesaurus-stream"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 0,
+      "target": "",
+      "task": "dictionary-back-forward"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 0,
+      "target": "",
+      "task": "dictionary-wikipedia-hopper"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 0,
+      "target": "",
+      "task": "dictionary-serendipity-entry"
+    },
+    {
+      "action": "type",
+      "reason": "no_matching_element",
+      "step_index": 4,
+      "target": "Equation",
+      "task": "grapher-parabola"
+    },
+    {
+      "action": "type",
+      "reason": "no_matching_element",
+      "step_index": 4,
+      "target": "Equation",
+      "task": "grapher-sine-wave"
+    },
+    {
+      "action": "type",
+      "reason": "no_matching_element",
+      "step_index": 4,
+      "target": "Equation",
+      "task": "grapher-inverse-curve"
+    },
+    {
+      "action": "type",
+      "reason": "no_matching_element",
+      "step_index": 4,
+      "target": "Equation",
+      "task": "grapher-zoom-out-icon"
+    },
+    {
+      "action": "type",
+      "reason": "no_matching_element",
+      "step_index": 4,
+      "target": "Equation",
+      "task": "grapher-circle"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 1,
+      "target": "1 min",
+      "task": "clock-timer-one-minute"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 1,
+      "target": "5 min",
+      "task": "clock-timer-five-minute-pause"
+    },
+    {
+      "action": "click",
+      "reason": "no_matching_element",
+      "step_index": 2,
+      "target": "Close",
+      "task": "diskutil-inspect-volume-info"
+    }
+  ],
+  "message": "",
+  "per_task": {
+    "automator-application-text": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "automator-ask-text-workflow": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "automator-new-folder-workflow": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "automator-quick-action-speech": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "automator-rename-workflow": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "clock-stopwatch-lap": {
+      "dropped": 0,
+      "examples": 5,
+      "not_attempted": 0
+    },
+    "clock-stopwatch-reset-immediately": {
+      "dropped": 0,
+      "examples": 4,
+      "not_attempted": 0
+    },
+    "clock-stopwatch-two-laps": {
+      "dropped": 0,
+      "examples": 6,
+      "not_attempted": 0
+    },
+    "clock-timer-five-minute-pause": {
+      "dropped": 1,
+      "examples": 1,
+      "not_attempted": 3
+    },
+    "clock-timer-one-minute": {
+      "dropped": 1,
+      "examples": 1,
+      "not_attempted": 2
+    },
+    "dictionary-back-forward": {
+      "dropped": 1,
+      "examples": 0,
+      "not_attempted": 5
+    },
+    "dictionary-define-ephemeral": {
+      "dropped": 1,
+      "examples": 0,
+      "not_attempted": 3
+    },
+    "dictionary-serendipity-entry": {
+      "dropped": 1,
+      "examples": 0,
+      "not_attempted": 4
+    },
+    "dictionary-thesaurus-stream": {
+      "dropped": 1,
+      "examples": 0,
+      "not_attempted": 4
+    },
+    "dictionary-wikipedia-hopper": {
+      "dropped": 1,
+      "examples": 0,
+      "not_attempted": 5
+    },
+    "diskutil-inspect-volume-info": {
+      "dropped": 1,
+      "examples": 2,
+      "not_attempted": 0
+    },
+    "fontbook-code-preview": {
+      "dropped": 0,
+      "examples": 5,
+      "not_attempted": 0
+    },
+    "fontbook-custom-preview": {
+      "dropped": 1,
+      "examples": 5,
+      "not_attempted": 1
+    },
+    "fontbook-font-info": {
+      "dropped": 0,
+      "examples": 6,
+      "not_attempted": 0
+    },
+    "fontbook-grid-view-icon": {
+      "dropped": 0,
+      "examples": 6,
+      "not_attempted": 0
+    },
+    "fontbook-times-repertoire": {
+      "dropped": 0,
+      "examples": 5,
+      "not_attempted": 0
+    },
+    "grapher-circle": {
+      "dropped": 1,
+      "examples": 4,
+      "not_attempted": 1
+    },
+    "grapher-inverse-curve": {
+      "dropped": 1,
+      "examples": 4,
+      "not_attempted": 1
+    },
+    "grapher-parabola": {
+      "dropped": 1,
+      "examples": 4,
+      "not_attempted": 1
+    },
+    "grapher-sine-wave": {
+      "dropped": 1,
+      "examples": 4,
+      "not_attempted": 1
+    },
+    "grapher-zoom-out-icon": {
+      "dropped": 1,
+      "examples": 4,
+      "not_attempted": 2
+    },
+    "scripteditor-comment-syntax": {
+      "dropped": 0,
+      "examples": 3,
+      "not_attempted": 0
+    },
+    "scripteditor-compile-assignment": {
+      "dropped": 0,
+      "examples": 3,
+      "not_attempted": 0
+    },
+    "scripteditor-compile-handler": {
+      "dropped": 0,
+      "examples": 7,
+      "not_attempted": 0
+    },
+    "scripteditor-compile-loop": {
+      "dropped": 0,
+      "examples": 3,
+      "not_attempted": 0
+    },
+    "scripteditor-revise-greeting": {
+      "dropped": 0,
+      "examples": 5,
+      "not_attempted": 0
+    }
+  },
+  "status": "recorded",
+  "tag_counts": {
+    "goal-only": 48,
+    "icon": 54,
+    "literal": 25
+  }
 }

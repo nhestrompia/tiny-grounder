@@ -90,6 +90,43 @@ def test_key_chords_are_allowlisted_and_compile_to_system_events():
             dr.key_parts(bad)
 
 
+def test_click_script_balances_nested_system_events_tells():
+    driver = dr.SystemEventsDriver()
+    seen = []
+    driver._osascript = lambda *lines: seen.append(lines) or ""
+    driver.click_at("Font Book", 10.4, 20.6)
+    lines = seen[0]
+    assert lines.count("end tell") == 2
+    assert 'click at {10, 21}' in lines
+
+
+def test_type_text_scripts_escape_quotes_and_split_lines_at_explicit_returns():
+    scripts = dr.type_text_scripts('set greeting to "hello"\nreturn message & "!"')
+    assert scripts == [
+        'tell application "System Events" to keystroke "set greeting to \\"hello\\""',
+        'tell application "System Events" to key code 36',
+        'tell application "System Events" to keystroke "return message & \\"!\\""',
+    ]
+    assert dr.type_text_scripts("back\\slash") == [
+        'tell application "System Events" to keystroke "back\\\\slash"',
+    ]
+    assert dr.type_text_scripts("one\r\ntwo") == [
+        'tell application "System Events" to keystroke "one"',
+        'tell application "System Events" to key code 36',
+        'tell application "System Events" to keystroke "two"',
+    ]
+
+
+def test_role_only_target_requires_nth_and_selects_that_control():
+    with pytest.raises(ValueError):
+        dr.parse_target({"role": "textbox"}, "task")
+    target = dr.parse_target({"role": "textbox", "nth": 2}, "task")
+    elements = [Element(0, "textbox", "first"), Element(1, "textbox", "second")]
+    resolved = dr.resolve_target(elements, target)
+    assert isinstance(resolved, dr.Resolution)
+    assert resolved.primary.id == 1 and resolved.match_kind == "role"
+
+
 def test_recording_writes_compatible_examples_pages_report_and_manifest(tmp_path):
     driver = FakeDriver(sheets=(True, False))
     recorder = recorder_for("script_editor_window.json", driver)
