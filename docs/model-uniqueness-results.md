@@ -26,11 +26,35 @@ primary). Command and full tables: `runs/uniqueness-w_shops/report.md`.
   are small. The model's advantage only matters for **ordering** a compact digest (top 3), which is the adaptive-digest
   regime of PR #4.
 
-## D: held-out macOS apps: pending
+## D: held-out macOS apps (122 items, 17 of 31 tasks kept, 6 apps): **FAIL** (underpowered)
 
-The first recording run produced 0 examples. The oracle locators had been written blind, before any dump, as
-required. They are being corrected against real `axdump` output with the goals left frozen; the audit trail is
-`docs/d-macos-locator-fixes.md`.
+| recall@3 (task-clustered 95% CI) | exact | bm25 | xs | blend[xs] | m | blend[m] |
+|---|---|---|---|---|---|---|
+| all (122) | 36.1 | 38.5 | 45.9 | **47.8** | 38.0 | 44.8 |
+| literal (25) | 52.0 | 64.0 | 50.7 | 72.0 | | |
+| goal-only (48) | 18.8 | 18.8 | 33.3 | 22.2 | | |
+| icon (54) | 46.3 | 46.3 | 53.1 | 53.7 | | |
+
+- **Gate:** `blend[xs]` − bm25 (the best keyword ranker) = **+9.3 pp [−0.8, +20.7]**. The lower bound misses 0 by 0.8, so
+  condition 1 fails. The literal check passes (+20.0 pp). Against exact it is +11.7 pp [+0.8, +23.7].
+- **Why it's underpowered:** 14 of 31 tasks were dropped because the control isn't exposed in this macOS version
+  (Dictionary search, Grapher's equation editor, Clock presets, Disk Utility close), leaving 26 task clusters. Every
+  point estimate favours the model, but the pre-registered rule is applied as written.
+- **Secondary (not gated):** desktop windows are larger than shop pages, so the B = 300 digest separates the arms
+  here. On the 54 items whose whole window doesn't fit, B = 300 recall is **72.8 for `blend[xs]` against 46.3 for
+  keywords**; over all items, 88.0 against 76.2.
+- **Deviations, all disclosed:**
+  - The oracle locators were rewritten against real dumps (93 locator and 21 path edits, logged in
+    `docs/d-macos-locator-fixes.md`). Goals, ids, apps and tags are verified unchanged against the frozen commit.
+  - `axdump` now keeps controls that don't advertise an action and labels table rows from their static text. Every
+    arm sees the same pages, but this is a small shift from the model's training extraction.
+
+## Decision (per the pre-registered table)
+
+**W pass, D fail → "Web only. The desktop claim waits for the retrain."** The desktop failure reflects low power more
+than evidence against the model. The retrain (a pretrained UI base with decision heads, see the strategy review) has
+to be judged on a larger desktop test, the external UI-Vision set (83 apps), with the gate pre-registered before
+training.
 
 ## D-public: no usable dataset
 
