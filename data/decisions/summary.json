@@ -1,0 +1,543 @@
+{
+  "decisions": {
+    "show": {
+      "rows": {
+        "train": 555,
+        "dev": 106,
+        "test": 140
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {}
+    },
+    "next": {
+      "rows": {
+        "train": 555,
+        "dev": 106,
+        "test": 140
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {}
+    },
+    "enough": {
+      "rows": {
+        "train": 10367,
+        "dev": 2212,
+        "test": 2216
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {
+        "train": 0.40281662969036364,
+        "dev": 0.38019891500904157,
+        "test": 0.39395306859205775
+      }
+    },
+    "worked": {
+      "rows": {
+        "train": 7047,
+        "dev": 1553,
+        "test": 1473
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {
+        "train": 0.5134099616858238,
+        "dev": 0.5112685125563425,
+        "test": 0.5288526816021725
+      }
+    },
+    "done": {
+      "rows": {
+        "train": 10367,
+        "dev": 2212,
+        "test": 2216
+      },
+      "sites": {
+        "train": 33,
+        "dev": 9,
+        "test": 9
+      },
+      "base_rates": {
+        "train": 0.22880293238159544,
+        "dev": 0.23236889692585896,
+        "test": 0.24368231046931407
+      }
+    }
+  },
+  "splits": {
+    "train": {
+      "rows": 28891,
+      "sites": [
+        "asciidoctor.org",
+        "babeltrace.org",
+        "buck2.build",
+        "caltech.edu",
+        "elv.sh",
+        "fastify.dev",
+        "fennel-lang.org",
+        "fishshell.com",
+        "github.io",
+        "gnutls.org",
+        "htslib.org",
+        "just.systems",
+        "ledger-cli.org",
+        "libevent.org",
+        "libzip.org",
+        "mesonbuild.com",
+        "mit.edu",
+        "mos.org",
+        "nickel-lang.org",
+        "nushell.sh",
+        "ocaml.org",
+        "open-mpi.org",
+        "openexr.com",
+        "pbs.org",
+        "ruby-lang.org",
+        "scikit-learn.org",
+        "taskfile.dev",
+        "tate.org.uk",
+        "tcl-lang.org",
+        "tiangolo.com",
+        "typst.app",
+        "ubuntu.com",
+        "zeromq.org"
+      ],
+      "site_count": 33
+    },
+    "dev": {
+      "rows": 6189,
+      "sites": [
+        "bearssl.org",
+        "haskell.org",
+        "htmx.org",
+        "keras.io",
+        "libssh2.org",
+        "libuv.org",
+        "mruby.org",
+        "opus-codec.org",
+        "quarto.org"
+      ],
+      "site_count": 9
+    },
+    "test": {
+      "rows": 6185,
+      "sites": [
+        "astral.sh",
+        "bazel.build",
+        "breezy-vcs.org",
+        "charitywater.org",
+        "fossil-scm.org",
+        "lttng.org",
+        "met.ie",
+        "pnpm.io",
+        "randombit.net"
+      ],
+      "site_count": 9
+    }
+  },
+  "source_root": "/Users/nhestrompia/Projects/tiny-grounder",
+  "source_run_counts": {
+    "runs:bench-v2": 3047,
+    "logs:bench-v2": 2987,
+    "runs:bench-v2-smoke": 9,
+    "logs:bench-v2-smoke": 9,
+    "runs:bench-v3": 1608,
+    "logs:bench-v3": 1608,
+    "runs:bench-v3-pilot": 60,
+    "logs:bench-v3-pilot": 60,
+    "runs:bench-v3-pilot2": 60,
+    "logs:bench-v3-pilot2": 60
+  },
+  "states": 16266,
+  "unique_pages": 1208,
+  "available_pages": 876,
+  "page_failures": [
+    {
+      "page_id": "next-f9886835abfe9f7c2521",
+      "url": "https://support.charitywater.org/hc/en-us",
+      "task_id": "charity-phone",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-b07a4b578c4d1d960fda",
+      "url": "https://ledger-cli.org/doc/ledger3.txt",
+      "task_id": "ledger-cli-ledger",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-2aeb52ef0573b6155a42",
+      "url": "https://ledger-cli.org/doc/ledger-mode.txt",
+      "task_id": "ledger-cli-ledger-mode",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-e32cda099e84411cdda2",
+      "url": "https://lttng.org/docs/",
+      "task_id": "lttng-v2",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-0d42f01b8fefdaa12c9c",
+      "url": "https://lttng.org/docs/#doc-nuts-and-bolts",
+      "task_id": "lttng-v2",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-8eee3ec4d3619874d750",
+      "url": "https://lttng.org/docs/#doc-taking-a-snapshot",
+      "task_id": "lttng-v2",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-6292912d7770463fb1e5",
+      "url": "https://docs.open-mpi.org/en/v5.0.x/llms.txt",
+      "task_id": "open-mpi-index-3",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-da4e38c278506bcde8b1",
+      "url": "https://ubuntu.com/download/desktop/thank-you?version=26.04.1&architecture=amd64&lts=true",
+      "task_id": "ubuntu-desktop-download",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-15750d51100722d7c6db",
+      "url": "https://docs.astral.sh/uv/reference/",
+      "task_id": "uv-intro-multistep",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    },
+    {
+      "page_id": "next-77ef80342f3ce4a2189f",
+      "url": "https://docs.astral.sh/uv/reference/#highlights",
+      "task_id": "uv-intro-multistep",
+      "ok": false,
+      "error": "ValueError: empty/unarchived page"
+    }
+  ],
+  "drops": {
+    "bad_url": 18,
+    "done:page_unrecoverable": 1471,
+    "enough:page_unrecoverable": 1471,
+    "log_without_run_row": 1,
+    "no_committed_call": 47,
+    "page_extraction_failure": 10,
+    "page_unavailable_unique": 332,
+    "show_next:bench-v2-smoke:duplicates": 10,
+    "show_next:bench-v2-smoke:element_unrecoverable": 2,
+    "show_next:bench-v2:duplicates": 2563,
+    "show_next:bench-v2:element_unrecoverable": 192,
+    "show_next:bench-v2:page_unrecoverable": 3,
+    "show_next:bench-v2:unlabelled_or_failed_action": 1517,
+    "show_next:bench-v3-pilot2:duplicates": 79,
+    "show_next:bench-v3-pilot2:unlabelled_or_failed_action": 2,
+    "show_next:bench-v3-pilot:duplicates": 63,
+    "show_next:bench-v3-pilot:element_unrecoverable": 1,
+    "show_next:bench-v3:duplicates": 1929,
+    "show_next:bench-v3:element_unrecoverable": 119,
+    "show_next:bench-v3:page_unrecoverable": 53,
+    "show_next:bench-v3:unlabelled_or_failed_action": 52,
+    "show_next:cross_directory_duplicate": 48,
+    "url_not_in_archive": 322,
+    "worked:no_previous_action": 4722,
+    "worked:page_unrecoverable": 1471
+  },
+  "screenshot_audit": {
+    "run_dirs": {
+      "bench-v2": {
+        "a11y-cap": {
+          "runs": 778,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1212,
+          "calls": 4020,
+          "agent_image_payloads": 0
+        },
+        "find-blend-": {
+          "calls": 4913,
+          "agent_image_payloads": 0
+        },
+        "find-exact-": {
+          "calls": 4987,
+          "agent_image_payloads": 0
+        },
+        "find[blend]": {
+          "runs": 773,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1516
+        },
+        "find[exact]": {
+          "runs": 776,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1469
+        },
+        "vision": {
+          "runs": 720,
+          "run_images": 4363,
+          "run_image_bytes": 758371644,
+          "run_steps": 2606,
+          "calls": 5195,
+          "image_events": 4363,
+          "image_event_bytes": 758371644,
+          "explicit_screenshot_calls": 1890,
+          "action_steps_with_image": 2473,
+          "agent_image_payloads": 5935
+        }
+      },
+      "bench-v2-smoke": {
+        "a11y-cap": {
+          "runs": 3,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 10,
+          "calls": 37,
+          "agent_image_payloads": 0
+        },
+        "find-blend-": {
+          "calls": 33,
+          "agent_image_payloads": 0
+        },
+        "find-exact-": {
+          "calls": 24,
+          "agent_image_payloads": 0
+        },
+        "find[blend]": {
+          "runs": 3,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 11
+        },
+        "find[exact]": {
+          "runs": 3,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 7
+        }
+      },
+      "bench-v3": {
+        "a11y-cap": {
+          "runs": 536,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1393,
+          "calls": 2918,
+          "agent_image_payloads": 0
+        },
+        "find+observe[exact+blend]": {
+          "runs": 536,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1432
+        },
+        "find+observe[exact]": {
+          "runs": 536,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 1447
+        },
+        "find-observe-exact-": {
+          "calls": 3704,
+          "agent_image_payloads": 0
+        },
+        "find-observe-exact-blend-": {
+          "calls": 3649,
+          "agent_image_payloads": 0
+        }
+      },
+      "bench-v3-pilot": {
+        "a11y-cap": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 74,
+          "calls": 131,
+          "agent_image_payloads": 0
+        },
+        "find+observe[exact+blend]": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 126
+        },
+        "find+observe[exact]": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 113
+        },
+        "find-observe-exact-": {
+          "calls": 197,
+          "agent_image_payloads": 0
+        },
+        "find-observe-exact-blend-": {
+          "calls": 206,
+          "agent_image_payloads": 0
+        }
+      },
+      "bench-v3-pilot2": {
+        "a11y-cap": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 73,
+          "calls": 138,
+          "agent_image_payloads": 0
+        },
+        "find+observe[exact+blend]": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 55
+        },
+        "find+observe[exact]": {
+          "runs": 20,
+          "run_images": 0,
+          "run_image_bytes": 0,
+          "run_steps": 63
+        },
+        "find-observe-exact-": {
+          "calls": 140,
+          "agent_image_payloads": 0
+        },
+        "find-observe-exact-blend-": {
+          "calls": 128,
+          "agent_image_payloads": 0
+        }
+      }
+    },
+    "notes": [
+      "server.jsonl stores image dimensions and byte counts, not PNG payloads",
+      "agent.jsonl stores image/png payloads returned to Claude as base64; Codex transcripts may differ"
+    ]
+  },
+  "split_assignment": {
+    "tiangolo.com": "train",
+    "ocaml.org": "train",
+    "scikit-learn.org": "train",
+    "htmx.org": "dev",
+    "astral.sh": "test",
+    "ruby-lang.org": "train",
+    "github.io": "train",
+    "fastify.dev": "train",
+    "pnpm.io": "test",
+    "keras.io": "dev",
+    "mit.edu": "train",
+    "open-mpi.org": "train",
+    "asciidoctor.org": "train",
+    "ubuntu.com": "train",
+    "breezy-vcs.org": "test",
+    "haskell.org": "dev",
+    "typst.app": "train",
+    "tate.org.uk": "train",
+    "caltech.edu": "train",
+    "libzip.org": "train",
+    "randombit.net": "test",
+    "mos.org": "train",
+    "libuv.org": "dev",
+    "mesonbuild.com": "train",
+    "fishshell.com": "train",
+    "libevent.org": "train",
+    "bearssl.org": "dev",
+    "charitywater.org": "test",
+    "openexr.com": "train",
+    "nushell.sh": "train",
+    "nickel-lang.org": "train",
+    "elv.sh": "train",
+    "libssh2.org": "dev",
+    "met.ie": "test",
+    "htslib.org": "train",
+    "zeromq.org": "train",
+    "pbs.org": "train",
+    "ledger-cli.org": "train",
+    "lttng.org": "test",
+    "opus-codec.org": "dev",
+    "buck2.build": "train",
+    "tcl-lang.org": "train",
+    "babeltrace.org": "train",
+    "fossil-scm.org": "test",
+    "fennel-lang.org": "train",
+    "quarto.org": "dev",
+    "taskfile.dev": "train",
+    "gnutls.org": "train",
+    "just.systems": "train",
+    "mruby.org": "dev",
+    "bazel.build": "test"
+  },
+  "test_manifest_files": 130,
+  "show_next_counts": {
+    "bench-v2": {
+      "successful_runs": 2621,
+      "action_steps": 4521,
+      "recoverable_steps": 2809,
+      "duplicates": 2563,
+      "dropped_steps": 1712,
+      "element_unrecoverable": 192,
+      "unlabelled_or_failed_action": 1517,
+      "page_unrecoverable": 3,
+      "usable_unique": 246
+    },
+    "bench-v2-smoke": {
+      "successful_runs": 8,
+      "action_steps": 21,
+      "recoverable_steps": 19,
+      "duplicates": 10,
+      "dropped_steps": 2,
+      "element_unrecoverable": 2,
+      "usable_unique": 9
+    },
+    "bench-v3": {
+      "successful_runs": 1184,
+      "action_steps": 2693,
+      "recoverable_steps": 2469,
+      "dropped_steps": 224,
+      "page_unrecoverable": 53,
+      "element_unrecoverable": 119,
+      "unlabelled_or_failed_action": 52,
+      "duplicates": 1929,
+      "usable_unique": 540
+    },
+    "bench-v3-pilot": {
+      "successful_runs": 41,
+      "action_steps": 81,
+      "recoverable_steps": 80,
+      "duplicates": 63,
+      "dropped_steps": 1,
+      "element_unrecoverable": 1,
+      "usable_unique": 17
+    },
+    "bench-v3-pilot2": {
+      "successful_runs": 49,
+      "action_steps": 118,
+      "recoverable_steps": 116,
+      "dropped_steps": 2,
+      "unlabelled_or_failed_action": 2,
+      "duplicates": 79,
+      "usable_unique": 37
+    }
+  },
+  "artifact_bytes": 50656369
+}

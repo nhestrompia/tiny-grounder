@@ -1,0 +1,325 @@
+{
+  "rows": 20,
+  "results": [
+    {
+      "row": 0,
+      "page_id": "next-c99d044a3a6a4787c036",
+      "task_id": "caltech-icon-facebook",
+      "url": "https://www.caltech.edu/",
+      "icon_only": true,
+      "crop_count": 6,
+      "requested_crops": 6,
+      "seconds": 1.6996890832670033,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-0-next-c99d044a3a6a4787c036.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-1-next-c99d044a3a6a4787c036.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-2-next-c99d044a3a6a4787c036.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-3-next-c99d044a3a6a4787c036.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-4-next-c99d044a3a6a4787c036.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/00-5-next-c99d044a3a6a4787c036.png"
+      ]
+    },
+    {
+      "row": 1,
+      "page_id": "next-a8a16dca716ede68db0c",
+      "task_id": "caltech-icon-twitter",
+      "url": "https://www.caltech.edu/",
+      "icon_only": true,
+      "crop_count": 6,
+      "requested_crops": 6,
+      "seconds": 1.2115950831212103,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-0-next-a8a16dca716ede68db0c.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-1-next-a8a16dca716ede68db0c.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-2-next-a8a16dca716ede68db0c.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-3-next-a8a16dca716ede68db0c.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-4-next-a8a16dca716ede68db0c.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/01-5-next-a8a16dca716ede68db0c.png"
+      ]
+    },
+    {
+      "row": 2,
+      "page_id": "next-7e78c59eda7051b809e8",
+      "task_id": "pbs-newshour",
+      "url": "https://www.pbs.org/",
+      "icon_only": true,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.2638137908652425,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/02-0-next-7e78c59eda7051b809e8.png"
+      ]
+    },
+    {
+      "row": 3,
+      "page_id": "next-38a51081c36f043ff222",
+      "task_id": "fastapi-async-explainer",
+      "url": "https://fastapi.tiangolo.com/",
+      "icon_only": true,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.2310737087391317,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/03-0-next-38a51081c36f043ff222.png"
+      ]
+    },
+    {
+      "row": 4,
+      "page_id": "next-d7e31b922a207b7a5a28",
+      "task_id": "pbs-newshour",
+      "url": "https://www.pbs.org/",
+      "icon_only": true,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.1878622090443969,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/04-0-next-d7e31b922a207b7a5a28.png"
+      ]
+    },
+    {
+      "row": 5,
+      "page_id": "next-7494d103e3998eb7dcaa",
+      "task_id": "libzip-coding",
+      "url": "https://libzip.org/guides/building/",
+      "icon_only": true,
+      "crop_count": 3,
+      "requested_crops": 3,
+      "seconds": 0.9283423749729991,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/05-0-next-7494d103e3998eb7dcaa.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/05-1-next-7494d103e3998eb7dcaa.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/05-2-next-7494d103e3998eb7dcaa.png"
+      ]
+    },
+    {
+      "row": 6,
+      "page_id": "next-8837092388740e4281c5",
+      "task_id": "fastapi-async-explainer",
+      "url": "https://fastapi.tiangolo.com/",
+      "icon_only": true,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.7254054588265717,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/06-0-next-8837092388740e4281c5.png"
+      ]
+    },
+    {
+      "row": 7,
+      "page_id": "next-53e45758f079e966fda1",
+      "task_id": "open-mpi-index-3",
+      "url": "https://www.open-mpi.org/doc/",
+      "icon_only": true,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 0.8388400841504335,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/07-0-next-53e45758f079e966fda1.png"
+      ]
+    },
+    {
+      "row": 8,
+      "page_id": "next-ccd81ed6ac30f149e736",
+      "task_id": "quarto-docusaurus",
+      "url": "https://quarto.org/",
+      "icon_only": true,
+      "crop_count": 3,
+      "requested_crops": 3,
+      "seconds": 1.0181084997020662,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/08-0-next-ccd81ed6ac30f149e736.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/08-1-next-ccd81ed6ac30f149e736.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/08-2-next-ccd81ed6ac30f149e736.png"
+      ]
+    },
+    {
+      "row": 9,
+      "page_id": "next-20fe92178f3666a75e75",
+      "task_id": "caltech-visit",
+      "url": "https://www.caltech.edu/",
+      "icon_only": false,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.0664644995704293,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/09-0-next-20fe92178f3666a75e75.png"
+      ]
+    },
+    {
+      "row": 10,
+      "page_id": "next-704a26c0c33a7cc981ba",
+      "task_id": "esbuild-footer-option",
+      "url": "https://esbuild.github.io/api/",
+      "icon_only": false,
+      "crop_count": 4,
+      "requested_crops": 4,
+      "seconds": 0.9747186251915991,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/10-0-next-704a26c0c33a7cc981ba.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/10-1-next-704a26c0c33a7cc981ba.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/10-2-next-704a26c0c33a7cc981ba.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/10-3-next-704a26c0c33a7cc981ba.png"
+      ]
+    },
+    {
+      "row": 11,
+      "page_id": "next-0546503c140f483ec5ca",
+      "task_id": "esbuild-icon-github",
+      "url": "https://esbuild.github.io/",
+      "icon_only": false,
+      "crop_count": 0,
+      "requested_crops": 1,
+      "seconds": 0.78208520822227,
+      "error": "",
+      "paths": []
+    },
+    {
+      "row": 12,
+      "page_id": "next-71f4323cccc4da9bcb0f",
+      "task_id": "esbuild-splitting-multistep",
+      "url": "https://esbuild.github.io/",
+      "icon_only": false,
+      "crop_count": 2,
+      "requested_crops": 2,
+      "seconds": 0.8664142908528447,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/12-0-next-71f4323cccc4da9bcb0f.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/12-1-next-71f4323cccc4da9bcb0f.png"
+      ]
+    },
+    {
+      "row": 13,
+      "page_id": "next-f60d12dac75be24d236d",
+      "task_id": "esbuild-splitting-multistep",
+      "url": "https://esbuild.github.io/api/",
+      "icon_only": false,
+      "crop_count": 2,
+      "requested_crops": 2,
+      "seconds": 0.9111179583705962,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/13-0-next-f60d12dac75be24d236d.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/13-1-next-f60d12dac75be24d236d.png"
+      ]
+    },
+    {
+      "row": 14,
+      "page_id": "next-71f4323cccc4da9bcb0f",
+      "task_id": "esbuild-splitting-multistep",
+      "url": "https://esbuild.github.io/",
+      "icon_only": false,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 0.816512584220618,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/14-0-next-71f4323cccc4da9bcb0f.png"
+      ]
+    },
+    {
+      "row": 15,
+      "page_id": "next-a28d6fccf0de12cc4b65",
+      "task_id": "esbuild-splitting-multistep",
+      "url": "https://esbuild.github.io/api/#output-contents",
+      "icon_only": false,
+      "crop_count": 2,
+      "requested_crops": 2,
+      "seconds": 0.9280341658741236,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/15-0-next-a28d6fccf0de12cc4b65.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/15-1-next-a28d6fccf0de12cc4b65.png"
+      ]
+    },
+    {
+      "row": 16,
+      "page_id": "next-f57514249c47a3ce62d8",
+      "task_id": "esbuild-treeshake",
+      "url": "https://esbuild.github.io/api/",
+      "icon_only": false,
+      "crop_count": 5,
+      "requested_crops": 5,
+      "seconds": 0.9801910002715886,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/16-0-next-f57514249c47a3ce62d8.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/16-1-next-f57514249c47a3ce62d8.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/16-2-next-f57514249c47a3ce62d8.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/16-3-next-f57514249c47a3ce62d8.png",
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/16-4-next-f57514249c47a3ce62d8.png"
+      ]
+    },
+    {
+      "row": 17,
+      "page_id": "next-38a51081c36f043ff222",
+      "task_id": "fastapi-async-explainer",
+      "url": "https://fastapi.tiangolo.com/",
+      "icon_only": false,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.6618538750335574,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/17-0-next-38a51081c36f043ff222.png"
+      ]
+    },
+    {
+      "row": 18,
+      "page_id": "next-a8e5dffb08f60530dacf",
+      "task_id": "fastapi-async-explainer",
+      "url": "https://fastapi.tiangolo.com/learn/",
+      "icon_only": false,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.6474196249619126,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/18-0-next-a8e5dffb08f60530dacf.png"
+      ]
+    },
+    {
+      "row": 19,
+      "page_id": "next-f3dc7693821d2d84eb2b",
+      "task_id": "fastapi-deploy-vague",
+      "url": "https://fastapi.tiangolo.com/",
+      "icon_only": false,
+      "crop_count": 1,
+      "requested_crops": 1,
+      "seconds": 1.67975858412683,
+      "error": "",
+      "paths": [
+        "/Users/nhestrompia/.t3/worktrees/tiny-grounder/t3-830d4f77-ed8f5e47b12f23fb/data/decisions/crop-audit/19-0-next-f3dc7693821d2d84eb2b.png"
+      ]
+    }
+  ],
+  "groups": {
+    "icon_only": {
+      "rows": 9,
+      "crops": 23,
+      "errors": 0,
+      "mean_seconds_per_row": 1.233858921409895,
+      "median_seconds_per_row": 1.2115950831212103,
+      "mean_crops_per_row": 2.5555555555555554
+    },
+    "visible_text": {
+      "rows": 11,
+      "crops": 20,
+      "errors": 0,
+      "mean_seconds_per_row": 1.1195064015178517,
+      "median_seconds_per_row": 0.9747186251915991,
+      "mean_crops_per_row": 1.8181818181818181
+    }
+  }
+}

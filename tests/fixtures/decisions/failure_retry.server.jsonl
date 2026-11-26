@@ -1,0 +1,5 @@
+{"type": "call", "n": 1, "name": "observe", "args": {}, "is_error": false, "result": "url: https://example.org/\ntitle: Home\n7|button|Save|form"}
+{"type": "call", "n": 2, "name": "click", "args": {"id": 7}, "is_error": true, "result": "refused: risky: the element submits a form"}
+{"type": "call", "n": 3, "name": "click", "args": {"id": 7}, "is_error": false, "result": "clicked button 'Retry'\nurl: https://example.org/retry\ntitle: Retry"}
+{"type": "call", "n": 4, "name": "done", "args": {"answer": "failed"}, "is_error": false, "result": "ok"}
+{"type": "summary", "goal": "fixture goal", "success": true}

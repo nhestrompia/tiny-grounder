@@ -1,0 +1,164 @@
+{
+  "split": "dev",
+  "decisions": {
+    "show": {
+      "n": 106,
+      "pages": 69,
+      "target_ranking": {
+        "exact": {
+          "n": 106,
+          "recall@3": 0.49056603773584906,
+          "top1": 0.24528301886792453
+        },
+        "bm25": {
+          "n": 106,
+          "recall@3": 0.44339622641509435,
+          "top1": 0.20754716981132076
+        }
+      }
+    },
+    "next": {
+      "n": 106,
+      "pages": 69,
+      "target_ranking": {
+        "exact": {
+          "n": 106,
+          "recall@3": 0.49056603773584906,
+          "top1": 0.24528301886792453
+        },
+        "bm25": {
+          "n": 106,
+          "recall@3": 0.44339622641509435,
+          "top1": 0.20754716981132076
+        }
+      },
+      "action_type": {
+        "action_base_rates": {
+          "click": 100,
+          "type": 6
+        },
+        "majority": {
+          "class": "click",
+          "accuracy": 0.9433962264150944
+        },
+        "textbox_type_rule": {
+          "accuracy": 0.9811320754716981
+        }
+      }
+    },
+    "enough": {
+      "n": 2212,
+      "pages": 132,
+      "base_rate": 0.38019891500904157,
+      "binary": {
+        "majority": {
+          "n": 2212,
+          "base_rate": 0.38019891500904157,
+          "accuracy": 0.6198010849909584,
+          "precision": null,
+          "recall": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 841,
+          "tn": 1371,
+          "auroc": null
+        },
+        "visual_terms_and_empty_text_ratio": {
+          "n": 2212,
+          "base_rate": 0.38019891500904157,
+          "accuracy": 0.6198010849909584,
+          "precision": null,
+          "recall": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 841,
+          "tn": 1371,
+          "auroc": 0.4508283095304381,
+          "threshold": 0.5,
+          "score_min": 0.0,
+          "score_max": 0.041379310344827586
+        },
+        "vision_arm": {
+          "n": 2212,
+          "base_rate": 0.38019891500904157,
+          "accuracy": 0.7861663652802894,
+          "precision": 1.0,
+          "recall": 0.43757431629013077,
+          "tp": 368,
+          "fp": 0,
+          "fn": 473,
+          "tn": 1371,
+          "auroc": 0.7187871581450654
+        }
+      }
+    },
+    "worked": {
+      "n": 1553,
+      "pages": 110,
+      "base_rate": 0.5112685125563425,
+      "binary": {
+        "majority": {
+          "n": 1553,
+          "base_rate": 0.5112685125563425,
+          "accuracy": 0.5112685125563425,
+          "precision": 0.5112685125563425,
+          "recall": 1.0,
+          "tp": 794,
+          "fp": 759,
+          "fn": 0,
+          "tn": 0,
+          "auroc": null
+        },
+        "url_changed_after_action": {
+          "n": 1553,
+          "base_rate": 0.5112685125563425,
+          "accuracy": 0.5492594977462975,
+          "precision": 0.533715925394548,
+          "recall": 0.9370277078085643,
+          "tp": 744,
+          "fp": 650,
+          "fn": 50,
+          "tn": 109,
+          "auroc": 0.5403188604918974,
+          "threshold": 0.5,
+          "score_min": 0.0,
+          "score_max": 1.0
+        }
+      }
+    },
+    "done": {
+      "n": 2212,
+      "pages": 132,
+      "base_rate": 0.23236889692585896,
+      "binary": {
+        "majority": {
+          "n": 2212,
+          "base_rate": 0.23236889692585896,
+          "accuracy": 0.7676311030741411,
+          "precision": null,
+          "recall": 0.0,
+          "tp": 0,
+          "fp": 0,
+          "fn": 514,
+          "tn": 1698,
+          "auroc": null
+        },
+        "goal_line_token_overlap": {
+          "n": 2212,
+          "base_rate": 0.23236889692585896,
+          "accuracy": 0.7789330922242315,
+          "precision": 0.6811594202898551,
+          "recall": 0.0914396887159533,
+          "tp": 47,
+          "fp": 22,
+          "fn": 467,
+          "tn": 1676,
+          "auroc": 0.5526013666799576,
+          "threshold": 0.5,
+          "score_min": 0.0,
+          "score_max": 0.6666666666666666
+        }
+      }
+    }
+  }
+}
