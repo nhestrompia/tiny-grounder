@@ -11,6 +11,7 @@ measured on them is published, the data never reaches the weights and is never r
 | Screen2AX-Tree (`macpaw-research/Screen2AX-Tree`) + teacher outputs | Apache-2.0 | macOS training | Muryn et al. 2025, arXiv:2507.16704 |
 | Our macOS dumps (`data/pages_ax`) + teacher outputs | ours | macOS training | — |
 | DeskForge-1M (`docling-project/DeskForge-1M`, a sample: `tools/deskforge.py`) | MIT | Linux desktop training (train, dev); `test_app` (held-out applications) for evaluation | Gurbuz et al. 2026, "DeskForge: Dense Supervision from Desktop Environments for Computer-Use Agents", arXiv:2610.02320 |
+| AgentNet macOS (`xlangai/AgentNet`, `tools/agentnet.py`: OCR text lines as candidates, test apps removed) | MIT (README: research, educational and commercial use) | macOS training (train, dev by app) | Wang et al. 2025, "OpenCUA: Open Foundations for Computer-Use Agents", arXiv:2508.09123 — the authors ask for an explicit acknowledgement in the main text of any report |
 | GUIrilla-Task test (`macpaw-research/GUIrilla-Task`) | CC-BY-NC-4.0 | **evaluation only** (macOS benchmark) | Garkot et al. 2025, arXiv:2510.16051 |
 | GUIrilla-Task train | CC-BY-NC-4.0 | **not used** for the release; only a separately labelled CC-BY-NC experiment, if ever | as above |
 
