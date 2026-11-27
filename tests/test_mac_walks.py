@@ -272,3 +272,14 @@ def test_screenshot_mismatch_rejects_wrong_aspect(tmp_path):
     Image.new("RGB", (1392, 1300)).save(bad)
     assert screenshot_mismatch(good, [696, 532]) == ""
     assert "does not match" in screenshot_mismatch(bad, [696, 532])
+
+
+def test_app_is_skipped_when_preferences_cannot_be_snapshotted(tmp_path):
+    from tools.ax_auto import PrefsSnapshotError
+    collector, mac = make_walk_collector(tmp_path, [walk_raw("Calculator", 0)])
+    def fail(bundle, path):
+        raise PrefsSnapshotError("timed out")
+    mac.export_prefs = fail
+    result = collector.run_app("Calculator")
+    assert result["status"] == "skipped" and "preferences could not be saved" in result["reason"]
+    assert not any(e[0] in {"launch", "click"} for e in mac.log)

@@ -145,6 +145,10 @@ def applescript_string(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+
+class PrefsSnapshotError(RuntimeError):
+    """An app's preferences domain exists but could not be exported."""
+
 class Mac:
     """The macOS side effects (open, osascript, keystrokes); tests replace the whole object."""
 
@@ -226,8 +230,19 @@ class Mac:
         return self._osascript(f"id of app {applescript_string(app)}")
 
     def export_prefs(self, bundle_id: str, path: str) -> bool:
-        """Snapshot an app's preferences domain; False when it has none yet."""
-        return self._run(["defaults", "export", bundle_id, path]).returncode == 0
+        """Snapshot an app's preferences domain; False when it has none yet.
+
+        Raises PrefsSnapshotError when the domain can't be read (timeout, sandbox): the app must then not be explored.
+        """
+        try:
+            proc = self._run(["defaults", "export", bundle_id, path])
+        except subprocess.TimeoutExpired as exc:
+            raise PrefsSnapshotError(f"defaults export timed out for {bundle_id}") from exc
+        if proc.returncode == 0:
+            return True
+        if "does not exist" in (proc.stderr or ""):
+            return False
+        raise PrefsSnapshotError((proc.stderr or "").strip() or f"defaults export failed for {bundle_id}")
 
     def import_prefs(self, bundle_id: str, path: str) -> None:
         self._run(["defaults", "import", bundle_id, path])
@@ -755,7 +770,15 @@ class RandomWalkCollector:
             bundle = self.mac.bundle_id(policy.launch_name)
         except Exception:
             bundle = ""
-        had_prefs = bool(bundle) and self.mac.export_prefs(bundle, prefs_file)
+        try:
+            had_prefs = bool(bundle) and self.mac.export_prefs(bundle, prefs_file)
+        except PrefsSnapshotError as exc:
+            # Without a snapshot its settings couldn't be put back, so don't touch the app at all.
+            shutil.rmtree(prefs_dir, ignore_errors=True)
+            result["status"] = "skipped"
+            result["reason"] = f"preferences could not be saved ({exc})"
+            self.show(f"[{canonical}] skipped: {result['reason']}")
+            return result
         try:
             throwaway_path = None
             if policy.throwaway_project:
@@ -947,6 +970,12 @@ def run_walk_mode(args: argparse.Namespace) -> int:
         for app, reason in refused:
             print(f"[{app}] skipped: {reason}")
         apps = [app for app in apps if not policy.refusal(app, args.split)]
+    if not args.redo:
+        walks_dir = Path(args.out) / args.split / "walks"
+        done = [app for app in apps if (walks_dir / f"{slugify(app)}.jsonl").exists()]
+        if done:
+            print(f"skipping {len(done)} apps already collected (pass --redo to collect them again)")
+            apps = [app for app in apps if app not in done]
     if args.dry_run:
         for app in apps:
             policy_app = policy.policy_for(app)
@@ -983,6 +1012,7 @@ def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True, help="pages dir for scene mode, walk output root in walk mode")
     parser.add_argument("--split", choices=SPLITS, default="train")
+    parser.add_argument("--redo", action="store_true", help="walk mode: collect apps that already have walks again")
     parser.add_argument("--mode", choices=("scenes", "walks"), default="scenes",
                         help="legacy fixed safe scenes, or bounded random-but-safe goal-walk collection")
     parser.add_argument("--apps", default="", help="comma list overriding the split's default apps")
