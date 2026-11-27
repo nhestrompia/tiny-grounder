@@ -80,4 +80,24 @@ final class LogicTests: XCTestCase {
         XCTAssertNotNil((first as NSDictionary)["visible_text"])
         XCTAssertNotNil((first as NSDictionary)["nonvisual_text"])
     }
+
+    func testCollectionCards() {
+        let window = [0.0, 0.0, 1000.0, 800.0]
+        let card = [100.0, 100.0, 300.0, 200.0]
+        XCTAssertTrue(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: true, insideCard: false,
+                                       text: "Mac essentials", rect: card, window: window))
+        // Outside a collection, nested in a kept card, without text, tiny, or a whole region: not a card.
+        XCTAssertFalse(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: false, insideCard: false,
+                                        text: "Mac essentials", rect: card, window: window))
+        XCTAssertFalse(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: true, insideCard: true,
+                                        text: "Mac essentials", rect: card, window: window))
+        XCTAssertFalse(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: true, insideCard: false,
+                                        text: " ", rect: card, window: window))
+        XCTAssertFalse(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: true, insideCard: false,
+                                        text: "x", rect: [0, 0, 20, 20], window: window))
+        XCTAssertFalse(isCollectionCard(axRole: "AXGroup", actions: [], inCollection: true, insideCard: false,
+                                        text: "x", rect: [0, 0, 900, 700], window: window))
+        XCTAssertFalse(isCollectionCard(axRole: "AXStaticText", actions: [], inCollection: true, insideCard: false,
+                                        text: "x", rect: card, window: window))
+    }
 }

@@ -134,11 +134,20 @@ struct Walker {
         }
     }
 
-    mutating func visit(_ el: AXUIElement, parentRole: String?, groupTitle: String, siblings: [String], depth: Int) {
+    mutating func visit(_ el: AXUIElement, parentRole: String?, groupTitle: String, siblings: [String], depth: Int,
+                        inCollection: Bool = false, insideCard: Bool = false) {
         if done || depth > opts.maxDepth { return }
         let axRole = string(el, kAXRoleAttribute) ?? ""
         let acts = actions(el)
-        if isKept(axRole: axRole, actions: acts), let role = mapRole(axRole, parentRole: parentRole, actions: acts),
+        var card = false
+        if !isKept(axRole: axRole, actions: acts), inCollection, !insideCard, cardRoles.contains(axRole),
+           let rect = frame(el), isVisible(rect, window: window) {
+            let cardText = string(el, kAXDescriptionAttribute) ?? rowStaticText(el) ?? ""
+            card = isCollectionCard(axRole: axRole, actions: acts, inCollection: inCollection, insideCard: insideCard,
+                                    text: cardText, rect: rect, window: window)
+        }
+        if card || isKept(axRole: axRole, actions: acts),
+           let role = card ? "other" : mapRole(axRole, parentRole: parentRole, actions: acts),
            let rect = frame(el), isVisible(rect, window: window) {
             let secure = string(el, kAXSubroleAttribute) == "AXSecureTextField"
             let title = string(el, kAXTitleAttribute)
@@ -146,7 +155,7 @@ struct Walker {
             let value = string(el, kAXValueAttribute)
             let help = string(el, kAXHelpAttribute)
             let placeholder = string(el, "AXPlaceholderValue")
-            let associatedLabel = staticLabelText(el) ?? (["AXRow", "AXCell"].contains(axRole) ? rowStaticText(el) : nil)
+            let associatedLabel = staticLabelText(el) ?? ((card || ["AXRow", "AXCell"].contains(axRole)) ? rowStaticText(el) : nil)
             var text = pickText(title: title, description: description, value: value, help: help,
                                 placeholder: placeholder, isSecure: secure)
             if text.isEmpty, let associatedLabel {
@@ -169,7 +178,11 @@ struct Walker {
             if !title.isEmpty { nextGroup = title }
         }
         let kidTexts = siblingTexts(kids)
-        for kid in kids { visit(kid, parentRole: axRole, groupTitle: nextGroup, siblings: kidTexts, depth: depth + 1) }
+        let kidsInCollection = inCollection || collectionRoles.contains(axRole)
+        for kid in kids {
+            visit(kid, parentRole: axRole, groupTitle: nextGroup, siblings: kidTexts, depth: depth + 1,
+                  inCollection: kidsInCollection, insideCard: insideCard || card)
+        }
     }
 }
 

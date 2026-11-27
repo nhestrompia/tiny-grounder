@@ -78,6 +78,7 @@ sets:
     - Music
     - Safari
     - Google Chrome
+    - Firefox
   excluded:
     - T3 Code
     - T3 Code (Beta)
@@ -246,6 +247,13 @@ apps:
     typing: never
     click_roles: [button, tab, radio, other]
     deny_labels: [history, bookmarks, reading list, profile, sign in, sync, autofill, password, clear, reset, import]
+  Firefox:
+    set: train
+    start_keys: [cmd+,]
+    typing: never
+    click_roles: [button, tab, radio, other]
+    deny_labels: [history, bookmarks, reading list, profile, sign in, sync, account, autofill, password, clear, reset,
+                  import, default browser, make default, set as default, extension, add-on, install]
   Screenshot:
     set: train
     typing: never

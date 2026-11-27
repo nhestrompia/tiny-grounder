@@ -283,3 +283,52 @@ def test_app_is_skipped_when_preferences_cannot_be_snapshotted(tmp_path):
     result = collector.run_app("Calculator")
     assert result["status"] == "skipped" and "preferences could not be saved" in result["reason"]
     assert not any(e[0] in {"launch", "click"} for e in mac.log)
+
+
+def test_visible_click_point_clips_to_window_and_skips_mostly_hidden():
+    from tools.ax_auto import visible_click_point
+    window = [100.0, 100.0, 1000.0, 600.0]
+    assert visible_click_point([200, 200, 100, 50], window) == (250, 225)
+    # A carousel card mostly past the right edge is skipped, not clicked behind the window.
+    assert visible_click_point([1000, 200, 800, 300], window) is None
+    # One that is mostly visible is clicked in the middle of its visible part.
+    assert visible_click_point([700, 200, 500, 300], window) == (900, 350)
+    assert visible_click_point([2000, 200, 50, 50], window) is None
+
+
+def test_redact_screenshot_blacks_out_scrubbed_elements_and_ocr_name_lines(tmp_path):
+    from PIL import Image
+    from tools.ax_auto import redact_screenshot
+    from tools.mac_safety import Scrubber
+    png = tmp_path / "w.png"
+    Image.new("RGB", (400, 200), (255, 255, 255)).save(png)
+    raw = {"origin": [100.0, 50.0], "viewport": [200, 100], "elements": [
+        {"text": "<macos-full-name>", "abs_box": [110.0, 60.0, 40.0, 10.0]},
+        {"text": "Discover", "abs_box": [110.0, 80.0, 40.0, 10.0]},
+    ]}
+    lines = [{"text": "Umut Ozcelik", "box": [200.0, 150.0, 80.0, 20.0]},  # OCR dropped the accents
+             {"text": "Categories", "box": [200.0, 100.0, 80.0, 20.0]}]
+    n = redact_screenshot(png, raw, Scrubber("Umut Özçelik", "nhestrompia"), ocr=lambda path: lines)
+    assert n == 2
+    with Image.open(png) as image:
+        assert image.getpixel((40, 30)) == (0, 0, 0)       # scrubbed element, scaled x2 from window points
+        assert image.getpixel((240, 160)) == (0, 0, 0)     # OCR line with the name
+        assert image.getpixel((170, 160)) == (0, 0, 0)     # widened left over an avatar
+        assert image.getpixel((240, 110)) == (255, 255, 255)  # ordinary text untouched
+        assert image.getpixel((40, 70)) == (255, 255, 255)
+
+
+def test_file_dialog_is_detected():
+    from tools.mac_safety import file_dialog_reason
+    panel = {"title": "Open", "elements": [{"text": t} for t in ("Where:", "icon view", "photo.jpg", "Cancel", "Open")]}
+    assert file_dialog_reason(panel) == "file dialog"
+    plain = {"title": "Xcode", "elements": [{"text": t} for t in ("New Project", "Open...", "Cancel")]}
+    assert file_dialog_reason(plain) == ""
+
+
+def test_phone_scrub_leaves_prices_and_model_numbers():
+    from tools.mac_safety import Scrubber
+    s = Scrubber("", "")
+    for text in ["Standard and Poor’s 500 7135,53", "Marshall JCM 800", "rgb 255 255 255", "© 2011-2026 Apple"]:
+        assert s.scrub_text(text) == text
+    assert s.scrub_text("call +90 532 123 45 67") == "call <phone>"

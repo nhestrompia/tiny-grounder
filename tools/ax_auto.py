@@ -39,7 +39,8 @@ from tools.ax_collect import (DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SCREENSHOT
                               capture_screenshot, screenshot_command, slugify)
 from tools.mac_policy import AppsPolicy, load_policy
 from tools.mac_safety import (
-    Scrubber, denied_click_term, fixed_type_text, private_view_reason, signin_or_payment_reason, typing_allowed,
+    Scrubber, denied_click_term, file_dialog_reason, fixed_type_text, private_view_reason, scrubbed_element_boxes,
+    signin_or_payment_reason, typing_allowed,
 )
 
 TEST_APPS = ("Numbers", "Pages", "Keynote", "Font Book", "Disk Utility")
@@ -144,6 +145,15 @@ def build_plan(app: str) -> list[Scene]:
 def applescript_string(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
+
+
+# Consecutive clicks that leave the window unchanged before a walk ends (toggles and no-op buttons are common).
+UNCHANGED_STOP = 3
+HEAVY_APPS = frozenset({"Logic Pro", "Final Cut Pro", "Xcode", "Docker", "Unsloth", "LTX Desktop"})
+
+
+class FileDialogState(RuntimeError):
+    """The app is showing a file open/save panel; the walk ends and the panel is dismissed."""
 
 
 class PrefsSnapshotError(RuntimeError):
@@ -448,7 +458,8 @@ def state_png_path(page_path: Path) -> Path:
     return page_path.with_name(page_path.name.removesuffix(".json.gz") + ".png")
 
 
-def save_icon_crops(png_path: Path, raw: dict[str, Any], page: Page, crops_dir: Path) -> int:
+def save_icon_crops(png_path: Path, raw: dict[str, Any], page: Page, crops_dir: Path,
+                    skip_boxes: list[list[float]] | None = None) -> int:
     """Crop icon-only elements (no visible text, but nonvisual accessibility text) to 64 px PNGs."""
     try:
         from PIL import Image
@@ -467,6 +478,8 @@ def save_icon_crops(png_path: Path, raw: dict[str, Any], page: Page, crops_dir: 
             if str(row.get("visible_text") or "").strip() or not str(row.get("nonvisual_text") or "").strip():
                 continue
             x, y, w, h = element.abs_box
+            if skip_boxes and any(_overlaps([x, y, w, h], box) for box in skip_boxes):
+                continue
             cx, cy = (x - origin[0]) * sx + w * sx / 2, (y - origin[1]) * sy + h * sy / 2
             side = max(8.0, max(w * sx, h * sy))
             left, top = round(cx - side / 2), round(cy - side / 2)
@@ -497,6 +510,86 @@ def screenshot_mismatch(png_path: Path, viewport: list[int], tolerance: float = 
     if abs(sx - sy) > tolerance * max(sx, sy) or abs(sx - round(sx)) > tolerance * max(1.0, sx):
         return f"capture {width}x{height} does not match window {vw}x{vh}"
     return ""
+
+
+OCRLINES = ax.AXDUMP.parent / "ocrlines"
+REDACT_PAD = 6
+
+
+def _overlaps(a: list[float], b: list[float]) -> bool:
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
+def ocr_lines(png_path: Path, binary: Path = OCRLINES) -> list[dict[str, Any]]:
+    """Text lines Vision recognises in the image ({text, box} in image pixels); raises when it can't run."""
+    proc = subprocess.run([str(binary), str(png_path)], capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or f"ocrlines exited with {proc.returncode}")
+    return json.loads(proc.stdout)["lines"]
+
+
+def redaction_boxes(raw: dict[str, Any], lines: list[dict[str, Any]], scrubber: Scrubber,
+                    scale: tuple[float, float]) -> list[tuple[int, int, int, int]]:
+    """Image-pixel rectangles to black out: scrubbed accessibility elements, and recognised text lines showing an
+    email, phone, token URL or the account name. A name line is widened left to cover an avatar beside it."""
+    sx, sy = scale
+    origin = raw.get("origin") or [0.0, 0.0]
+    boxes = []
+    for x, y, w, h in scrubbed_element_boxes(raw):
+        boxes.append(((x - origin[0]) * sx, (y - origin[1]) * sy, w * sx, h * sy))
+    for line in lines:
+        if scrubber.contains_private(str(line.get("text") or "")):
+            x, y, w, h = line["box"]
+            avatar = 2.0 * h
+            boxes.append((x - avatar, y, w + avatar, h))
+    return [(int(x - REDACT_PAD), int(y - REDACT_PAD), int(x + w + REDACT_PAD), int(y + h + REDACT_PAD))
+            for x, y, w, h in boxes]
+
+
+def redact_screenshot(png_path: Path, raw: dict[str, Any], scrubber: Scrubber,
+                      ocr: Callable[[Path], list[dict[str, Any]]] = ocr_lines) -> int:
+    """Black out personal text in a window screenshot in place; returns the number of regions redacted."""
+    from PIL import Image, ImageDraw
+    with Image.open(png_path) as image:
+        image.load()
+        viewport = raw.get("viewport") or [image.width, image.height]
+        scale = (image.width / max(1, viewport[0]), image.height / max(1, viewport[1]))
+        boxes = redaction_boxes(raw, ocr(png_path), scrubber, scale)
+        if not boxes:
+            return 0
+        draw = ImageDraw.Draw(image)
+        for box in boxes:
+            draw.rectangle(box, fill=(0, 0, 0))
+        image.save(png_path)
+    return len(boxes)
+
+
+def window_rect(raw: dict[str, Any]) -> list[float] | None:
+    """[x, y, w, h] of the dumped window in screen points, when the dump carries it."""
+    origin, viewport = raw.get("origin"), raw.get("viewport")
+    if not origin or not viewport:
+        return None
+    return [float(origin[0]), float(origin[1]), float(viewport[0]), float(viewport[1])]
+
+
+def visible_click_point(box: list[float] | tuple[float, ...], window: list[float] | None,
+                        min_visible: float = 0.5) -> tuple[float, float] | None:
+    """Center of the part of `box` inside the window, or None when less than `min_visible` of it is on screen.
+
+    Carousel cards and scrolled rows can extend past the window edge; clicking the center of the whole box would
+    then land on whatever is behind the window.
+    """
+    x, y, w, h = box
+    if window is None:
+        return x + w / 2, y + h / 2
+    wx, wy, ww, wh = window
+    left, top = max(x, wx), max(y, wy)
+    right, bottom = min(x + w, wx + ww), min(y + h, wy + wh)
+    if right <= left or bottom <= top or w <= 0 or h <= 0:
+        return None
+    if (right - left) * (bottom - top) < min_visible * w * h:
+        return None
+    return (left + right) / 2, (top + bottom) / 2
 
 
 def probe_screen_recording() -> tuple[bool, str]:
@@ -567,6 +660,8 @@ class RandomWalkCollector:
         self.app_results: dict[str, dict[str, Any]] = {}
         self.screenshot_failures: Counter[str] = Counter()
         self.icon_crops = 0
+        self._window: list[float] | None = None
+        self.redacted_regions: Counter[str] = Counter()
         self.dump_app = dump_app
 
     def _rng(self, app: str) -> random.Random:
@@ -586,6 +681,10 @@ class RandomWalkCollector:
         private = private_view_reason(raw, policy.deny_views)
         if private:
             raise UnsafeStateError(private, "forbidden_view")
+        dialog = file_dialog_reason(raw)
+        if dialog:
+            # It lists the user's own files: end this walk (the dialog is dismissed), keep exploring the app.
+            raise FileDialogState(dialog)
         result = store.add(raw, app)
         if result.is_new and self.screenshots:
             self._screenshot(raw, result)
@@ -606,7 +705,17 @@ class RandomWalkCollector:
             self.screenshot_failures[result.page.site] += 1
             self.show(f"[{result.page.site}] screenshot discarded: {mismatch}")
             return
-        self.icon_crops += save_icon_crops(png, raw, result.page, png.parent / "crops")
+        try:
+            redacted = redact_screenshot(png, raw, self.scrubber)
+        except Exception as exc:
+            # Fail closed: a screenshot that couldn't be checked for personal text is not kept.
+            png.unlink(missing_ok=True)
+            self.screenshot_failures[result.page.site] += 1
+            self.show(f"[{result.page.site}] screenshot discarded: redaction failed ({exc})")
+            return
+        self.redacted_regions[result.page.site] += redacted
+        self.icon_crops += save_icon_crops(png, raw, result.page, png.parent / "crops",
+                                           skip_boxes=scrubbed_element_boxes(raw))
 
     def _deny(self, app: str, element: Element, term: str) -> None:
         self.denials.setdefault(app, Counter())[term] += 1
@@ -618,6 +727,8 @@ class RandomWalkCollector:
         out: list[WalkCandidate] = []
         for element in page.elements:
             if not element.enabled or not element.in_viewport or not element.text.strip():
+                continue
+            if visible_click_point(element.abs_box, self._window) is None:
                 continue
             label = element.text
             if element.role in {"textbox", "searchbox"}:
@@ -652,8 +763,10 @@ class RandomWalkCollector:
     def _perform(self, launch_name: str, candidate: WalkCandidate, typed_text: str) -> None:
         if not self._ensure_frontmost(launch_name):
             raise RuntimeError(f"wrong frontmost app: {self.mac.frontmost()}")
-        x, y, w, h = candidate.element.abs_box
-        self.mac.click_at(launch_name, x + w / 2, y + h / 2)
+        point = visible_click_point(candidate.element.abs_box, self._window)
+        if point is None:
+            raise RuntimeError("target is no longer on screen")
+        self.mac.click_at(launch_name, *point)
         if candidate.action == WALK_TYPE:
             self.sleep(0.15)
             self.mac.type_text(typed_text)
@@ -669,6 +782,7 @@ class RandomWalkCollector:
         unchanged = 0
         for step_index in range(max_steps):
             pre_raw = self._dump(launch_name)
+            self._window = window_rect(pre_raw)
             pre = self._state(pre_raw, app, store)
             candidates = self.candidates(pre.page, app, throwaway_document, frequency)
             if not candidates:
@@ -700,7 +814,7 @@ class RandomWalkCollector:
                            "nonvisual_text": self._provenance(pre_raw, target.id, "nonvisual_text")},
             })
             unchanged = unchanged + 1 if post.page_id == pre.page_id else 0
-            if unchanged >= 2:
+            if unchanged >= UNCHANGED_STOP:
                 end_reason = "state stopped changing"
                 break
         return {"schema_version": WALK_SCHEMA_VERSION, "walk_id": walk_id, "app": app, "split": self.split,
@@ -798,10 +912,14 @@ class RandomWalkCollector:
                 if self._ensure_frontmost(policy.launch_name):
                     self.mac.press(key)
                     self.sleep(self.settle)
-            wait_timeout = 25.0 if canonical in {"Logic Pro", "Final Cut Pro", "Xcode", "Docker"} else 8.0
+            heavy = canonical in HEAVY_APPS
+            wait_timeout = 60.0 if heavy else 8.0
             try:
-                self._wait_for_window(policy.launch_name, wait_timeout / 2)
+                # Heavy apps (sound libraries, project loading) get the whole wait before any fallback key.
+                self._wait_for_window(policy.launch_name, wait_timeout if heavy else wait_timeout / 2)
             except RuntimeError:
+                if heavy:
+                    raise
                 # Menu-bar utilities often open no window on activation. cmd+, is the safe settings key and is
                 # already allowlisted; if the app has no preferences window either, the second wait fails cleanly.
                 if self._ensure_frontmost(policy.launch_name):
@@ -939,6 +1057,7 @@ class RandomWalkCollector:
             "safety_denials": {app: dict(counts) for app, counts in self.denials.items()},
             "safety_denial_examples": self.denial_examples,
             "privacy_scrub_counts": dict(self.scrubber.counts),
+            "screenshot_redacted_regions": dict(self.redacted_regions),
             "screenshots": {"enabled": self.screenshots, "failures": dict(self.screenshot_failures),
                             "icon_crops": self.icon_crops},
         }

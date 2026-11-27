@@ -42,6 +42,20 @@ public func mapRole(_ axRole: String, parentRole: String?, actions: [String]) ->
     return isActionable(actions) ? "other" : nil
 }
 
+/// Roles that hold a collection of items (cards, rows, tiles).
+public let collectionRoles: Set<String> = ["AXList", "AXTable", "AXOutline", "AXGrid", "AXCollection"]
+/// Item containers that many SwiftUI/Catalyst apps make clickable by mouse without advertising an action.
+public let cardRoles: Set<String> = ["AXGroup", "AXUnknown", "AXCell"]
+
+/// A non-actionable card inside a collection that a user can still click: it carries its own text and has a
+/// clickable size, but is not a whole region (at most 80% of the window in each dimension).
+public func isCollectionCard(axRole: String, actions: [String], inCollection: Bool, insideCard: Bool,
+                             text: String, rect: [Double], window: [Double]) -> Bool {
+    guard inCollection, !insideCard, cardRoles.contains(axRole), !isActionable(actions),
+          !text.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+    return rect[2] >= 40 && rect[3] >= 24 && rect[2] <= window[2] * 0.8 + 1 && rect[3] <= window[3] * 0.8 + 1
+}
+
 /// Keep an element when it has an action, takes input, or is a control even if the app omits its action list.
 /// Plain text and images are context only.
 public func isKept(axRole: String, actions: [String]) -> Bool {

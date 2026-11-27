@@ -40,8 +40,16 @@ CREDENTIAL_WORDS = frozenset({"password", "passkey", "verification code", "one-t
 PAYMENT_WORDS = frozenset({"credit card", "debit card", "card number", "cvv", "payment", "billing"})
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-# Conservative international/NANP-ish phone matcher: at least 7 digits, optional punctuation/spaces.
-_PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d[\d .()/-]{6,}\d)(?!\d)")
+# Phone numbers in the formats people write them: "+" international, North American 3-3-4 and the
+# 0xxx xxx xx xx trunk style. Bare digit runs are not phones here: prices ("50.656,19"), model numbers, years, RGB
+# triples and versions are ordinary UI text.
+_PHONE_RE = re.compile(
+    r"(?<![\w.,+])(?:"
+    r"\+\d{1,3}[ .-]?(?:\(\d{1,4}\)[ .-]?)?\d{2,4}(?:[ .-]?\d{2,4}){1,4}"
+    r"|\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}"
+    r"|0\d{2,4}[ -]\d{3}[ -]\d{2}[ -]?\d{2}"
+    r")(?![\w,])"
+)
 # URLs carrying query strings, fragments with tokens, or obvious token/key parameters.
 _URL_WITH_SECRET_RE = re.compile(
     r"\bhttps?://[^\s<>'\"]+(?:\?[^\s<>'\"]+|#[^\s<>'\"]*(?:token|access|auth|sig|key)[^\s<>'\"]*)",
@@ -169,6 +177,20 @@ class Scrubber:
                     out = out.replace(source, replacement)
         return out
 
+    def name_tokens(self) -> list[str]:
+        """Folded, accent-free parts of the account's full name and username (4+ characters), for OCR matching."""
+        tokens = re.split(r"[\s._-]+", f"{self.full_name} {self.username}")
+        return sorted({fold_accents(t) for t in tokens if len(t) >= 4})
+
+    def contains_private(self, text: str) -> bool:
+        """Whether text shows an email, phone, token URL or the account's name/username (OCR-tolerant)."""
+        if not text:
+            return False
+        if _EMAIL_RE.search(text) or _PHONE_RE.search(text) or _URL_WITH_SECRET_RE.search(text):
+            return True
+        folded = fold_accents(text)
+        return any(token in folded for token in self.name_tokens())
+
     def scrub_raw_dump(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Return a copy of an axdump JSON object with every user-visible string field scrubbed."""
         scrubbed = dict(raw)
@@ -184,6 +206,44 @@ class Scrubber:
             elements.append(row)
         scrubbed["elements"] = elements
         return scrubbed
+
+
+PRIVATE_PLACEHOLDERS = ("<email>", "<phone>", "<url-with-query>", "<macos-full-name>", "<macos-username>")
+
+
+def fold_accents(text: str) -> str:
+    """Casefolded text without diacritics, so OCR output like "Ozcelik" matches "Özçelik"."""
+    import unicodedata
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).replace("ı", "i")
+
+
+def scrubbed_element_boxes(raw: dict[str, Any]) -> list[list[float]]:
+    """Screen boxes of elements whose text the scrubber replaced (so the screenshot shows something private)."""
+    boxes = []
+    for element in raw.get("elements") or []:
+        if not isinstance(element, dict):
+            continue
+        text = " ".join(str(element.get(k) or "") for k in ("text", "visible_text", "nonvisual_text"))
+        box = element.get("abs_box")
+        if box and any(p in text for p in PRIVATE_PLACEHOLDERS):
+            boxes.append([float(v) for v in box])
+    return boxes
+
+
+_FILE_DIALOG_TITLES = {"open", "save", "save as", "export", "import", "choose", "choose a file", "select"}
+_FILE_DIALOG_HINTS = {"where:", "icon view", "list view", "column view", "new folder", "show options"}
+
+
+def file_dialog_reason(raw: dict[str, Any]) -> str:
+    """Why a dump is a file open/save panel: it lists the user's own files and folders, so it is never saved."""
+    labels = {str(e.get("text") or "").strip().casefold() for e in raw.get("elements") or [] if isinstance(e, dict)}
+    title = str(raw.get("title") or "").strip().casefold()
+    has_cancel = "cancel" in labels
+    has_commit = bool(labels & {"open", "save", "choose", "export", "import", "select"})
+    if has_cancel and has_commit and (title in _FILE_DIALOG_TITLES or labels & _FILE_DIALOG_HINTS):
+        return "file dialog"
+    return ""
 
 
 def private_view_reason(raw: dict[str, Any], extra_terms: Iterable[str] = ()) -> str:

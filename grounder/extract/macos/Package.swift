@@ -7,6 +7,7 @@ let package = Package(
     targets: [
         .target(name: "AXCore"),
         .executableTarget(name: "axdump", dependencies: ["AXCore"]),
+        .executableTarget(name: "ocrlines"),
         .testTarget(name: "AXCoreTests", dependencies: ["AXCore"]),
     ]
 )
