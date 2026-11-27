@@ -238,20 +238,20 @@ apps:
     typing: throwaway
   Safari:
     set: train
-    start_keys: [cmd+,]
+    start_keys: ["cmd+,"]
     typing: never
     click_roles: [button, tab, other]
     deny_labels: [history, bookmarks, reading list, profile, sign in, autofill, password, clear, reset, import]
   Google Chrome:
     set: train
     launch_args: [--new-window]
-    start_keys: [cmd+,]
+    start_keys: ["cmd+,"]
     typing: never
     click_roles: [button, tab, radio, other]
     deny_labels: [history, bookmarks, reading list, profile, sign in, sync, autofill, password, clear, reset, import]
   Firefox:
     set: train
-    start_keys: [cmd+,]
+    start_keys: ["cmd+,"]
     typing: never
     click_roles: [button, tab, radio, other]
     deny_labels: [history, bookmarks, reading list, profile, sign in, sync, account, autofill, password, clear, reset,

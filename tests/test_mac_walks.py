@@ -379,3 +379,11 @@ def test_system_prompts_are_ignored_or_denied_never_allowed():
     assert perm == (25.0, 5.0)
     assert prompt_answer({"app": "Calculator", "elements": []}) is None
     assert prompt_answer(prompt(["Something else", "Allow"])) is None
+
+
+def test_policy_start_keys_are_allowed_keys():
+    # YAML flow lists split on commas: [cmd+,] parses as ["cmd+", ""], which crashed Safari and Firefox.
+    policy = load_policy()
+    bad = {name: app.start_keys for name, app in policy.apps.items()
+           if any(key not in ax_auto.ALLOWED_KEYS for key in app.start_keys)}
+    assert not bad
