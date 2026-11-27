@@ -56,6 +56,12 @@ than evidence against the model. The retrain (a pretrained UI base with decision
 to be judged on a larger desktop test, the external UI-Vision set (83 apps), with the gate pre-registered before
 training.
 
+**Change, 2026-11-28 (before any retraining):** all 83 UI-Vision apps are also in GroundCUA (same authors), and the
+retrain uses GroundCUA for training. UI-Vision is therefore reported as a **seen-apps** score only. The unseen-app
+desktop tests are GUIrilla-Task test (macOS, evaluation-only licence), the six held-out Mac apps of `test_v2`
+(Logic Pro, VLC, Keka, Chess, Podcasts, Audio MIDI Setup; VLC is removed from GroundCUA and AgentNet), and the
+held-out web sites.
+
 ## D-public: no usable dataset
 
 Nine public candidates were checked: AgentNet, OSWorld trajectory sets, Hcompany, WindowsAgentArena, GUI-World,

@@ -12,6 +12,7 @@ measured on them is published, the data never reaches the weights and is never r
 | Our macOS dumps (`data/pages_ax`) + teacher outputs | ours | macOS training | — |
 | DeskForge-1M (`docling-project/DeskForge-1M`, a sample: `tools/deskforge.py`) | MIT | Linux desktop training (train, dev); `test_app` (held-out applications) for evaluation | Gurbuz et al. 2026, "DeskForge: Dense Supervision from Desktop Environments for Computer-Use Agents", arXiv:2610.02320 |
 | AgentNet macOS (`xlangai/AgentNet`, `tools/agentnet.py`: OCR text lines as candidates, test apps removed) | MIT (README: research, educational and commercial use) | macOS training (train, dev by app) | Wang et al. 2025, "OpenCUA: Open Foundations for Computer-Use Agents", arXiv:2508.09123 — the authors ask for an explicit acknowledgement in the main text of any report |
+| GroundCUA (`ServiceNow/GroundCUA`, VLC removed) | MIT | desktop training (element boxes, icon detector) | Feizi et al. 2025, "Grounding Computer Use Agents on Human Demonstrations", arXiv:2511.07332. Its apps are the 83 UI-Vision apps, so UI-Vision is a seen-apps score |
 | GUIrilla-Task test (`macpaw-research/GUIrilla-Task`) | CC-BY-NC-4.0 | **evaluation only** (macOS benchmark) | Garkot et al. 2025, arXiv:2510.16051 |
 | GUIrilla-Task train | CC-BY-NC-4.0 | **not used** for the release; only a separately labelled CC-BY-NC experiment, if ever | as above |
 
