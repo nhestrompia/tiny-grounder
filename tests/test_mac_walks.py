@@ -262,3 +262,13 @@ def test_already_running_app_is_skipped_not_explored(tmp_path):
     result = collector.run_app("Calculator")
     assert result["status"] == "skipped" and "already running" in result["reason"]
     assert not any(e[0] in {"launch", "click", "export_prefs"} for e in mac.log)
+
+
+def test_screenshot_mismatch_rejects_wrong_aspect(tmp_path):
+    from PIL import Image
+    from tools.ax_auto import screenshot_mismatch
+    good, bad = tmp_path / "good.png", tmp_path / "bad.png"
+    Image.new("RGB", (1392, 1064)).save(good)
+    Image.new("RGB", (1392, 1300)).save(bad)
+    assert screenshot_mismatch(good, [696, 532]) == ""
+    assert "does not match" in screenshot_mismatch(bad, [696, 532])

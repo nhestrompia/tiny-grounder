@@ -35,7 +35,8 @@ from grounder.data.dedupe import DEDUPE_JACCARD, jaccard
 from grounder.data.pages import page_id_for, text_signature, write_page
 from grounder.extract import ax
 from grounder.records import Element, Page, action_repr, equiv_ids
-from tools.ax_collect import DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SPLITS, TOO_FEW, Collector, capture_screenshot, slugify
+from tools.ax_collect import (DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SCREENSHOT_TIMEOUT, SPLITS, TOO_FEW, Collector,
+                              capture_screenshot, screenshot_command, slugify)
 from tools.mac_policy import AppsPolicy, load_policy
 from tools.mac_safety import (
     Scrubber, denied_click_term, fixed_type_text, private_view_reason, signin_or_payment_reason, typing_allowed,
@@ -468,14 +469,32 @@ def save_icon_crops(png_path: Path, raw: dict[str, Any], page: Page, crops_dir: 
     return count
 
 
+def screenshot_mismatch(png_path: Path, viewport: list[int], tolerance: float = 0.03) -> str:
+    """Why a window capture doesn't look like the dumped window (wrong aspect ratio or not a whole-number scale)."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return ""
+    with Image.open(png_path) as image:
+        width, height = image.size
+    vw, vh = max(1, viewport[0]), max(1, viewport[1])
+    sx, sy = width / vw, height / vh
+    if abs(sx - sy) > tolerance * max(sx, sy) or abs(sx - round(sx)) > tolerance * max(1.0, sx):
+        return f"capture {width}x{height} does not match window {vw}x{vh}"
+    return ""
+
+
 def probe_screen_recording() -> tuple[bool, str]:
     """Whether Screen Recording is available, using the same capture path as ax_collect."""
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "probe.png"
         try:
-            capture_screenshot([0.0, 0.0], [4, 4], path)
+            proc = subprocess.run(screenshot_command([0.0, 0.0], [4, 4], path), capture_output=True, text=True,
+                                  timeout=SCREENSHOT_TIMEOUT)
         except Exception as exc:
             return False, str(exc)
+        if proc.returncode != 0:
+            return False, proc.stderr.strip() or f"screencapture exited with {proc.returncode}"
         return path.exists(), "" if path.exists() else "screencapture produced no file"
 
 
@@ -565,6 +584,12 @@ class RandomWalkCollector:
         except Exception as exc:
             self.screenshot_failures[result.page.site] += 1
             self.show(f"[{result.page.site}] screenshot failed: {exc}")
+            return
+        mismatch = screenshot_mismatch(png, raw["viewport"])
+        if mismatch:
+            png.unlink(missing_ok=True)
+            self.screenshot_failures[result.page.site] += 1
+            self.show(f"[{result.page.site}] screenshot discarded: {mismatch}")
             return
         self.icon_crops += save_icon_crops(png, raw, result.page, png.parent / "crops")
 

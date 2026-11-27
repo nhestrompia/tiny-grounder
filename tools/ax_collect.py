@@ -15,6 +15,7 @@ the terminal; without it the page is saved and a warning is shown). See docs/mac
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import time
@@ -38,15 +39,64 @@ Screenshot = Callable[[list[float], list[int], Path], None]
 
 
 def screenshot_command(origin: list[float], size: list[int], path: Path) -> list[str]:
-    """`screencapture` arguments for a silent capture of the window rectangle (screen points) into `path`."""
+    """`screencapture` arguments for a silent capture of a screen rectangle (screen points) into `path`.
+
+    Only used to probe the permission: a rectangle captures whatever is on top there (another app, a system prompt),
+    so page screenshots use `window_capture_command` instead.
+    """
     x, y = (round(v) for v in origin)
     w, h = size
     return ["screencapture", "-x", "-R", f"{x},{y},{w},{h}", str(path)]
 
 
-def capture_screenshot(origin: list[float], size: list[int], path: Path) -> None:
-    """Take the screenshot; raises RuntimeError when it fails (typically no Screen Recording permission)."""
-    proc = subprocess.run(screenshot_command(origin, size, path), capture_output=True, text=True,
+def window_capture_command(window_id: int, path: Path) -> list[str]:
+    """Capture one window by CGWindowID: only its own pixels, even when something overlaps it; no shadow."""
+    return ["screencapture", "-x", "-o", f"-l{window_id}", str(path)]
+
+
+_LIST_WINDOWS_JXA = """
+ObjC.import("CoreGraphics");
+const info = ObjC.castRefToObject($.CGWindowListCopyWindowInfo(
+  $.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludeDesktopElements, 0));
+const out = [];
+for (let i = 0; i < info.count; i++) {
+  const w = ObjC.deepUnwrap(info.objectAtIndex(i));
+  out.push({id: w.kCGWindowNumber, layer: w.kCGWindowLayer, owner: w.kCGWindowOwnerName || "",
+            bounds: w.kCGWindowBounds});
+}
+JSON.stringify(out);
+"""
+
+
+def list_windows() -> list[dict[str, Any]]:
+    """On-screen windows, front to back: {id, layer, owner, bounds: {X, Y, Width, Height}} in screen points."""
+    proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", _LIST_WINDOWS_JXA], capture_output=True,
+                          text=True, timeout=SCREENSHOT_TIMEOUT)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or "window list failed")
+    return json.loads(proc.stdout)
+
+
+def find_window_id(origin: list[float], size: list[int], windows: list[dict[str, Any]],
+                   tolerance: float = 2.0) -> int | None:
+    """The front-most normal-layer window whose bounds match the dumped window's origin and size."""
+    for w in windows:
+        b = w.get("bounds") or {}
+        if w.get("layer") != 0:
+            continue
+        if all(abs(float(b.get(k, 1e9)) - float(v)) <= tolerance
+               for k, v in (("X", origin[0]), ("Y", origin[1]), ("Width", size[0]), ("Height", size[1]))):
+            return int(w["id"])
+    return None
+
+
+def capture_screenshot(origin: list[float], size: list[int], path: Path,
+                       lister: Callable[[], list[dict[str, Any]]] = list_windows) -> None:
+    """Screenshot the dumped window itself; raises RuntimeError when it can't (no matching window, no permission)."""
+    window_id = find_window_id(origin, size, lister())
+    if window_id is None:
+        raise RuntimeError("no on-screen window matches the dumped window bounds")
+    proc = subprocess.run(window_capture_command(window_id, path), capture_output=True, text=True,
                           timeout=SCREENSHOT_TIMEOUT)
     if proc.returncode != 0 or not path.exists():
         raise RuntimeError(proc.stderr.strip() or f"screencapture exited with {proc.returncode}")

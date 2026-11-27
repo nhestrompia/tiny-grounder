@@ -172,3 +172,23 @@ def test_main_stats_does_not_need_a_split(tmp_path, capsys):
     assert "0 apps, 0 pages" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         ax_collect._main(["--out", str(tmp_path)])
+
+
+def test_find_window_id_matches_bounds_and_skips_overlays():
+    windows = [
+        {"id": 1, "layer": 25, "owner": "UserNotificationCenter", "bounds": {"X": 100, "Y": 50, "Width": 800, "Height": 600}},
+        {"id": 2, "layer": 0, "owner": "T3 Code", "bounds": {"X": 0, "Y": 0, "Width": 1400, "Height": 900}},
+        {"id": 3, "layer": 0, "owner": "AirPort Utility", "bounds": {"X": 100, "Y": 51, "Width": 800, "Height": 600}},
+    ]
+    assert ax_collect.find_window_id([100.4, 50.0], [800, 600], windows) == 3
+    assert ax_collect.find_window_id([300.0, 50.0], [800, 600], windows) is None
+
+
+def test_window_capture_command_captures_one_window_without_shadow():
+    assert ax_collect.window_capture_command(42, Path("/x/p.png")) == ["screencapture", "-x", "-o", "-l42", "/x/p.png"]
+
+
+def test_capture_screenshot_refuses_when_no_window_matches(tmp_path):
+    import pytest
+    with pytest.raises(RuntimeError, match="no on-screen window"):
+        ax_collect.capture_screenshot([0.0, 0.0], [10, 10], tmp_path / "p.png", lister=lambda: [])
