@@ -113,6 +113,7 @@ class WalkFakeMac:
     def export_prefs(self, bundle, path): self.log.append(("export_prefs", bundle)); return True
     def import_prefs(self, bundle, path): self.log.append(("import_prefs", bundle))
     def delete_prefs(self, bundle): self.log.append(("delete_prefs", bundle))
+    def running_apps(self): return set(getattr(self, "running", {"Finder", "T3 Code"}))
 
 
 def walk_raw(app: str, variant: int) -> dict:
@@ -332,3 +333,37 @@ def test_phone_scrub_leaves_prices_and_model_numbers():
     for text in ["Standard and Poor’s 500 7135,53", "Marshall JCM 800", "rgb 255 255 255", "© 2011-2026 Apple"]:
         assert s.scrub_text(text) == text
     assert s.scrub_text("call +90 532 123 45 67") == "call <phone>"
+
+
+def test_purchase_labels_blocked_without_hitting_ordinary_words():
+    from tools.mac_safety import denied_click_term
+    for label in ["₺1.749,99", "$4.99", "4,99 €", "Try It Free", "Start Free Trial", "Redeem", "Gift", "Rent"]:
+        assert denied_click_term(label), label
+    for label in ["Arcade", "Categories", "7135,53", "Current", "Parent folder", "Things 3, Organize your life, ₺1.749,99"]:
+        assert denied_click_term(label) == "", label
+
+
+def test_elements_showing_personal_data_are_never_click_candidates(tmp_path):
+    collector, mac = make_walk_collector(tmp_path, [walk_raw("Calculator", 0)])
+    from grounder.records import Element
+    page = type("P", (), {})()
+    base = dict(role="button", tag="AXButton", context="", box=(0, 0, 0.1, 0.1), abs_box=(10, 10, 20, 20),
+                in_viewport=True, enabled=True)
+    page.elements = [Element(id=0, text="<macos-full-name>", **base), Element(id=1, text="Equals", **base)]
+    labels = [c.element.text for c in collector.candidates(page, "Calculator", False, __import__("collections").Counter())]
+    assert labels == ["Equals"]
+
+
+def test_apps_a_walk_opens_are_quit_but_preexisting_apps_are_left_alone(tmp_path):
+    dumps = [walk_raw("Calculator", 0), walk_raw("Calculator", 0), walk_raw("Calculator", 1)]
+    collector, mac = make_walk_collector(tmp_path, dumps, max_steps=1, walk_budget=1, state_budget=4)
+    mac.running = {"Finder", "T3 Code"}
+    original_click = mac.click_at
+    def click_opens_safari(app, x, y):
+        original_click(app, x, y)
+        mac.running = {"Finder", "T3 Code", "Calculator", "Safari"}
+    mac.click_at = click_opens_safari
+    result = collector.run_app("Calculator")
+    quits = [e[1] for e in mac.log if e[0] == "quit"]
+    assert "Safari" in quits and "Finder" not in quits and "T3 Code" not in quits
+    assert result["strays_quit"] == ["Safari"]

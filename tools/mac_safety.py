@@ -58,11 +58,22 @@ _URL_WITH_SECRET_RE = re.compile(
 _WORD_RE = re.compile(r"\b(history|account|profile)s?\b", re.IGNORECASE)
 
 
+# A button whose whole label is a price is a buy button (App Store, in-app purchases).
+_PRICE_ONLY_RE = re.compile(r"^\s*(?=.*[$€£¥₺₹₩₽¢])[$€£¥₺₹₩₽¢]?\s*\d[\d.,\s]*\s*[$€£¥₺₹₩₽¢]?\s*$")
+PURCHASE_TERMS = ("free trial", "try it free", "try free", "redeem", "gift", "in-app purchase", "pre-order",
+                  "preorder", "rent", "buy now")
+
+
 def denied_click_term(label: str, extra_terms: Iterable[str] = ()) -> str:
     """The denylist term found in `label`, or ''. Case-insensitive substring matching."""
     folded = label.casefold()
     if folded.strip() in HARD_EXACT_DENYLIST:
         return folded.strip()
+    if _PRICE_ONLY_RE.match(label):
+        return "price button"
+    for term in PURCHASE_TERMS:
+        if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", folded):
+            return term
     for term in (*HARD_CLICK_DENYLIST, *extra_terms):
         if term.casefold() in folded:
             return term

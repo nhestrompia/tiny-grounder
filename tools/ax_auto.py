@@ -39,7 +39,7 @@ from tools.ax_collect import (DEFAULT_MIN_ELEMENTS, DUPLICATE, SAVED, SCREENSHOT
                               capture_screenshot, screenshot_command, slugify)
 from tools.mac_policy import AppsPolicy, load_policy
 from tools.mac_safety import (
-    Scrubber, denied_click_term, file_dialog_reason, fixed_type_text, private_view_reason, scrubbed_element_boxes,
+    PRIVATE_PLACEHOLDERS, Scrubber, denied_click_term, file_dialog_reason, fixed_type_text, private_view_reason, scrubbed_element_boxes,
     signin_or_payment_reason, typing_allowed,
 )
 
@@ -182,6 +182,12 @@ class Mac:
             "/Applications", "/System/Applications", "/System/Applications/Utilities", str(Path.home() / "Applications"),
         ))
 
+    def running_apps(self) -> set[str]:
+        """Names of the regular (Dock) apps running now."""
+        out = self._osascript(
+            'tell application "System Events" to get name of every application process whose background only is false')
+        return {name.strip() for name in out.split(",") if name.strip()}
+
     def is_running(self, app: str) -> bool:
         return self._osascript(f"application {applescript_string(app)} is running") == "true"
 
@@ -216,13 +222,11 @@ class Mac:
         self._osascript(key_script(key))
 
     def click_at(self, app: str, x: float, y: float) -> None:
-        self._osascript(
-            'tell application "System Events"',
-            f'tell process {applescript_string(app)}',
-            f'click at {{{round(x)}, {round(y)}}}',
-            'end tell',
-            'end tell',
-        )
+        """A real left click at a screen point. System Events' "click at" is silently ignored by many SwiftUI and
+        Catalyst apps (the App Store sidebar, for one), which left walks stuck on their first screen."""
+        proc = self._run([str(MOUSECLICK), f"{x:.1f}", f"{y:.1f}"])
+        if proc.returncode != 0:
+            raise RuntimeError(proc.stderr.strip() or f"mouseclick exited with {proc.returncode}")
 
     def type_text(self, text: str) -> None:
         self._osascript(f'tell application "System Events" to keystroke {applescript_string(text)}')
@@ -513,6 +517,7 @@ def screenshot_mismatch(png_path: Path, viewport: list[int], tolerance: float = 
 
 
 OCRLINES = ax.AXDUMP.parent / "ocrlines"
+MOUSECLICK = ax.AXDUMP.parent / "mouseclick"
 REDACT_PAD = 6
 
 
@@ -662,6 +667,7 @@ class RandomWalkCollector:
         self.icon_crops = 0
         self._window: list[float] | None = None
         self.redacted_regions: Counter[str] = Counter()
+        self._apps_before: set[str] = set()
         self.dump_app = dump_app
 
     def _rng(self, app: str) -> random.Random:
@@ -729,6 +735,10 @@ class RandomWalkCollector:
             if not element.enabled or not element.in_viewport or not element.text.strip():
                 continue
             if visible_click_point(element.abs_box, self._window) is None:
+                continue
+            if any(marker in element.text for marker in PRIVATE_PLACEHOLDERS):
+                # Shows the user's name, email or phone: an account control, never clicked.
+                self._deny(app, element, "personal data")
                 continue
             label = element.text
             if element.role in {"textbox", "searchbox"}:
@@ -799,6 +809,7 @@ class RandomWalkCollector:
                 frontmost = ""
             if frontmost and frontmost.casefold() != launch_name.casefold():
                 end_reason = f"wrong app after action (frontmost is {frontmost})"
+                self._quit_strays(launch_name)
                 break
             post_raw = self._dump(launch_name)
             post = self._state(post_raw, app, store)
@@ -826,6 +837,25 @@ class RandomWalkCollector:
             if isinstance(row, dict) and row.get("id") == element_id:
                 return str(row.get(key) or "")
         return ""
+
+    def _quit_strays(self, launch_name: str) -> list[str]:
+        """Quit apps a walk launched (a link opened a browser, "Open" started another app). Apps that were already
+        running before this app's turn, the app being collected and the host are left alone."""
+        if not self._apps_before:
+            return []
+        try:
+            now = self.mac.running_apps()
+        except Exception:
+            return []
+        keep = {name.casefold() for name in self._apps_before} | {launch_name.casefold()}
+        strays = sorted(name for name in now if name.casefold() not in keep)
+        for name in strays:
+            try:
+                self.mac.quit(name)
+                self.show(f"[{launch_name}] quit {name}, which a walk opened")
+            except Exception:
+                pass
+        return strays
 
     def _write_walks(self, canonical: str, walks: list[dict[str, Any]]) -> str:
         if not walks:
@@ -876,6 +906,10 @@ class RandomWalkCollector:
             result["reason"] = "already running (close it to collect)"
             self.show(f"[{canonical}] skipped: {result['reason']}")
             return result
+        try:
+            self._apps_before = self.mac.running_apps()
+        except Exception:
+            self._apps_before = set()
         temp_dir = ""
         initial_windows = 0
         prefs_dir = tempfile.mkdtemp(prefix=f"tiny-grounder-prefs-{slugify(canonical)}-")
@@ -987,6 +1021,7 @@ class RandomWalkCollector:
                     self.mac.quit(policy.launch_name)
                 except Exception:
                     pass
+            result["strays_quit"] = self._quit_strays(policy.launch_name)
             # Put back any preference a walk changed (radio buttons and pop-ups in Settings windows persist).
             if bundle:
                 try:
@@ -1103,6 +1138,10 @@ def run_walk_mode(args: argparse.Namespace) -> int:
         return 0
     if not args.binary.exists():
         print(f"{args.binary} not found: run `swift build -c release` in {ax.AXDUMP.parents[2]}", file=sys.stderr)
+        return 2
+    missing = [str(b) for b in (MOUSECLICK, OCRLINES) if not b.exists()]
+    if missing:
+        print(f"missing {', '.join(missing)}: run `swift build -c release` in {ax.AXDUMP.parents[2]}", file=sys.stderr)
         return 2
     if frontmost_is_loginwindow(args.binary):
         print("the macOS session is at loginwindow (locked or curtained); GUI collection cannot run", file=sys.stderr)

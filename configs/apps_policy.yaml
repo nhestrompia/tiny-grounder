@@ -200,7 +200,8 @@ apps:
     set: train
     click_roles: [button, link, tab, other]
     typing: search
-    deny_labels: [get, buy, install, purchase, redeem, sign in, account]
+    # Open launches another installed app; Updates and Purchased list the user's own apps.
+    deny_labels: [get, buy, install, purchase, redeem, sign in, account, open, updates, update, purchased]
   Freeform:
     set: train
     start_keys: [cmd+n]

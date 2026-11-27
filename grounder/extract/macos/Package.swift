@@ -8,6 +8,7 @@ let package = Package(
         .target(name: "AXCore"),
         .executableTarget(name: "axdump", dependencies: ["AXCore"]),
         .executableTarget(name: "ocrlines"),
+        .executableTarget(name: "mouseclick"),
         .testTarget(name: "AXCoreTests", dependencies: ["AXCore"]),
     ]
 )
