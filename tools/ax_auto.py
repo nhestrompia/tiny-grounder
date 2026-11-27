@@ -569,6 +569,49 @@ def redact_screenshot(png_path: Path, raw: dict[str, Any], scrubber: Scrubber,
     return len(boxes)
 
 
+SAFE_PROMPT_ANSWERS = (
+    # (evidence in the prompt, button to press). Crash notices are ignored; permission requests are always denied.
+    ("quit unexpectedly", "Ignore"),
+    ("would like to access", "Don\u2019t Allow"),
+    ("wants access to control", "Don\u2019t Allow"),
+    ("would like to access", "Don't Allow"),
+    ("wants access to control", "Don't Allow"),
+)
+
+
+def prompt_answer(raw: dict[str, Any]) -> tuple[float, float] | None:
+    """Where to click to dismiss a system prompt safely (Ignore a crash notice, Don't Allow a permission request),
+    or None when the frontmost window is not such a prompt. "Allow" is never pressed."""
+    if str(raw.get("app") or "") != "UserNotificationCenter":
+        return None
+    elements = [e for e in raw.get("elements") or [] if isinstance(e, dict)]
+    text = " ".join(str(e.get("text") or "") + " " + str(e.get("context") or "") for e in elements).casefold()
+    for evidence, button in SAFE_PROMPT_ANSWERS:
+        if evidence in text:
+            for element in elements:
+                if str(element.get("text") or "") == button and element.get("abs_box"):
+                    x, y, w, h = element["abs_box"]
+                    return x + w / 2, y + h / 2
+    return None
+
+
+def dismiss_system_prompts(mac: "Mac", binary: Path = ax.AXDUMP, limit: int = 6) -> int:
+    """Clear stacked crash notices and permission requests that would block the next app. Returns how many."""
+    cleared = 0
+    for _ in range(limit):
+        try:
+            raw = ax.run_axdump(["--frontmost", "--timeout", "3"], binary=binary, timeout=6)
+        except Exception:
+            return cleared
+        point = prompt_answer(raw)
+        if point is None:
+            return cleared
+        mac.click_at("UserNotificationCenter", *point)
+        cleared += 1
+        time.sleep(1.0)
+    return cleared
+
+
 def window_rect(raw: dict[str, Any]) -> list[float] | None:
     """[x, y, w, h] of the dumped window in screen points, when the dump carries it."""
     origin, viewport = raw.get("origin"), raw.get("viewport")
@@ -1150,7 +1193,13 @@ def run_walk_mode(args: argparse.Namespace) -> int:
     if not screenshots:
         print(f"Screen Recording is not granted; continuing without screenshots ({screenshot_reason})")
     mac = Mac()
-    host = mac.frontmost()
+    dismissed = dismiss_system_prompts(mac, args.binary)
+    if dismissed:
+        print(f"dismissed {dismissed} system prompt(s) (crash notices ignored, permission requests denied)")
+    try:
+        host = mac.frontmost()
+    except RuntimeError:
+        host = ""
     print(f"{host} is left alone. Do not touch the keyboard or mouse until collection finishes.")
     walker = RandomWalkCollector(
         mac, policy, args.split, Path(args.out), settle=args.settle, seed=args.seed,
@@ -1159,6 +1208,8 @@ def run_walk_mode(args: argparse.Namespace) -> int:
     )
     try:
         for app in apps:
+            if dismiss_system_prompts(mac, args.binary):
+                print("dismissed system prompt(s) before the next app")
             walker.run_app(app, host)
     except KeyboardInterrupt:
         print()

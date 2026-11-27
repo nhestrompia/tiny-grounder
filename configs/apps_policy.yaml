@@ -27,7 +27,6 @@ sets:
     - JJazzLab
     - TONE3000
     - Spotify
-    - QuickTime Player
     - TV
     - News
     - Image Playground
@@ -38,7 +37,6 @@ sets:
     - Llama
     - Open Ports
     - Port Manager
-    - Cap
     - Stats
     - Rectangle
     - LinearMouse
@@ -56,13 +54,10 @@ sets:
     - Freeform
     - Stickies
     - Shortcuts
-    - Image Capture
-    - Magnifier
     - ColorSync Utility
     - Digital Color Meter
     - Bluetooth File Exchange
     - Print Center
-    - Screenshot
     - VoiceOver Utility
     - AirPort Utility
     - Anki
@@ -71,8 +66,6 @@ sets:
     - Preview
     - TextEdit
     - Calculator
-    - Maps
-    - Weather
     - Stocks
     - Books
     - Music
@@ -80,6 +73,14 @@ sets:
     - Google Chrome
     - Firefox
   excluded:
+    # Location (current position, home city) and camera/screen capture: never collected.
+    - Cap
+    - Image Capture
+    - Magnifier
+    - Maps
+    - QuickTime Player
+    - Screenshot
+    - Weather
     - T3 Code
     - T3 Code (Beta)
     - Contacts
@@ -189,7 +190,7 @@ apps:
     typing: never
     deny_labels: [kill, terminate, stop, close port, force]
   Cap:
-    set: train
+    set: excluded
     typing: never
     deny_labels: [record, start recording, stop recording, capture, microphone, camera, share, export, upload, delete]
   TypeWhisper:
@@ -256,7 +257,7 @@ apps:
     deny_labels: [history, bookmarks, reading list, profile, sign in, sync, account, autofill, password, clear, reset,
                   import, default browser, make default, set as default, extension, add-on, install]
   Screenshot:
-    set: train
+    set: excluded
     typing: never
     deny_labels: [capture, record, screenshot, screen recording, save, delete, share, upload]
   AirPort Utility:
@@ -268,7 +269,7 @@ apps:
     typing: never
     deny_labels: [generate, create image, share, save, copy, person, photo]
   QuickTime Player:
-    set: train
+    set: excluded
     typing: never
     deny_labels: [open, record, export, share, save, trim]
   VLC:

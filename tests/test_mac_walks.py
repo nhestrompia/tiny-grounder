@@ -367,3 +367,15 @@ def test_apps_a_walk_opens_are_quit_but_preexisting_apps_are_left_alone(tmp_path
     quits = [e[1] for e in mac.log if e[0] == "quit"]
     assert "Safari" in quits and "Finder" not in quits and "T3 Code" not in quits
     assert result["strays_quit"] == ["Safari"]
+
+
+def test_system_prompts_are_ignored_or_denied_never_allowed():
+    from tools.ax_auto import prompt_answer
+    def prompt(texts):
+        return {"app": "UserNotificationCenter", "elements": [
+            {"text": t, "context": " ".join(texts), "abs_box": [10.0 * i, 0.0, 10.0, 10.0]} for i, t in enumerate(texts)]}
+    assert prompt_answer(prompt(["Lys quit unexpectedly.", "Help", "Reopen", "Ignore", "Report…"])) == (35.0, 5.0)
+    perm = prompt_answer(prompt(["“LTX Desktop.app” would like to access the Microphone.", "Help", "Don’t Allow", "Allow"]))
+    assert perm == (25.0, 5.0)
+    assert prompt_answer({"app": "Calculator", "elements": []}) is None
+    assert prompt_answer(prompt(["Something else", "Allow"])) is None
