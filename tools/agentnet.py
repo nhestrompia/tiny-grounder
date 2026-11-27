@@ -18,12 +18,16 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import pickle
+import random
 import re
 import struct
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zlib
 from collections import Counter
@@ -53,10 +57,32 @@ HIT_PAD = 4.0
 GOOD_QUALITY = ("ok", "good", "excellent")
 
 
+RETRIES = 8
+
+
+def hf_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """HF_TOKEN, when set, raises Hugging Face's rate limits for the many range requests."""
+    token = os.environ.get("HF_TOKEN")
+    return {**({"Authorization": f"Bearer {token}"} if token else {}), **(extra or {})}
+
+
 def http_range(url: str, start: int, end: int) -> bytes:
-    req = urllib.request.Request(url, headers={"Range": f"bytes={start}-{end}"})
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return resp.read()
+    """Bytes start..end of url; rate limits (429) and server/network errors are retried with backoff."""
+    req = urllib.request.Request(url, headers=hf_headers({"Range": f"bytes={start}-{end}"}))
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429 and exc.code < 500 or attempt == RETRIES - 1:
+                raise
+            wait = float(exc.headers.get("Retry-After") or 0) or min(300.0, 5.0 * 2 ** attempt)
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == RETRIES - 1:
+                raise
+            wait = min(300.0, 5.0 * 2 ** attempt)
+        time.sleep(wait + random.uniform(0, 2))
+    raise AssertionError("unreachable")
 
 
 def part_url(disk: int) -> str:
@@ -105,7 +131,7 @@ def load_index(cache: Path) -> dict[str, tuple[int, int, int, int]]:
     path = cache / "zip-index.pkl"
     if path.exists():
         return pickle.loads(path.read_bytes())
-    size =int(urllib.request.urlopen(urllib.request.Request(part_url(LAST_DISK), method="HEAD"), timeout=60)
+    size =int(urllib.request.urlopen(urllib.request.Request(part_url(LAST_DISK), method="HEAD", headers=hf_headers()), timeout=60)
                .headers["Content-Length"])
     end = http_range(part_url(LAST_DISK), size - 70000, size - 1)
     k = end.rfind(b"PK\x06\x06")
@@ -177,7 +203,7 @@ def stream_trajectories(cache: Path, wanted: set[str]) -> Iterator[dict[str, Any
             have[row["task_id"]] = row
     missing = wanted - set(have)
     if missing:
-        with urllib.request.urlopen(TRAJ_URL, timeout=600) as resp, cached.open("a", encoding="utf-8") as out:
+        with urllib.request.urlopen(urllib.request.Request(TRAJ_URL, headers=hf_headers()), timeout=600) as resp, cached.open("a", encoding="utf-8") as out:
             for raw in io.TextIOWrapper(resp, encoding="utf-8"):
                 tid = raw[raw.find('"task_id"'):][:80]
                 if not any(t in tid for t in missing):
@@ -321,31 +347,50 @@ def main(argv: list[str] | None = None) -> int:
     rows = list(stream_trajectories(cache, set(tasks)))
     print(f"[agentnet] {len(rows)} trajectories", flush=True)
 
-    per_split: dict[str, list[Example]] = {"train": [], "dev": []}
-    apps: dict[str, Counter[str]] = {"train": Counter(), "dev": Counter()}
+    done_path = args.out / "done.jsonl"
+    done: dict[str, dict[str, Any]] = {}
+    if done_path.exists():
+        for line in done_path.open(encoding="utf-8"):
+            rec = json.loads(line)
+            done[rec["task_id"]] = rec
+    todo = [r for r in rows if r["task_id"] not in done]
+    print(f"[agentnet] {len(done)} tasks already done, {len(todo)} to convert", flush=True)
 
-    def work(row: dict[str, Any]) -> tuple[dict[str, Any], list[Example], Counter[str]]:
+    def work(row: dict[str, Any]) -> tuple[dict[str, Any], list[Example], Counter[str], bool]:
         c: Counter[str] = Counter()
         try:
-            return row, convert_task(tasks[row["task_id"]], row, entries, args.out, c), c
-        except Exception as exc:  # one bad task must not end a multi-hour run
-            c[f"task_error:{type(exc).__name__}"] += 1
-            return row, [], c
+            return row, convert_task(tasks[row["task_id"]], row, entries, args.out, c), c, True
+        except Exception as exc:  # one bad task must not end a multi-hour run; it is retried on the next run
+            return row, [], Counter({f"task_error:{type(exc).__name__}": 1}), False
 
-    with ThreadPoolExecutor(args.workers) as pool:
-        for n, (row, exs, c) in enumerate(pool.map(work, rows), 1):
-            counts.update(c)
-            app = task_apps(tasks[row["task_id"]])[0]
-            split = "dev" if is_dev(app) else "train"
-            per_split[split].extend(exs)
-            apps[split][app] += len(exs)
+    errors: Counter[str] = Counter()
+    with ThreadPoolExecutor(args.workers) as pool, done_path.open("a", encoding="utf-8") as log:
+        for n, (row, exs, c, ok) in enumerate(pool.map(work, todo), 1):
+            if ok:
+                rec = {"task_id": row["task_id"], "counts": dict(c), "examples": [e.to_dict() for e in exs]}
+                log.write(json.dumps(rec) + "\n")
+                log.flush()
+                done[row["task_id"]] = rec
+            else:
+                errors.update(c)
             if n % 25 == 0:
-                print(f"[agentnet] {n}/{len(rows)} tasks; {dict(counts)}", flush=True)
+                print(f"[agentnet] {n}/{len(todo)} tasks; errors {dict(errors)}", flush=True)
 
+    per_split: dict[str, list[dict[str, Any]]] = {"train": [], "dev": []}
+    apps: dict[str, Counter[str]] = {"train": Counter(), "dev": Counter()}
+    for tid, rec in done.items():
+        if tid not in tasks:
+            continue
+        counts.update(rec["counts"])
+        app = task_apps(tasks[tid])[0]
+        split = "dev" if is_dev(app) else "train"
+        per_split[split].extend(rec["examples"])
+        apps[split][app] += len(rec["examples"])
+    counts.update(errors)
     for split, exs in per_split.items():
         with (args.out / f"{split}.jsonl").open("w", encoding="utf-8") as f:
             for ex in exs:
-                f.write(json.dumps(ex.to_dict()) + "\n")
+                f.write(json.dumps(ex) + "\n")
     report = {"counts": dict(counts), "apps": {s: dict(a.most_common()) for s, a in apps.items()},
               "examples": {s: len(e) for s, e in per_split.items()}, "test_app_terms": TEST_APP_TERMS}
     (args.out / "report.json").write_text(json.dumps(report, indent=2))
